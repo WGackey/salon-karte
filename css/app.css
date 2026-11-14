@@ -103,7 +103,20 @@ input[type=date].input { width: auto; min-width: 190px; } input[type=file].input
 .toolbar { display: flex; flex-flow: row wrap; gap: 8px 14px; position: sticky; top: calc(123px + env(safe-area-inset-top)); z-index: 11; background: var(--bg); padding: 4px 0 8px; }
 .toolbar .chip { min-height: 44px; padding: 0 12px; font-size: .92rem; }
 .pads { display: flex; justify-content: center; gap: 16px; }
-.trow, .viewtools { display: contents; } .openfull { display: none; } .fullbtn { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.trow, .viewtools { display: contents; } .openfull { display: none; }
+/* 図の道具：見出し／症状（色つきの丸いボタン）／ペンの太さ（線が見える四角いボタン）。えらんだものは濃く */
+.tlabel { flex: 1 0 100%; font-size: .8rem; font-weight: 800; color: #5a524a; margin: 6px 0 -2px; letter-spacing: .04em; }
+.markbtn { min-height: 44px; padding: 0 14px 0 10px; border-radius: 24px; border: 2px solid var(--line); background: var(--card); display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.markbtn .dot { width: 20px; height: 20px; background: var(--c); }
+.markbtn.on { border-color: var(--c); background: var(--c); color: #fff; font-weight: 800; box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); } .markbtn.on .dot { background: #fff; }
+.widthbtn { min-height: 52px; min-width: 62px; padding: 6px 8px; border-radius: 8px; border: 2px solid var(--line); background: var(--card); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: .78rem; font-weight: 600; cursor: pointer; }
+.widthbtn .wline { width: 34px; border-radius: 99px; background: #6b6259; display: block; }
+.widthbtn.on { border-color: var(--ink); background: var(--ink); color: #fff; } .widthbtn.on .wline { background: #fff; }
+.zu.erasing .markbtn, .zu.erasing .widthbtn { opacity: .55; }
+.pennow { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 30px; margin-bottom: 6px; color: #5a524a; } .penline { width: 46px; border-radius: 99px; display: inline-block; opacity: .75; }
+.btn:disabled { opacity: .4; }
+.savebadge { display: block; font-size: .72rem; line-height: 1.2; font-weight: 700; color: var(--ok); } .savebadge.busy { color: var(--amber); }
+.hint.autosave { color: var(--ok); font-weight: 600; margin: 0; } .fullbtn { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 html.noscroll, html.noscroll body { overflow: hidden; }
 /* 図を画面いっぱいに（小さい画面でなぞりやすく） */
 .zu.full { position: fixed; inset: 0; z-index: 40; background: var(--bg); display: flex; flex-direction: column; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
@@ -160,14 +173,15 @@ html.noscroll, html.noscroll body { overflow: hidden; }
 
 /* 横向きの iPad：道具を左、図を右に（図が1画面におさまる） */
 @media (min-width: 900px) and (orientation: landscape) {
-  .zu { display: grid; grid-template-columns: 236px 1fr; gap: 16px; align-items: start; }
+  .zu { display: grid; grid-template-columns: 290px 1fr; gap: 16px; align-items: start; }
   .zu .toolbar { flex-flow: row wrap; align-content: flex-start; gap: 6px; background: none; padding: 0; top: calc(131px + env(safe-area-inset-top)); max-height: calc(100dvh - 222px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; }
-  .zu .toolbar .chips { gap: 6px; } .zu .toolbar .chip { min-height: 40px; padding: 0 10px; font-size: .88rem; }
+  .zu .toolbar .chips { gap: 6px; } .zu .toolbar .chip { min-height: 40px; padding: 0 10px; font-size: .88rem; } .zu .markbtn { min-height: 40px; padding: 0 10px 0 8px; font-size: .9rem; }
   .visit.haswarn .zu .toolbar { max-height: calc(100dvh - 256px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
   .zu.full .toolbar { max-height: none; }
   .visit.haswarn .zu .toolbar { top: calc(165px + env(safe-area-inset-top)); }
   .pads.both .bodypad { max-height: max(380px, calc(100dvh - 292px)); }
-  .zu.full { flex-direction: row; } .zu.full .toolbar { width: 236px; }
+  .zu.full { flex-direction: row; } .zu.full .toolbar { width: 290px; }
+  .zu .tlabel { margin: 2px 0 -2px; } .zu .widthbtn { min-height: 46px; }
 }
 /* iPhone など小さい画面：たて持ち・片手で通せるように */
 @media (max-width: 700px) {
@@ -198,6 +212,6 @@ html.noscroll, html.noscroll body { overflow: hidden; }
   .zu:not(.full) .openfull { display: flex; margin-bottom: 10px; } .zu:not(.full) .fullbtn { display: none; }
   .zu.full .trow { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 14px; flex: none; } .zu.full .trow::-webkit-scrollbar { display: none; }
   .zu.full .trow .chips { flex-wrap: nowrap; flex: none; gap: 6px; } .zu.full .toolbar .chip { flex: none; min-height: 44px; padding: 0 11px; font-size: .86rem; }
-  .zu.full .padname { display: none; }
+  .zu.full .padname { display: none; } .zu.full .tlabel { flex: none; align-self: center; margin: 0; } .zu.full .pennow { display: none; }
   .sheet-body { padding: 8px 14px 16px; } .dialog { padding: 18px; }
 }

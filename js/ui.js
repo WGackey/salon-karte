@@ -82,15 +82,23 @@ export function textarea(obj, key, { placeholder = '', onInput, rows = 3 } = {})
   return el;
 }
 // ひとつの画面のわく
-export function page({ title, sub, back, actions, body, footer, cls = '' }) {
+export function page({ title, sub, back, actions, body, footer, cls = '', badgeEl }) {
   return h('div', { class: 'page ' + cls },
     h('header', { class: 'bar' },
       back ? h('a', { class: 'back', href: back, 'aria-label': 'もどる' }, '‹ もどる') : h('span', { class: 'back' }),
-      h('div', { class: 'bar-title' }, h('h1', null, title), sub ? h('span', { class: 'sub' }, sub) : null),
+      h('div', { class: 'bar-title' }, h('h1', null, title), sub ? h('span', { class: 'sub' }, sub) : null, badgeEl || null),
       h('div', { class: 'bar-actions' }, actions || null)),
     h('main', { class: 'main' }, body),
     footer ? h('footer', { class: 'foot' }, footer) : null);
 }
+// 「自動で保存済み」のしるし。入力すると「保存しています…」→ 書き終わると「保存済み」に変わる
+export function saveBadge() {
+  const el = h('span', { class: 'savebadge' }, '✓ 自動で保存済み');
+  let seen = false;
+  const on = (e) => { if (el.isConnected) seen = true; else if (seen) { removeEventListener('savestate', on); return; } el.textContent = e.detail.busy ? '… 保存しています' : '✓ 自動で保存済み'; el.classList.toggle('busy', e.detail.busy); };
+  addEventListener('savestate', on); return el;
+}
+export const AUTO_NOTE = () => h('p', { class: 'hint autosave' }, '✓ この画面は、直すとすぐ自動で保存されます（保存ボタンはありません）。');
 export const card = (...kids) => h('section', { class: 'card' }, kids);
 export const badge = (text, cls = '') => h('span', { class: 'badge ' + cls }, text);
 export const go = (hash) => { location.hash = hash; };

@@ -1,4 +1,4 @@
-import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone } from '../ui.js';
+import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone, saveBadge } from '../ui.js';
 import { S, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
 import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits } from '../logic.js';
@@ -81,28 +81,49 @@ export async function visitView(id, step) {
     zu() {
       const marks = S.settings.marks; const tool = { mode: 'draw', mark: marks[0].id, width: 14 };
       const pads = {}; let view = isPhone() ? 'front' : 'both'; let zone = 'all'; let full = false;
-      const hist = []; // 取り消し用
+      const copy = () => JSON.parse(JSON.stringify(Object.fromEntries(FIGURES.map((f) => [f.id, v.figures[f.id] || []]))));
+      const atOpen = copy(); // この画面を開いたときの図（「開く前に戻す」用）
+      // したことの記録（「ひとつ戻す」用）。かいた・消しゴムで消した・ぜんぶ消した・開く前に戻した、のどれも1手として戻せる
+      const hist = [];
       const padBox = h('div', { class: 'pads' });
       const drawPads = () => {
         padBox.className = 'pads ' + view;
         fill(padBox, ...FIGURES.filter((f) => view === 'both' || view === f.id).map((f) => {
           v.figures[f.id] = v.figures[f.id] || [];
-          pads[f.id] = bodyPad({ kind: f.id, strokes: v.figures[f.id], marks, getTool: () => tool, onChange: () => { hist.push(f.id); save(); } });
+          pads[f.id] = bodyPad({ kind: f.id, strokes: v.figures[f.id], marks, getTool: () => tool, onChange: (act) => { hist.push({ ...act, fig: f.id }); sync(); save(); } });
           pads[f.id].setZone(view === 'both' ? 'all' : zone);
           return h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name), pads[f.id]);
         }));
       };
-      const markChips = chips(marks, tool.mark, { multi: false, cls: 'marks', onChange: (m) => { if (m) tool.mark = m; tool.mode = 'draw'; eraser.classList.remove('on'); syncMarks(); } });
-      const syncMarks = () => markChips.querySelectorAll('.chip').forEach((c, i) => c.classList.toggle('on', tool.mode === 'draw' && marks[i].id === tool.mark));
-      const eraser = btn('消しゴム', () => { tool.mode = tool.mode === 'erase' ? 'draw' : 'erase'; eraser.classList.toggle('on', tool.mode === 'erase'); syncMarks(); }, 'chip');
-      const undo = btn('ひとつ戻す', () => {
-        const f = hist.pop(); const k = f || FIGURES.map((x) => x.id).reverse().find((x) => (v.figures[x] || []).length);
-        if (!k) return; v.figures[k].pop(); pads[k] && pads[k].redraw(); save();
+      // えらぶボタン（もう一度押しても外れない）。症状＝色つきの丸いボタン、太さ＝線の太さが見える四角いボタン、と形を変えてある
+      const markBtns = marks.map((m) => h('button', { type: 'button', class: 'markbtn', style: { '--c': m.color }, onclick: () => { tool.mark = m.id; tool.mode = 'draw'; sync(); } }, h('span', { class: 'dot' }), m.name));
+      const WIDTHS = [[6, '細い'], [14, 'ふつう'], [26, '太い']];
+      const widthBtns = WIDTHS.map(([w, name]) => h('button', { type: 'button', class: 'widthbtn', onclick: () => { tool.width = w; tool.mode = 'draw'; sync(); } }, h('span', { class: 'wline', style: { height: Math.round(w * 0.6) + 'px' } }), name));
+      const now = h('div', { class: 'pennow' });
+      const eraser = btn('消しゴム（線をえらぶ）', () => { tool.mode = tool.mode === 'erase' ? 'draw' : 'erase'; sync(); }, 'chip');
+      const undo = btn('↩ ひとつ戻す', () => {
+        const a = hist.pop(); if (!a) return;
+        if (a.type === 'add') { const arr = v.figures[a.fig]; const i = arr.lastIndexOf(a.stroke); if (i >= 0) arr.splice(i, 1); }
+        else if (a.type === 'erase') v.figures[a.fig].splice(Math.min(a.index, v.figures[a.fig].length), 0, a.stroke); // 消しゴムで消した線を、元の場所に戻す
+        else if (a.type === 'all') for (const f of FIGURES) v.figures[f.id] = a.before[f.id];
+        drawPads(); sync(); save();
+        toast(a.type === 'add' ? 'かいた線を1本、取り消しました' : a.type === 'erase' ? '消しゴムで消した線を戻しました' : '元に戻しました');
       }, 'chip');
+      const replaceAll = (next) => { hist.push({ type: 'all', before: copy() }); for (const f of FIGURES) v.figures[f.id] = next[f.id]; drawPads(); sync(); save(); };
       const clear = btn('ぜんぶ消す', async () => {
-        if (!(await confirmDlg('図にかいた線をぜんぶ消します。', '消す', true))) return;
-        for (const f of FIGURES) v.figures[f.id] = []; hist.length = 0; drawPads(); save();
-      }, 'chip');
+        if (!(await confirmDlg('図にかいた線をぜんぶ消します。（「ひとつ戻す」で元に戻せます）', '消す', true))) return;
+        replaceAll(Object.fromEntries(FIGURES.map((f) => [f.id, []]))); }, 'chip');
+      const revert = btn('開く前に戻す', async () => {
+        if (!(await confirmDlg('この画面を開いたあとにかいた・消した分をやめて、開く前の図に戻します。（「ひとつ戻す」で元に戻せます）', '開く前に戻す', true))) return;
+        replaceAll(JSON.parse(JSON.stringify(atOpen))); }, 'chip');
+      const sync = () => {
+        const er = tool.mode === 'erase'; const m = marks.find((x) => x.id === tool.mark) || marks[0];
+        markBtns.forEach((b, i) => b.classList.toggle('on', !er && marks[i].id === tool.mark));
+        widthBtns.forEach((b, i) => b.classList.toggle('on', !er && WIDTHS[i][0] === tool.width));
+        eraser.classList.toggle('on', er); eraser.textContent = er ? '✓ 消しゴム中（線にさわる）' : '消しゴム（線をえらぶ）';
+        undo.disabled = hist.length === 0; root.classList.toggle('erasing', er);
+        fill(now, er ? h('b', null, 'いま：消しゴム') : [h('span', { class: 'small' }, 'いまのペン'), h('span', { class: 'penline', style: { background: m.color, height: Math.round(tool.width * 0.6) + 'px' } }), h('b', null, m.name)]);
+      };
       // 見え方（ならべる・前だけ・後ろだけ）と、大きくするところ（全体・上半身・下半身）
       const viewBox = h('div', { class: 'viewtools' });
       const drawView = () => fill(viewBox,
@@ -116,16 +137,17 @@ export async function visitView(id, step) {
         if (on && isPhone() && view === 'both') { view = 'front'; drawView(); drawPads(); }
         if (!on) scrollTo(0, 0);
       };
-      drawPads(); drawView(); setFull(false);
-      // 道具は3つのまとまり（色／太さ・消す／見え方）。小さい画面の「画面いっぱい」では、1まとまり＝横に流せる1行になる
+      drawPads(); drawView(); setFull(false); sync();
+      const label = (t) => h('div', { class: 'tlabel' }, t);
+      // 道具は見出しつきの3つのまとまり。小さい画面の「画面いっぱい」では、1まとまり＝横に流せる1行になる
       fill(root,
         h('div', { class: 'toolbar' },
-          h('div', { class: 'trow' }, markChips),
-          h('div', { class: 'trow' }, chips([{ id: 6, name: '細い' }, { id: 14, name: 'ふつう' }, { id: 26, name: '太い' }], tool.width, { multi: false, onChange: (w) => { tool.width = w || 14; } }),
-            h('div', { class: 'chips' }, eraser, undo, clear)),
-          h('div', { class: 'trow' }, h('div', { class: 'chips' }, fullBtn), viewBox)),
-        h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), padBox,
-          h('p', { class: 'hint center' }, '指でもペンでもなぞれます。色をえらんでから、つらいところをなぞってね。「上半身」「下半身」で大きくできます。')));
+          h('div', { class: 'trow' }, label('症状（色）'), h('div', { class: 'chips' }, markBtns)),
+          h('div', { class: 'trow' }, label('ペンの太さ'), h('div', { class: 'chips widths' }, widthBtns), label('直す'), h('div', { class: 'chips' }, undo, eraser, clear, revert)),
+          h('div', { class: 'trow' }, label('見え方'), h('div', { class: 'chips' }, fullBtn), viewBox)),
+        h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), now, padBox,
+          h('p', { class: 'hint center' }, '「症状（色）」と「ペンの太さ」をえらんで、つらいところをなぞってね。指でもペンでもかけます。かいた線は自動で保存されます。'),
+          h('p', { class: 'hint center' }, '「ひとつ戻す」＝直前にしたこと（かいた・消した）を1つ取り消す。「消しゴム」＝前にかいた線でも、さわった線だけ消す。')));
       return root;
     },
     // ---------- オイルの候補（精油・キャリアオイル） ----------
@@ -313,18 +335,18 @@ export async function visitView(id, step) {
 
   const finish = async () => {
     v.status = 'done'; v.copied = false; saveSoon(null); await saveVisit(v); await recount(p.id);
-    toast('カルテを保存しました'); go(`#/c/${p.id}`);
+    toast('カルテをとじました（保存済み）'); go(`#/c/${p.id}`);
   };
   const nav = h('nav', { class: 'steps' }, STEPS.map(([k, name], i) => h('a', { class: 'stepbtn' + (k === step ? ' on' : ''), href: `#/v/${id}/${k}` }, h('span', { class: 'num' }, String(i + 1)), name)));
   const warn = [...det.conds, ...v.conds].map(condName).filter(Boolean);
   const hasAllergy = !!det.allergy || (det.allergyTags || []).length > 0; const hasWarn = warn.length > 0 || hasAllergy;
   return page({
-    cls: 'visit' + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ・自動で保存）' : ''}`, back: `#/c/${p.id}`,
+    cls: 'visit' + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ）' : ''}`, badgeEl: saveBadge(), back: `#/c/${p.id}`,
     body: [hasWarn ? h('div', { class: 'visit-warn' }, '⚠ ' + [...new Set(warn), hasAllergy ? 'アレルギーあり' : ''].filter(Boolean).join('・')) : null, nav, body],
     footer: [
       idx > 0 ? h('a', { class: 'btn big', href: `#/v/${id}/${STEPS[idx - 1][0]}` }, '‹ 前へ') : h('span'),
       idx < STEPS.length - 1 ? h('a', { class: 'btn primary big grow', href: `#/v/${id}/${STEPS[idx + 1][0]}` }, `次へ：${STEPS[idx + 1][1]} ›`)
-        : btn('カルテを保存して終わる', finish, 'primary big grow'),
+        : btn('できた（カルテをとじる）', finish, 'primary big grow'),
     ],
   });
 }

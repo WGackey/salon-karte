@@ -1,4 +1,4 @@
-import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE } from '../ui.js';
+import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, AUTO_NOTE } from '../ui.js';
 import { S, saveSettings, saveMaster, deleteMaster, reload } from '../state.js';
 import * as db from '../db.js';
 import { todayStr, daysBetween, ymd, jpDate, TRAITS } from '../logic.js';
@@ -45,7 +45,7 @@ export function oilsView() {
   }));
   draw();
   return page({ title: '精油の一覧と手持ち', back: '#/set', actions: h('a', { class: 'btn', href: '#/set/oil/new' }, '＋ 足す'),
-    body: [DRAFT_NOTE(), h('p', { class: 'hint' }, '持っている精油の右のボタンを押すと「手持ち」になります。名前を押すと中身を直せます。'), list] });
+    body: [DRAFT_NOTE(), h('p', { class: 'hint' }, '持っている精油の右のボタンを押すと「手持ち」になります（すぐ保存されます）。名前を押すと中身を直せます。'), list] });
 }
 export function oilEditView(id) {
   const isNew = id === 'new';
@@ -83,7 +83,7 @@ function simpleList({ title, back, items, fields, blank, onSave, onDelete, hint,
     fields.map((f) => f(it, () => onSave(it))),
     btn('×', async () => { if (await confirmDlg(`「${it.name || '（名前なし）'}」を消します。`, '消す', true)) { await onDelete(it); draw(); } }, 'ghost round'))));
   draw();
-  return page({ title, back, body: [hint ? h('p', { class: 'hint' }, hint) : null, list, h('div', { class: 'row' }, btn('＋ 足す', async () => { await onSave(blank()); draw(); })), extra || null] });
+  return page({ title, back, body: [AUTO_NOTE(), hint ? h('p', { class: 'hint' }, hint) : null, list, h('div', { class: 'row' }, btn('＋ 足す', async () => { await onSave(blank()); draw(); })), extra || null] });
 }
 const nameField = (ph) => (it, save) => input(it, 'name', { placeholder: ph, onInput: save, cls: 'grow' });
 
@@ -99,7 +99,7 @@ export function carriersView() {
   }));
   draw();
   return page({ title: 'キャリアオイルの一覧と手持ち', back: '#/set', actions: h('a', { class: 'btn', href: '#/set/carrier/new' }, '＋ 足す'),
-    body: [DRAFT_NOTE(), h('p', { class: 'hint' }, '持っているオイルの右のボタンを押すと「手持ち」になります。名前を押すと中身を直せます。'), list] });
+    body: [DRAFT_NOTE(), h('p', { class: 'hint' }, '持っているオイルの右のボタンを押すと「手持ち」になります（すぐ保存されます）。名前を押すと中身を直せます。'), list] });
 }
 export function carrierEditView(id) {
   const isNew = id === 'new';
@@ -150,7 +150,7 @@ export function fatsView() {
   draw();
   return page({
     title: 'キャリアオイルの成分', back: '#/set', body: [
-      DRAFT_NOTE(),
+      DRAFT_NOTE(), AUTO_NOTE(),
       h('p', { class: 'hint' }, '「向いている肌の状態」にえらんだものが問診にあると、その成分が多いキャリアオイルが候補に上がります。オイルごとの割合は 設定 → キャリアオイルの一覧 で直せます。'),
       box,
     ],
@@ -174,6 +174,7 @@ export function limitsView() {
   drawAreas();
   return page({
     title: '濃度の目安・1滴の量', back: '#/set', body: [
+      AUTO_NOTE(),
       h('div', { class: 'notice draft' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 1％・顔 0.5％」は、よく言われている目安の下書きです。自分の資料で確かめて直してください（数字を直すと「下書き」のしるしが外れます）。空けたところは「目安なし」になります。'),
       card(h('h2', null, '濃度の出し方'), h('p', null, '濃度（％）＝ 精油の量 ÷ キャリアオイルの量 × 100'), h('p', { class: 'hint' }, '例：キャリアオイル 30ml に、精油 6滴（1滴 0.05ml なら 0.3ml）→ 1％。「この量なら○滴まで」も同じ式で出しています。')),
       card(h('h2', null, '部位ごとの上限'), areaBox, h('div', { class: 'row' }, btn('＋ 部位を足す', () => { st.areas.push({ id: db.uid(), name: '', max: null }); save(); drawAreas(); }))),
@@ -189,7 +190,7 @@ export function catsView() {
   const st = S.settings;
   return page({
     title: '成分の分類', back: '#/set', body: [
-      DRAFT_NOTE(),
+      DRAFT_NOTE(), AUTO_NOTE(),
       h('p', { class: 'hint' }, '「向いている場面」にえらんだ症状が問診にあると、その成分が多い精油が候補に上がります。「気をつける状態」にあてはまるお客さんには、その成分が多い精油を外して理由を見せます。'),
       card(h('div', { class: 'row tight' }, '気をつける成分が', numIn(st, 'cautionPct', { onInput: () => saveSettings() }), '％以上入っている精油を外す')),
       S.cats.map((c) => {
@@ -226,6 +227,7 @@ export function listsView() {
   };
   return page({
     title: 'えらぶ言葉を直す', back: '#/set', body: [
+      AUTO_NOTE(),
       named('symptoms', 'つらいところ（症状）', '足した症状は、設定 → 成分の分類 や 精油 で「向いている場面」にえらぶと、候補に使われます。', () => ({ id: db.uid(), name: '' })),
       named('skins', '肌の状態', '問診でえらぶ言葉。足したものは、設定 → キャリアオイルの成分 や キャリアオイル で「向いている肌の状態」にえらぶと、候補に使われます。', () => ({ id: db.uid(), name: '' })),
       named('allergens', 'アレルギーのしるし', '右のらんは「アレルギーの欄にこの言葉が書いてあったら、あてはまるとみなす」言葉です（「、」で区切る）。', () => ({ id: db.uid(), name: '', words: '' })),
@@ -237,7 +239,7 @@ export function listsView() {
   });
 }
 export function salonView() {
-  return page({ title: 'お店の名前', back: '#/set', body: card(field('ホームの上に出る名前', input(S.settings, 'salonName', { onInput: () => saveSettings(), placeholder: '例：〇〇サロン' }))) });
+  return page({ title: 'お店の名前', back: '#/set', body: [AUTO_NOTE(), card(field('ホームの上に出る名前', input(S.settings, 'salonName', { onInput: () => saveSettings(), placeholder: '例：〇〇サロン' })))] });
 }
 
 // ---- バックアップ ----

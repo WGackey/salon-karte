@@ -97,8 +97,10 @@ export async function recount(customerId) {
 }
 
 // ---- 保存の後回し（入力のたびに書くと重いので、少しまとめて書く） ----
+// 画面には「保存しています…／保存済み」を出す（saveState の合図）
 let pending = null; let timer = null;
-export function saveSoon(fn) { pending = fn; clearTimeout(timer); timer = setTimeout(flush, 400); }
-export async function flush() { clearTimeout(timer); const f = pending; pending = null; if (f) await f(); }
+const tell = (busy) => dispatchEvent(new CustomEvent('savestate', { detail: { busy } }));
+export function saveSoon(fn) { pending = fn; clearTimeout(timer); if (fn) { tell(true); timer = setTimeout(flush, 400); } else tell(false); }
+export async function flush() { clearTimeout(timer); const f = pending; pending = null; if (f) { try { await f(); } finally { if (!pending) tell(false); } } }
 addEventListener('pagehide', flush);
 document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });

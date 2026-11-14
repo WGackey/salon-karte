@@ -1,6 +1,9 @@
 // はじめに入れておく中身。すべて「下書き」で、アプリの中で直せる。
 // 精油の成分の割合は、一般に知られているおおよその値。自信のないところは空けてある（null）。
 // 本や教科書の表を写したものではない。使う人が自分の資料で確かめて直す前提。
+// 日に当たると肌に出やすい精油（柑橘の皮など）を外すための項目。言葉は がっき〜に確かめ中 → 変えるときはここと、db.js の移し替えに1つ足す
+export const SUN_NAME_OLD = ['このあと日に当たる'];
+export const SUN_NAME = 'このあと屋外で過ごす予定がある（外出・屋外作業など）';
 export const DEFAULT_SETTINGS = {
   salonName: '',
   dropMl: 0.05, // 1滴の量（ml）
@@ -20,7 +23,7 @@ export const DEFAULT_SETTINGS = {
   ].map(([id, name]) => ({ id, name })),
   conds: [
     { id: 'c_preg', name: '妊娠中', when: 'visit' }, { id: 'c_nurse', name: '授乳中', when: 'visit' },
-    { id: 'c_mens', name: '月経中', when: 'visit' }, { id: 'c_sun', name: 'このあと日に当たる', when: 'visit' },
+    { id: 'c_mens', name: '月経中', when: 'visit' }, { id: 'c_sun', name: SUN_NAME, when: 'visit' },
     { id: 'c_bp', name: '高血圧', when: 'person' }, { id: 'c_heart', name: '心臓の持病', when: 'person' },
     { id: 'c_epi', name: 'てんかん', when: 'person' }, { id: 'c_asthma', name: 'ぜんそく', when: 'person' },
     { id: 'c_skin', name: '敏感肌', when: 'person' }, { id: 'c_dep', name: '気分の落ちこみが強い', when: 'person' },

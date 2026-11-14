@@ -45,7 +45,7 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
   const eraseAt = ([x, y]) => {
     for (let i = strokes.length - 1; i >= 0; i--) {
       const s = strokes[i], r = s.w / 2 + 8;
-      for (let j = 0; j < s.p.length; j += 2) if (Math.abs(s.p[j] - x) < r && Math.abs(s.p[j + 1] - y) < r) { strokes.splice(i, 1); redraw(); onChange(); return; }
+      for (let j = 0; j < s.p.length; j += 2) if (Math.abs(s.p[j] - x) < r && Math.abs(s.p[j + 1] - y) < r) { strokes.splice(i, 1); redraw(); onChange({ type: 'erase', index: i, stroke: s }); return; }
     }
   };
   svg.addEventListener('pointerdown', (e) => {
@@ -70,7 +70,7 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
   const end = (e) => {
     if (e.pointerType === 'pen') penDown = false;
     if (e.pointerId !== activeId) return; activeId = null;
-    if (cur && cur !== 'erase') { strokes.push(cur); onChange(); }
+    if (cur && cur !== 'erase') { strokes.push(cur); onChange({ type: 'add', stroke: cur }); }
     cur = null; curEl = null;
   };
   svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);

@@ -51,7 +51,7 @@ test('候補：気をつける状態にあたる精油は消さずに、理由�
   const by = Object.fromEntries(r.map((x) => [x.oil.id, x]));
   assert.ok(by.o_clary.blocks.some((t) => t.includes('妊娠中')));
   assert.ok(by.o_peppermint.blocks.some((t) => t.includes('ケトン類')));
-  assert.ok(by.o_bergamot.blocks.some((t) => t.includes('日に当たる')));
+  assert.ok(by.o_bergamot.blocks.some((t) => t.includes('屋外で過ごす')));
   assert.equal(by.o_lavender.blocks.length, 0);
 });
 test('候補：アレルギーの欄・避ける精油', () => {
@@ -95,6 +95,13 @@ test('版2への移し替え：前の版のキャリアオイル（名前と手�
   assert.deepEqual(d.stores.details[0].allergyTags, []); assert.equal(d.stores.details[0].allergy, 'ナッツ');
   assert.deepEqual(d.stores.visits[0].interview.skins, []); assert.equal(d.stores.visits[0].interview.symptoms.length, 1); assert.equal(d.stores.visits[0].blend.carriers[0].ml, 30);
   assert.deepEqual(migrateDump(d, MIGRATIONS, DATA_VERSION).stores.carriers, d.stores.carriers, '2回かけても変わらない');
+});
+test('版3への移し替え：問診の言葉「このあと日に当たる」を直す。自分で直した言葉はさわらない', () => {
+  const mk = (name) => ({ dataVersion: 2, stores: { meta: [{ key: 'settings', value: { conds: [{ id: 'c_preg', name: '妊娠中', when: 'visit' }, { id: 'c_sun', name, when: 'visit' }] } }, { key: 'nextNo', value: 5 }] } });
+  const d = migrateDump(mk('このあと日に当たる'), MIGRATIONS, DATA_VERSION);
+  assert.equal(d.stores.meta[0].value.conds[1].name, DEFAULT_SETTINGS.conds.find((c) => c.id === 'c_sun').name); assert.ok(d.stores.meta[0].value.conds[1].name.includes('屋外'));
+  assert.equal(d.stores.meta[0].value.conds[0].name, '妊娠中'); assert.deepEqual(d.stores.meta[1], { key: 'nextNo', value: 5 });
+  assert.equal(migrateDump(mk('外に出る予定'), MIGRATIONS, DATA_VERSION).stores.meta[0].value.conds[1].name, '外に出る予定');
 });
 test('はじめのデータ：キャリアオイルは知らない成分・肌の状態・目的・アレルギーを指していない。割合は100以下', () => {
   const st = DEFAULT_SETTINGS; const fats = new Set(st.fats.map((f) => f.id)), sk = new Set(st.skins.map((f) => f.id)), al = new Set(st.allergens.map((f) => f.id));

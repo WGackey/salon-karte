@@ -1,7 +1,7 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
-import { DEFAULT_CARRIERS } from './seed.js';
+import { DEFAULT_CARRIERS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends'];
 const IDB_VERSION = 1;
 let DB_NAME = 'salon-karte';
@@ -22,6 +22,13 @@ export const MIGRATIONS = [
       visits: (r) => ({ ...r, interview: { skins: [], ...(r.interview || {}) } }),
     },
     add: { carriers: DEFAULT_CARRIERS },
+  },
+  { // 版3：問診の言葉「このあと日に当たる」を分かりやすく。使う人が自分で直していたら、さわらない
+    to: 3,
+    stores: {
+      meta: (r) => (r.key === 'settings' && r.value && Array.isArray(r.value.conds)
+        ? { ...r, value: { ...r.value, conds: r.value.conds.map((c) => (c.id === 'c_sun' && SUN_NAME_OLD.includes(c.name) ? { ...c, name: SUN_NAME } : c)) } } : r),
+    },
   },
 ];
 
@@ -107,7 +114,8 @@ export async function migrateDb(list = MIGRATIONS, target = DATA_VERSION) {
     const tx = db.transaction(STORES, 'readwrite');
     for (const [name, fn] of Object.entries(m.stores || {})) {
       const os = tx.objectStore(name);
-      os.openCursor().onsuccess = (e) => { const c = e.target.result; if (c) { c.update(fn(c.value)); c.continue(); } };
+      // 変わらなかったものは書き直さない。版の番号の行にはさわらない（下で書く新しい番号を、古い値で上書きしないため）
+      os.openCursor().onsuccess = (e) => { const c = e.target.result; if (!c) return; if (!(name === 'meta' && c.value.key === 'dataVersion')) { const nv = fn(c.value); if (nv !== c.value) c.update(nv); } c.continue(); };
     }
     for (const [name, rows] of Object.entries(m.add || {})) for (const r of rows) tx.objectStore(name).add(JSON.parse(JSON.stringify(r))).onerror = (e) => { e.preventDefault(); e.stopPropagation(); }; // もうあるものはそのまま
     tx.objectStore('meta').put({ key: 'dataVersion', value: m.to });
