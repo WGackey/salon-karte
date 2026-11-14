@@ -20,6 +20,7 @@ const DETAIL = {
   front: '<path d="M128 116q12 8 20 4M172 116q-12 8 -20 4M176 440q8 8 16 0M108 440q8 8 16 0M118 186q14 10 28 2M182 186q-14 10 -28 2"/><circle cx="150" cy="270" r="2.5"/>',
   back: '<path d="M150 96V300" stroke-dasharray="5 6"/><path d="M118 150q8 34 24 44M182 150q-8 34 -24 44M112 330q20 22 38 0q18 22 38 0M108 448h18M174 448h18"/>',
 };
+export const ZONES = { all: '15 5 270 628', top: '15 5 270 350', bottom: '15 290 270 343' };
 export const FIGURES = [{ id: 'front', name: '前' }, { id: 'back', name: '後ろ' }];
 function el(tag, attrs) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
 const pathOf = (p) => { let d = `M${p[0]} ${p[1]}`; if (p.length === 2) d += `l0.1 0`; for (let i = 2; i < p.length; i += 2) d += `L${p[i]} ${p[i + 1]}`; return d; };
@@ -31,6 +32,8 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
   svg.innerHTML = `<g transform="translate(150 0) scale(1.22 1) translate(-150 0)"><g class="fig"><ellipse cx="150" cy="47" rx="23" ry="34"/><path d="${OUTLINE}"/></g><g class="fig-detail">${DETAIL[kind]}</g></g>
     <text x="50" y="40" class="fig-lr">${left}</text><text x="250" y="40" class="fig-lr">${right}</text><g class="strokes"></g>`;
   const layer = svg.querySelector('.strokes');
+  // 小さい画面用：上半身・下半身だけを大きく出す（線の位置は図の座標のままなので、ずれない）
+  svg.setZone = (z) => svg.setAttribute('viewBox', ZONES[z] || ZONES.all);
   const color = (m) => (marks.find((x) => x.id === m) || { color: '#888' }).color;
   const drawOne = (s) => { const p = el('path', { d: pathOf(s.p), stroke: color(s.m), 'stroke-width': s.w }); layer.append(p); return p; };
   const redraw = () => { layer.replaceChildren(); strokes.forEach(drawOne); };

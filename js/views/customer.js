@@ -2,6 +2,7 @@ import { h, fill, page, card, btn, badge, go, chips, field, group, input, textar
 import { S, blankCustomer, saveCustomer, deleteCustomer, person, visitsOf, newVisit } from '../state.js';
 import * as db from '../db.js';
 import { ageOf, jpDate, todayStr, addDays } from '../logic.js';
+const allergenName = (id) => (S.settings.allergens.find((c) => c.id === id) || {}).name || '';
 import { bodyPad, FIGURES } from '../bodymap.js';
 
 const condName = (id) => (S.settings.conds.find((c) => c.id === id) || {}).name || '';
@@ -49,6 +50,9 @@ export async function customerFormView(id) {
   };
   const avoidWrap = h('details', { class: 'fold' }, h('summary', null, `避ける精油をえらぶ（いま ${det.avoidOilIds.length} 本）`),
     chips(S.oils, det.avoidOilIds, { onChange: (v) => { det.avoidOilIds = v; avoidWrap.querySelector('summary').textContent = `避ける精油をえらぶ（いま ${v.length} 本）`; } }));
+  det.avoidCarrierIds = det.avoidCarrierIds || [];
+  const avoidCarWrap = h('details', { class: 'fold' }, h('summary', null, `避けるキャリアオイルをえらぶ（いま ${det.avoidCarrierIds.length} 種類）`),
+    chips(S.carriers, det.avoidCarrierIds, { onChange: (v) => { det.avoidCarrierIds = v; avoidCarWrap.querySelector('summary').textContent = `避けるキャリアオイルをえらぶ（いま ${v.length} 種類）`; } }));
   return page({
     title: id ? 'お客さんの情報を直す' : '新しいお客さん', back: id ? `#/c/${id}` : '#/',
     body: [
@@ -61,8 +65,9 @@ export async function customerFormView(id) {
       card(h('h2', null, '気をつけること'),
         group('からだの状態', chips(personConds, det.conds, { onChange: (v) => { det.conds = v; } }), '精油の候補と濃度の目安に使います。妊娠中・月経中は、来店ごとの問診でえらびます'),
         field('これまでの病気・けが', textarea(det, 'history')),
-        field('アレルギー', textarea(det, 'allergy', { placeholder: '例：ナッツ、ラベンダー' }), '精油の名前が書いてあると、その精油は候補から外して知らせます'),
-        avoidWrap,
+        group('アレルギー（あてはまるものを押す）', chips(S.settings.allergens, det.allergyTags || [], { onChange: (v) => { det.allergyTags = v; } }), 'あてはまる原料のキャリアオイルは、候補から外して知らせます'),
+        field('アレルギー（そのほか・くわしく）', textarea(det, 'allergy', { placeholder: '例：ナッツ、ラベンダー' }), '精油やオイルの原料の名前が書いてあると、候補から外して知らせます'),
+        avoidWrap, avoidCarWrap,
         field('ほかで受けた施術', textarea(det, 'experience'))),
       card(h('h2', null, '連絡先'),
         h('div', { class: 'grid2' }, field('電話', input(det, 'tel', { type: 'tel' })), field('メール', input(det, 'email', { type: 'email' })),
@@ -83,7 +88,7 @@ export async function customerView(id) {
   const det = (await db.get('details', id)) || blankCustomer().det;
   const t0 = performance.now(); const visits = await visitsOf(id); S.lastOpenMs = performance.now() - t0;
   const last = visits.find((v) => v.status === 'done') || visits[0];
-  const age = ageOf(det.birth);
+  const age = ageOf(det.birth); const tags = (det.allergyTags || []).map(allergenName).filter(Boolean);
   const warns = [...det.conds.map(condName), ...(last ? last.conds.filter((c) => c !== 'c_sun' && c !== 'c_mens').map((c) => condName(c) + '（前回）') : [])].filter(Boolean);
 
   const start = async () => {
@@ -98,10 +103,10 @@ export async function customerView(id) {
     title: p.name, sub: [p.kana, `No.${p.no}`, det.gender, age != null ? `${age}歳` : '', det.job].filter(Boolean).join('・'),
     back: '#/', actions: h('a', { class: 'btn ghost', href: `#/c/${id}/edit` }, '情報を直す'),
     body: [
-      (warns.length || det.allergy || det.history) ? h('div', { class: 'warnbox' },
+      (warns.length || det.allergy || tags.length || det.history) ? h('div', { class: 'warnbox' },
         h('strong', null, '⚠ 気をつけること'),
         warns.length ? h('div', { class: 'chips' }, warns.map((w) => badge(w, 'warn'))) : null,
-        det.allergy ? h('p', null, h('b', null, 'アレルギー：'), det.allergy) : null,
+        det.allergy || tags.length ? h('p', null, h('b', null, 'アレルギー：'), [...tags, det.allergy].filter(Boolean).join('／')) : null,
         det.history ? h('p', null, h('b', null, 'これまでの病気・けが：'), det.history) : null) : null,
       last ? card(h('h2', null, `前回（${jpDate(last.date)}）`, last.status === 'draft' ? badge('書きかけ', 'amber') : null),
         h('div', { class: 'last' },

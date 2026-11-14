@@ -11,7 +11,7 @@ const ROUTES = [
   [/^\/c\/([^/]+)$/, customerView], [/^\/c\/([^/]+)\/edit$/, customerFormView],
   [/^\/v\/([^/]+)\/([^/]+)$/, visitView],
   [/^\/set$/, st.settingsView], [/^\/set\/oils$/, st.oilsView], [/^\/set\/oil\/([^/]+)$/, st.oilEditView],
-  [/^\/set\/carriers$/, st.carriersView], [/^\/set\/menus$/, st.menusView], [/^\/set\/limits$/, st.limitsView],
+  [/^\/set\/carriers$/, st.carriersView], [/^\/set\/carrier\/([^/]+)$/, st.carrierEditView], [/^\/set\/fats$/, st.fatsView], [/^\/set\/menus$/, st.menusView], [/^\/set\/limits$/, st.limitsView],
   [/^\/set\/cats$/, st.catsView], [/^\/set\/lists$/, st.listsView], [/^\/set\/salon$/, st.salonView],
   [/^\/set\/backup$/, st.backupView], [/^\/set\/sample$/, st.sampleView], [/^\/set\/about$/, st.aboutView],
 ];
@@ -29,6 +29,7 @@ async function render() {
     view = page({ title: 'うまく開けませんでした', back: '#/', body: h('div', { class: 'notice red' }, 'この画面を開くときに問題が起きました。もう一度ためしてね。（' + e.message + '）') });
   }
   if (my !== seq) return;
+  document.documentElement.classList.remove('noscroll'); // 図の「画面いっぱい」のまま移ったときのため
   root.replaceChildren(view); scrollTo(0, 0);
 }
 addEventListener('hashchange', render);
@@ -38,7 +39,7 @@ boot().then(render).catch((e) => {
   root.replaceChildren(h('div', { class: 'notice red pad' }, 'データを開けませんでした。Safari の「プライベートブラウズ」では保存できません。ふつうの画面で開き直してね。（' + e.message + '）'));
 });
 
-// ネットなしでも動くように、アプリのファイルを iPad に置いておく係
+// ネットなしでも動くように、アプリのファイルを端末に置いておく係
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   navigator.serviceWorker.register('./sw.js').then((reg) => {
     const offer = (w) => {

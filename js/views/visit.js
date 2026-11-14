@@ -1,19 +1,20 @@
-import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet } from '../ui.js';
+import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone } from '../ui.js';
 import { S, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
-import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils } from '../logic.js';
+import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits } from '../logic.js';
 import { bodyPad, FIGURES } from '../bodymap.js';
 import { notFound, blendText } from './customer.js';
 
-const STEPS = [['monshin', '問診'], ['zu', 'からだの図'], ['seiyu', '精油'], ['blend', 'ブレンド'], ['sejutsu', '施術'], ['after', '施術後']];
+const STEPS = [['monshin', '問診'], ['zu', 'からだの図'], ['seiyu', 'オイル'], ['blend', 'ブレンド'], ['sejutsu', '施術'], ['after', '施術後']];
 const fam = (id) => S.settings.families.find((f) => f.id === id) || { name: '', color: '#bbb' };
 const symName = (id) => (S.settings.symptoms.find((c) => c.id === id) || {}).name || '（消した症状）';
 const condName = (id) => (S.settings.conds.find((c) => c.id === id) || {}).name || '';
+const skinName = (id) => (S.settings.skins.find((c) => c.id === id) || {}).name || '';
 const fmt = (n) => (Math.round(n * 100) / 100).toString();
 
 // つらさ（1〜10）をえらぶボタン。zero=true なら 0 から
 function levelPicker(value, onPick, zero = false) {
-  const wrap = h('div', { class: 'levels', role: 'group' });
+  const wrap = h('div', { class: 'levels' + (zero ? ' zero' : ''), role: 'group' });
   for (let i = zero ? 0 : 1; i <= 10; i++) {
     const b = h('button', { type: 'button', class: 'lv' + (i === value ? ' on' : ''), style: { '--lv': i } }, String(i));
     b.onclick = () => { wrap.querySelectorAll('.lv').forEach((x) => x.classList.toggle('on', x === b)); onPick(i); };
@@ -36,7 +37,15 @@ export async function visitView(id, step) {
   const body = h('div', { class: 'step' });
   const redraw = () => fill(body, ...[].concat(RENDER[step]()));
   const picks = () => pickOils({ oils: S.oils, cats: S.cats, symptoms: v.interview.symptoms, condIds: condIds(), avoidOilIds: det.avoidOilIds, allergyText: det.allergy, settings: S.settings });
+  const carPicks = () => pickCarriers({ carriers: S.carriers, skins: v.interview.skins || [], purposes: v.interview.purposes, condIds: condIds(), allergyTags: det.allergyTags, allergyText: det.allergy, avoidIds: det.avoidCarrierIds, settings: S.settings });
+  const allergyNames = () => { const hit = allergyHits(S.settings.allergens, det.allergyTags, det.allergy); return S.settings.allergens.filter((a) => hit[a.id]).map((a) => a.name); };
   const hasOil = (oid) => v.blend.oils.some((o) => o.oilId === oid);
+  const hasCar = (cid) => v.blend.carriers.some((c) => c.carrierId === cid);
+  const toggleCar = (c) => {
+    if (hasCar(c.id)) v.blend.carriers = v.blend.carriers.filter((x) => x.carrierId !== c.id);
+    else v.blend.carriers.push({ carrierId: c.id, name: c.name, ml: v.blend.carriers.length ? 0 : 30 });
+    save();
+  };
   const toggleOil = (oil) => {
     if (hasOil(oil.id)) v.blend.oils = v.blend.oils.filter((o) => o.oilId !== oil.id);
     else v.blend.oils.push({ oilId: oil.id, name: oil.name, drops: 1 });
@@ -60,7 +69,9 @@ export async function visitView(id, step) {
           chips(S.settings.symptoms, iv.symptoms.map((s) => s.id), {
             onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); save(); },
           }), symBox),
-        card(group('今日の目的', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; save(); } })),
+        card(group('肌の状態', chips(S.settings.skins, iv.skins || [], { onChange: (x) => { iv.skins = x; save(); } }),
+          'キャリアオイルの候補に使います。敏感肌・アレルギーは「お客さんの情報」でえらびます'),
+          group('今日の目的', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; save(); } })),
           group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; save(); } })),
           field('くらしのようす（睡眠・食事・仕事など）', textarea(iv, 'life', { onInput: save })),
           field('今日のメモ', textarea(iv, 'memo', { onInput: save, rows: 2 }))),
@@ -69,7 +80,7 @@ export async function visitView(id, step) {
     // ---------- からだの図 ----------
     zu() {
       const marks = S.settings.marks; const tool = { mode: 'draw', mark: marks[0].id, width: 14 };
-      const pads = {}; let view = 'both';
+      const pads = {}; let view = isPhone() ? 'front' : 'both'; let zone = 'all'; let full = false;
       const hist = []; // 取り消し用
       const padBox = h('div', { class: 'pads' });
       const drawPads = () => {
@@ -77,6 +88,7 @@ export async function visitView(id, step) {
         fill(padBox, ...FIGURES.filter((f) => view === 'both' || view === f.id).map((f) => {
           v.figures[f.id] = v.figures[f.id] || [];
           pads[f.id] = bodyPad({ kind: f.id, strokes: v.figures[f.id], marks, getTool: () => tool, onChange: () => { hist.push(f.id); save(); } });
+          pads[f.id].setZone(view === 'both' ? 'all' : zone);
           return h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name), pads[f.id]);
         }));
       };
@@ -91,69 +103,98 @@ export async function visitView(id, step) {
         if (!(await confirmDlg('図にかいた線をぜんぶ消します。', '消す', true))) return;
         for (const f of FIGURES) v.figures[f.id] = []; hist.length = 0; drawPads(); save();
       }, 'chip');
-      drawPads();
-      return h('div', { class: 'zu' },
-        h('div', { class: 'toolbar' }, markChips,
-          chips([{ id: 6, name: '細い' }, { id: 14, name: 'ふつう' }, { id: 26, name: '太い' }], tool.width, { multi: false, onChange: (w) => { tool.width = w || 14; } }),
-          h('div', { class: 'chips' }, eraser, undo, clear),
-          chips([{ id: 'both', name: 'ならべる' }, { id: 'front', name: '前を大きく' }, { id: 'back', name: '後ろを大きく' }], view, { multi: false, onChange: (x) => { view = x || 'both'; drawPads(); } })),
-        h('div', null, padBox, h('p', { class: 'hint center' }, '指でもペンでもなぞれます。色をえらんでから、つらいところをなぞってね。')));
+      // 見え方（ならべる・前だけ・後ろだけ）と、大きくするところ（全体・上半身・下半身）
+      const viewBox = h('div', { class: 'viewtools' });
+      const drawView = () => fill(viewBox,
+        chips([{ id: 'both', name: 'ならべる' }, { id: 'front', name: '前だけ' }, { id: 'back', name: '後ろだけ' }], view, { multi: false, onChange: (x) => { view = x || view; if (view === 'both') zone = 'all'; drawView(); drawPads(); } }),
+        chips([{ id: 'all', name: '全体' }, { id: 'top', name: '上半身' }, { id: 'bottom', name: '下半身' }], zone, { multi: false, onChange: (z) => { zone = z || 'all'; if (zone !== 'all' && view === 'both') view = 'front'; drawView(); drawPads(); } }));
+      const root = h('div', { class: 'zu' });
+      const fullBtn = btn('', () => setFull(!full), 'chip fullbtn');
+      const setFull = (on) => {
+        full = on; root.classList.toggle('full', on); document.documentElement.classList.toggle('noscroll', on);
+        fullBtn.textContent = on ? '✕ 大きい画面をとじる' : '⤢ 画面いっぱいでかく'; fullBtn.classList.toggle('on', on);
+        if (on && isPhone() && view === 'both') { view = 'front'; drawView(); drawPads(); }
+        if (!on) scrollTo(0, 0);
+      };
+      drawPads(); drawView(); setFull(false);
+      // 道具は3つのまとまり（色／太さ・消す／見え方）。小さい画面の「画面いっぱい」では、1まとまり＝横に流せる1行になる
+      fill(root,
+        h('div', { class: 'toolbar' },
+          h('div', { class: 'trow' }, markChips),
+          h('div', { class: 'trow' }, chips([{ id: 6, name: '細い' }, { id: 14, name: 'ふつう' }, { id: 26, name: '太い' }], tool.width, { multi: false, onChange: (w) => { tool.width = w || 14; } }),
+            h('div', { class: 'chips' }, eraser, undo, clear)),
+          h('div', { class: 'trow' }, h('div', { class: 'chips' }, fullBtn), viewBox)),
+        h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), padBox,
+          h('p', { class: 'hint center' }, '指でもペンでもなぞれます。色をえらんでから、つらいところをなぞってね。「上半身」「下半身」で大きくできます。')));
+      return root;
     },
-    // ---------- 精油の候補 ----------
+    // ---------- オイルの候補（精油・キャリアオイル） ----------
     seiyu() {
-      let famSel = [], ownedOnly = false;
-      const listBox = h('div');
-      const oilCard = (r, kind) => {
-        const f = fam(r.oil.family); const on = hasOil(r.oil.id);
-        const own = h('button', { type: 'button', class: 'mini' + (r.oil.owned ? ' on' : '') }, r.oil.owned ? '✓ 手持ち' : '手持ちにする');
-        own.onclick = async () => { r.oil.owned = !r.oil.owned; await saveMaster('oils', r.oil); draw(); };
+      let tab = 'oil', famSel = [], ownedOnly = false;
+      const listBox = h('div'); const headBox = h('div', { class: 'step' });
+      // 精油とキャリアオイルで同じ形のカードを使う。kind：hit 候補／buy 次に買う／out 外した／rest そのほか
+      const itemCard = (r, kind) => {
+        const isOil = tab === 'oil'; const it = r.oil; const f = isOil ? fam(it.family) : null; const on = isOil ? hasOil(it.id) : hasCar(it.id);
+        const own = h('button', { type: 'button', class: 'mini' + (it.owned ? ' on' : '') }, it.owned ? '✓ 手持ち' : '手持ちにする');
+        own.onclick = async () => { it.owned = !it.owned; await saveMaster(isOil ? 'oils' : 'carriers', it); draw(); };
         const use = btn(on ? '✓ 使う' : kind === 'out' ? 'それでも使う' : '使う', async () => {
-          if (!on && kind === 'out' && !(await confirmDlg(`${r.oil.name} は、次の理由で外してあります。\n\n・${r.blocks.join('\n・')}\n\nそれでも使いますか？（決めるのは施術する人です）`, '使う', true))) return;
-          toggleOil(r.oil); draw();
+          if (!on && kind === 'out' && !(await confirmDlg(`${it.name} は、次の理由で外してあります。\n\n・${r.blocks.join('\n・')}\n\nそれでも使いますか？（決めるのは施術する人です）`, '使う', true))) return;
+          isOil ? toggleOil(it) : toggleCar(it); draw();
         }, on ? 'primary' : kind === 'out' ? 'ghost' : '');
-        return h('div', { class: 'oil ' + kind + (on ? ' picked' : ''), style: { '--fam': f.color } },
+        const traits = isOil ? [] : traitText(it);
+        return h('div', { class: 'oil ' + kind + (on ? ' picked' : ''), style: { '--fam': f ? f.color : '#c9b98f' } },
           h('div', { class: 'grow' },
-            h('div', { class: 'name' }, r.oil.name, ' ', h('span', { class: 'famtag' }, f.name), r.oil.draft ? badge('下書き', 'draft') : null),
+            h('div', { class: 'name' }, it.name, ' ', f ? h('span', { class: 'famtag' }, f.name) : null, it.draft ? badge('下書き', 'draft') : null),
+            traits.length ? h('div', { class: 'traits' }, traits.map((t) => h('span', { class: 'trait' }, t))) : null,
             r.blocks.length ? h('ul', { class: 'why out' }, r.blocks.map((t) => h('li', null, '外した理由：' + t))) : null,
             r.reasons.length ? h('ul', { class: 'why' }, r.reasons.slice(0, 3).map((t) => h('li', null, t))) : null,
-            r.oil.note ? h('div', { class: 'muted small' }, r.oil.note) : null),
+            it.note ? h('div', { class: 'muted small' }, it.note) : null),
           h('div', { class: 'oil-act' }, use, own));
       };
       const draw = () => {
-        const rs = picks().filter((r) => !famSel.length || famSel.includes(r.oil.family));
+        const isOil = tab === 'oil'; const word = isOil ? '精油' : 'キャリアオイル';
+        const rs = isOil ? picks().filter((r) => !famSel.length || famSel.includes(r.oil.family)) : carPicks();
         const ok = rs.filter((r) => !r.blocks.length), out = rs.filter((r) => r.blocks.length);
         const hit = ok.filter((r) => r.score > 0), rest = ok.filter((r) => r.score <= 0);
+        const asked = isOil ? v.interview.symptoms.length > 0 : (v.interview.skins || []).length > 0 || v.interview.purposes.length > 0;
         const sec = (title, arr, kind, hint, fold) => !arr.length ? null
-          : h(fold ? 'details' : 'div', { class: 'sec' + (fold ? ' fold' : '') }, h(fold ? 'summary' : 'h3', null, `${title}（${arr.length}）`), hint ? h('p', { class: 'hint' }, hint) : null, arr.map((r) => oilCard(r, kind)));
+          : h(fold ? 'details' : 'div', { class: 'sec' + (fold ? ' fold' : '') }, h(fold ? 'summary' : 'h3', null, `${title}（${arr.length}）`), hint ? h('p', { class: 'hint' }, hint) : null, arr.map((r) => itemCard(r, kind)));
         fill(listBox, ...[
-          v.interview.symptoms.length ? null : h('div', { class: 'notice amber' }, '問診で「つらいところ」をえらぶと、合いそうな精油が上に出ます。'),
+          asked ? null : h('div', { class: 'notice amber' }, isOil ? '問診で「つらいところ」をえらぶと、合いそうな精油が上に出ます。' : '問診で「肌の状態」や「今日の目的」をえらぶと、合いそうなキャリアオイルが上に出ます。'),
           sec('候補（手持ちの中から）', hit.filter((r) => r.oil.owned), 'hit'),
-          hit.length && !hit.some((r) => r.oil.owned) ? h('div', { class: 'notice' }, '手持ちの精油の中には候補がありません。持っている精油に「手持ちにする」を押してね（設定 → 精油の一覧 でもまとめてできます）。') : null,
+          hit.length && !hit.some((r) => r.oil.owned) ? h('div', { class: 'notice' }, `手持ちの${word}の中には候補がありません。持っているものに「手持ちにする」を押してね（設定 → ${word}の一覧 でもまとめてできます）。`) : null,
           ownedOnly ? null : sec('次に買う候補（持っていないけれど合いそう）', hit.filter((r) => !r.oil.owned), 'buy'),
           sec('理由があって外したもの', out.filter((r) => !ownedOnly || r.oil.owned), 'out', '消さずに見せています。最後に決めるのは施術する人です。'),
-          sec('そのほかの精油', rest.filter((r) => !ownedOnly || r.oil.owned), 'rest', null, v.interview.symptoms.length > 0),
+          sec(`そのほかの${word}`, rest.filter((r) => !ownedOnly || r.oil.owned), 'rest', null, asked),
         ].filter(Boolean));
-        chosen.textContent = v.blend.oils.length ? `えらんだ精油：${v.blend.oils.map((o) => o.name).join('、')}` : 'まだ精油をえらんでいません';
+        chosen.textContent = [v.blend.oils.length ? `精油：${v.blend.oils.map((o) => o.name).join('、')}` : '精油はまだ', v.blend.carriers.length ? `キャリアオイル：${v.blend.carriers.map((o) => o.name).join('、')}` : 'キャリアオイルはまだ'].join('　／　');
       };
       const chosen = h('div', { class: 'chosen' });
-      const conds = condIds();
-      draw();
-      return [
-        h('div', { class: 'notice draft' }, '精油のデータは「下書き」です。自分の資料で確かめて、設定から直してください。候補は目安で、最後に決めるのは施術する人です。'),
-        card(h('div', { class: 'facts' },
-          h('div', null, h('b', null, 'つらいところ：'), v.interview.symptoms.map((s) => `${symName(s.id)}（${s.level}）`).join('、') || 'なし'),
-          h('div', null, h('b', null, '気をつける状態：'), conds.map(condName).join('・') || 'なし'),
-          v.interview.moods.length ? h('div', null, h('b', null, '香りの好み：'), v.interview.moods.join('・')) : null),
-          group('香りの系統でしぼる', chips(S.settings.families, famSel, { onChange: (x) => { famSel = x; draw(); } })),
-          chips([{ id: 'own', name: '手持ちだけ見る' }], [], { onChange: (x) => { ownedOnly = x.length > 0; draw(); } })),
-        listBox, chosen,
-      ];
+      const conds = condIds(); const iv = v.interview;
+      const drawHead = () => {
+        const isOil = tab === 'oil'; const al = allergyNames();
+        fill(headBox,
+          h('div', { class: 'tabs' }, [['oil', '精油'], ['car', 'キャリアオイル']].map(([id, name]) => h('button', { type: 'button', class: 'tab' + (tab === id ? ' on' : ''), onclick: () => { tab = id; drawHead(); draw(); } }, name))),
+          h('div', { class: 'notice draft' }, `${isOil ? '精油' : 'キャリアオイル'}のデータは「下書き」です。自分の資料で確かめて、設定から直してください。候補は目安で、最後に決めるのは施術する人です。`),
+          card(h('div', { class: 'facts' },
+            isOil ? h('div', null, h('b', null, 'つらいところ：'), iv.symptoms.map((s) => `${symName(s.id)}（${s.level}）`).join('、') || 'なし')
+              : [h('div', null, h('b', null, '肌の状態：'), (iv.skins || []).map(skinName).filter(Boolean).join('・') || 'えらんでいません'),
+                h('div', null, h('b', null, '今日の目的：'), iv.purposes.join('・') || 'えらんでいません')],
+            h('div', null, h('b', null, '気をつける状態：'), conds.map(condName).join('・') || 'なし'),
+            !isOil || det.allergy ? h('div', null, h('b', null, 'アレルギー：'), [...al, det.allergy].filter(Boolean).join('／') || 'なし') : null,
+            isOil && iv.moods.length ? h('div', null, h('b', null, '香りの好み：'), iv.moods.join('・')) : null),
+          isOil ? group('香りの系統でしぼる', chips(S.settings.families, famSel, { onChange: (x) => { famSel = x; draw(); } })) : null,
+          chips([{ id: 'own', name: '手持ちだけ見る' }], ownedOnly ? ['own'] : [], { onChange: (x) => { ownedOnly = x.length > 0; draw(); } })));
+      };
+      drawHead(); draw();
+      return [headBox, listBox, chosen];
     },
     // ---------- ブレンド ----------
     blend() {
       const b = v.blend; const dropMl = S.settings.dropMl || 0.05;
       const meter = h('div', { class: 'meter' }); const oilBox = h('div'); const carBox = h('div');
       const blockOf = Object.fromEntries(picks().filter((r) => r.blocks.length).map((r) => [r.oil.id, r.blocks]));
+      const carBlockOf = Object.fromEntries(carPicks().filter((r) => r.blocks.length).map((r) => [r.oil.id, r.blocks]));
       const drawMeter = () => {
         const c = blendCalc(b, dropMl); const lim = limitFor(S.settings, b.areaId, condIds()); const lv = limitLevel(c.pct, lim.max);
         const md = maxDrops(lim.max, c.carrierMl, dropMl);
@@ -162,7 +203,7 @@ export async function visitView(id, step) {
           h('div', { class: 'pct' }, c.pct == null ? '—' : c.pct.toFixed(1), h('small', null, '％')),
           h('div', { class: 'grow' },
             h('div', { class: 'meter-msg' }, lv === 'over' ? '⚠ 目安をこえています' : lv === 'near' ? '目安のぎりぎりです' : lv === 'ok' ? '目安の中です' : lv === 'unknown' ? 'この部位の目安はまだ入っていません' : 'キャリアオイルの量を入れると濃度が出ます'),
-            h('div', { class: 'muted' }, `精油 ${c.drops}滴（約${fmt(c.oilMl)}ml）＋ キャリアオイル ${fmt(c.carrierMl)}ml`),
+            h('div', { class: 'muted' }, `キャリアオイル ${fmt(c.carrierMl)}ml に、精油 ${c.drops}滴（約${fmt(c.oilMl)}ml）`),
             h('div', { class: 'muted' }, lim.max != null ? `目安：${lim.parts.map((x) => `${x.name || x.label} ${x.max}％まで`).join('・')}${md != null ? `　→ この量なら ${md}滴まで` : ''}` : h('a', { href: '#/set/limits' }, '目安を設定する ›'))));
       };
       const stepper = (obj, key, stepBy, min, unit, after) => {
@@ -176,9 +217,10 @@ export async function visitView(id, step) {
           h('div', { class: 'grow' }, h('div', { class: 'name' }, o.name), blockOf[o.oilId] ? h('div', { class: 'small warntext' }, '⚠ ' + blockOf[o.oilId].join('／')) : null),
           stepper(o, 'drops', 1, 0, '滴'),
           btn('×', () => { b.oils = b.oils.filter((x) => x !== o); drawOils(); drawMeter(); save(); }, 'ghost round'));
-      }), b.oils.length ? null : h('p', { class: 'muted' }, 'まだ精油がありません。「精油」の画面でえらぶか、下のボタンで足してね。'));
-      const drawCars = () => fill(carBox, ...b.carriers.map((c) => h('div', { class: 'brow' },
+      }), b.oils.length ? null : h('p', { class: 'muted' }, 'まだ精油がありません。「オイル」の画面でえらぶか、下のボタンで足してね。'));
+      const drawCars = () => fill(carBox, ...b.carriers.map((c) => h('div', { class: 'brow car' },
         h('div', { class: 'grow' }, h('div', { class: 'name' }, c.name),
+          carBlockOf[c.carrierId] ? h('div', { class: 'small warntext' }, '⚠ ' + carBlockOf[c.carrierId].join('／')) : null,
           h('div', { class: 'chips tight' }, [5, 10, 15, 20, 30, 50].map((ml) => btn(`${ml}ml`, () => { c.ml = ml; drawCars(); drawMeter(); save(); }, 'chip sm' + (c.ml === ml ? ' on' : ''))))),
         stepper(c, 'ml', 5, 0, 'ml', drawCars),
         btn('×', () => { b.carriers = b.carriers.filter((x) => x !== c); drawCars(); drawMeter(); save(); }, 'ghost round'))),
@@ -196,9 +238,10 @@ export async function visitView(id, step) {
       };
       const addCarrier = () => {
         const list = [...S.carriers].sort((x, y) => (y.owned ? 1 : 0) - (x.owned ? 1 : 0));
-        const s = sheet('キャリアオイルをえらぶ', h('div', { class: 'chips' }, list.map((c) => btn(c.name + (c.owned ? '' : '（持っていない）'), () => {
-          if (!b.carriers.some((x) => x.carrierId === c.id)) { b.carriers.push({ carrierId: c.id, name: c.name, ml: b.carriers.length ? 0 : 30 }); save(); } s.close(); refresh();
-        }, 'chip'))));
+        const s = sheet('キャリアオイルをえらぶ', h('div', { class: 'chips' }, list.map((c) => btn((carBlockOf[c.id] ? '⚠ ' : '') + c.name + (c.owned ? '' : '（持っていない）'), async () => {
+          if (carBlockOf[c.id] && !hasCar(c.id) && !(await confirmDlg(`${c.name} は気をつける点があります。\n\n・${carBlockOf[c.id].join('\n・')}\n\nそれでも使いますか？`, '使う', true))) return;
+          if (!hasCar(c.id)) { b.carriers.push({ carrierId: c.id, name: c.name, ml: b.carriers.length ? 0 : 30 }); save(); } s.close(); refresh();
+        }, 'chip' + (hasCar(c.id) ? ' on' : '')))));
       };
       const copyFrom = (src, label) => { b.oils = JSON.parse(JSON.stringify(src.oils)); b.carriers = JSON.parse(JSON.stringify(src.carriers)); if (src.areaId) b.areaId = src.areaId; save(); refresh(); toast(label); };
       const prevBlend = all.find((x) => x.id !== v.id && (x.date + x.createdAt) < (v.date + v.createdAt) && x.blend.oils.length);
@@ -220,8 +263,9 @@ export async function visitView(id, step) {
       return [
         h('div', { class: 'sticky' }, meter),
         card(group('どこに使う？', areaBox, S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : null)),
-        card(h('h2', null, '精油'), oilBox, h('div', { class: 'row' }, btn('＋ 精油を足す', addOil))),
         card(h('h2', null, 'キャリアオイル'), carBox, h('div', { class: 'row' }, btn('＋ キャリアオイルをえらぶ', addCarrier))),
+        card(h('h2', null, '精油'), oilBox, h('div', { class: 'row' }, btn('＋ 精油を足す', addOil)),
+          h('p', { class: 'hint' }, `濃度は「精油の量 ÷ キャリアオイルの量」で出しています（1滴＝${fmt(dropMl)}ml。設定で変えられます）。`)),
         card(h('div', { class: 'row' },
           prevBlend ? btn(`前回のブレンドを写す（${jpDate(prevBlend.date, false)}）`, () => copyFrom(prevBlend.blend, '前回のブレンドを入れました')) : null,
           btn('よく使うブレンドから', pickSaved), btn('名前をつけて残す', keep)),
@@ -273,10 +317,10 @@ export async function visitView(id, step) {
   };
   const nav = h('nav', { class: 'steps' }, STEPS.map(([k, name], i) => h('a', { class: 'stepbtn' + (k === step ? ' on' : ''), href: `#/v/${id}/${k}` }, h('span', { class: 'num' }, String(i + 1)), name)));
   const warn = [...det.conds, ...v.conds].map(condName).filter(Boolean);
+  const hasAllergy = !!det.allergy || (det.allergyTags || []).length > 0; const hasWarn = warn.length > 0 || hasAllergy;
   return page({
-    cls: 'visit', title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ・自動で保存）' : ''}`, back: `#/c/${p.id}`,
-    actions: warn.length || det.allergy ? h('span', { class: 'badge warn' }, '⚠ ' + [...warn, det.allergy ? 'アレルギーあり' : ''].filter(Boolean).join('・')) : null,
-    body: [nav, body],
+    cls: 'visit' + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ・自動で保存）' : ''}`, back: `#/c/${p.id}`,
+    body: [hasWarn ? h('div', { class: 'visit-warn' }, '⚠ ' + [...new Set(warn), hasAllergy ? 'アレルギーあり' : ''].filter(Boolean).join('・')) : null, nav, body],
     footer: [
       idx > 0 ? h('a', { class: 'btn big', href: `#/v/${id}/${STEPS[idx - 1][0]}` }, '‹ 前へ') : h('span'),
       idx < STEPS.length - 1 ? h('a', { class: 'btn primary big grow', href: `#/v/${id}/${STEPS[idx + 1][0]}` }, `次へ：${STEPS[idx + 1][1]} ›`)

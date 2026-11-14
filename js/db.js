@@ -1,14 +1,29 @@
-// データの入れ物（iPad の中の IndexedDB）。外へは何も送らない。
+// データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
+import { DEFAULT_CARRIERS } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends'];
 const IDB_VERSION = 1;
 let DB_NAME = 'salon-karte';
 let _db = null;
 
-// 移し替えの一覧。例：{ to: 2, stores: { visits: (r) => ({ ...r, 新しい項目: '' }) } }
-// 同じ一覧を「iPad の中のデータ」と「戻すバックアップ」の両方に使う。
-export const MIGRATIONS = [];
+// 移し替えの一覧。同じ一覧を「端末の中のデータ」と「戻すバックアップ」の両方に使う。
+//   stores：入れ物ごとに、1件ずつ新しい形に直す
+//   add   ：入れ物ごとに、まだ無いもの（同じ番号が無いもの）だけ足す
+const CAR = Object.fromEntries(DEFAULT_CARRIERS.map((c) => [c.id, c]));
+const BLANK_CAR = { fatty: {}, traits: {}, skins: [], purposes: [], allergens: [], cautions: [], draft: false };
+export const MIGRATIONS = [
+  { // 版2：キャリアオイルを精油と同じ作りに（成分・特徴・候補）。問診に「肌の状態」、お客さんに「アレルギーのしるし」
+    to: 2,
+    stores: {
+      // はじめから入っていたオイルには下書きの中身を足す（名前・手持ち・メモは使う人のものを残す）。自分で足したオイルは空のらんを足す
+      carriers: (r) => { const d = CAR[r.id]; return d ? { ...d, ...r, note: r.note || d.note } : { ...BLANK_CAR, ...r }; },
+      details: (r) => ({ allergyTags: [], avoidCarrierIds: [], ...r }),
+      visits: (r) => ({ ...r, interview: { skins: [], ...(r.interview || {}) } }),
+    },
+    add: { carriers: DEFAULT_CARRIERS },
+  },
+];
 
 const req = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const done = (tx) => new Promise((res, rej) => {
@@ -72,11 +87,15 @@ export function migrateDump(dump, list = MIGRATIONS, target = DATA_VERSION) {
   for (const m of [...list].sort((a, b) => a.to - b.to)) {
     if (m.to <= ver || m.to > target) continue;
     for (const [name, fn] of Object.entries(m.stores || {})) stores[name] = (stores[name] || []).map(fn);
+    for (const [name, rows] of Object.entries(m.add || {})) {
+      const have = new Set((stores[name] || []).map((r) => r.id));
+      stores[name] = [...(stores[name] || []), ...rows.filter((r) => !have.has(r.id)).map((r) => JSON.parse(JSON.stringify(r)))];
+    }
     ver = m.to;
   }
   return { ...dump, dataVersion: ver, stores };
 }
-// iPad の中のデータを新しい版へ（1つの版ごとに、全部できるか・何も変わらないかのどちらか）
+// 端末の中のデータを新しい版へ（1つの版ごとに、全部できるか・何も変わらないかのどちらか）
 export async function migrateDb(list = MIGRATIONS, target = DATA_VERSION) {
   const db = await openDb();
   let ver = await getMeta('dataVersion');
@@ -90,6 +109,7 @@ export async function migrateDb(list = MIGRATIONS, target = DATA_VERSION) {
       const os = tx.objectStore(name);
       os.openCursor().onsuccess = (e) => { const c = e.target.result; if (c) { c.update(fn(c.value)); c.continue(); } };
     }
+    for (const [name, rows] of Object.entries(m.add || {})) for (const r of rows) tx.objectStore(name).add(JSON.parse(JSON.stringify(r))).onerror = (e) => { e.preventDefault(); e.stopPropagation(); }; // もうあるものはそのまま
     tx.objectStore('meta').put({ key: 'dataVersion', value: m.to });
     await done(tx);
     ver = m.to;

@@ -41,6 +41,31 @@ export const DEFAULT_SETTINGS = {
   purposes: ['こり・はりをほぐしたい', 'リラックスしたい', '疲れをとりたい', 'ぐっすり眠りたい', 'むくみをすっきり', '気分を変えたい'],
   moods: ['すっきりした香り', '甘い香り', '落ちつく香り', '香りはひかえめに', 'おまかせ'],
   scents: ['とても好き', '好き', 'ふつう', '少し苦手', '苦手'],
+  // 肌の状態（問診でえらぶ。キャリアオイルの候補に使う）
+  skins: [
+    { id: 'sk_dry', name: '乾燥しやすい' }, { id: 'sk_oily', name: 'べたつきやすい' },
+    { id: 'sk_age', name: 'ハリ・うるおいが気になる' }, { id: 'sk_normal', name: 'とくに気にならない' },
+  ],
+  // アレルギーのしるし。words＝アレルギーの欄にこの言葉が書いてあったら、あてはまるとみなす
+  allergens: [
+    { id: 'al_nut', name: 'ナッツ類（木の実）', words: 'ナッツ、アーモンド、くるみ、クルミ、カシュー、マカデミア、ヘーゼル、ピスタチオ、木の実' },
+    { id: 'al_peanut', name: 'ピーナッツ（落花生）', words: 'ピーナッツ、落花生' },
+    { id: 'al_sesame', name: 'ごま', words: 'ごま、ゴマ、胡麻、セサミ' },
+    { id: 'al_rice', name: '米', words: '米ぬか、こめ、お米' },
+    { id: 'al_wheat', name: '小麦', words: '小麦' },
+    { id: 'al_soy', name: '大豆', words: '大豆' },
+  ],
+  // キャリアオイルの成分（脂肪酸など）。uses＝こんな肌の状態で選ばれることが多い。すべて下書き
+  fats: [
+    { id: 'ole', name: 'オレイン酸', uses: ['sk_dry', 'sk_age'], note: 'しっとりした使い心地と言われる。比較的、酸化しにくい。' },
+    { id: 'lin', name: 'リノール酸', uses: ['sk_oily'], note: 'さらっと軽い使い心地と言われる。酸化しやすい。' },
+    { id: 'aln', name: 'α-リノレン酸', uses: ['sk_age'], note: 'とても酸化しやすい。少しだけ混ぜて、早めに使い切ると言われる。' },
+    { id: 'pmo', name: 'パルミトレイン酸', uses: ['sk_age', 'sk_dry'], note: '年齢とともに減っていく皮脂の成分に近いと言われる。' },
+    { id: 'pal', name: 'パルミチン酸', uses: [], note: '酸化しにくい。' },
+    { id: 'ste', name: 'ステアリン酸', uses: [], note: '酸化しにくい。' },
+    { id: 'wax', name: 'ワックスエステル（ろうの仲間）', uses: ['sk_oily', 'sk_normal'], note: '皮脂の成分に近いと言われる。とても酸化しにくい。' },
+    { id: 'mct', name: '中鎖脂肪酸（カプリル酸・カプリン酸）', uses: ['sk_oily'], note: 'さらっと軽い。とても酸化しにくい。' },
+  ].map((f) => ({ ...f, draft: true })),
 };
 
 // 成分の分類。uses＝こんな場面で選ばれることが多い（症状）、cautions＝気をつける状態
@@ -94,11 +119,25 @@ export const DEFAULT_OILS = [
   O('o_clove', 'クローブ', 'f_spice', { phe: 80 }, ['s_hie'], [], '肌への刺激が強い。体に使うならごくうすく。'),
 ];
 
+// キャリアオイル。精油と同じ作り：成分（脂肪酸など）のおおよその割合・特徴・向いている肌の状態・目的・アレルギーのしるし。
+// 一般に知られているおおよその値の下書き。産地や作り方で変わる。自信のないところは空けてある（null・書いていない）。
+// traits：feel＝のび・重さ（1 軽い〜3 重い）、oxid＝酸化しやすさ（1 しにくい〜3 しやすい）、scent＝香り（1 ほとんどない〜3 強め）
+const K = (id, name, fatty, traits, skins, purposes, allergens, note = '') => ({ id, name, fatty, traits, skins, purposes, allergens, cautions: [], note, owned: false, draft: true });
+const HOGUSU = 'こり・はりをほぐしたい';
 export const DEFAULT_CARRIERS = [
-  ['k_jojoba', 'ホホバオイル'], ['k_almond', 'スイートアーモンドオイル'], ['k_grape', 'グレープシードオイル'],
-  ['k_macadamia', 'マカデミアナッツオイル'], ['k_rice', 'ライスブランオイル（米ぬか）'], ['k_sesame', 'セサミオイル（生のごま）'],
-  ['k_apricot', 'アプリコットカーネルオイル'], ['k_tsubaki', '椿オイル'],
-].map(([id, name]) => ({ id, name, owned: false, note: '' }));
+  K('k_jojoba', 'ホホバオイル', { wax: 97 }, { feel: 1, oxid: 1, scent: 1 }, ['sk_normal'], [], [], '油ではなく、液体のろう。寒いと固まるが、あたためると戻る。'),
+  K('k_almond', 'スイートアーモンドオイル', { ole: 68, lin: 22, pal: 6 }, { feel: 2, oxid: 2, scent: 1 }, ['sk_dry'], [HOGUSU], ['al_nut'], 'のびがよく、全身に使いやすいと言われる。'),
+  K('k_grape', 'グレープシードオイル', { lin: 70, ole: 18, pal: 7, ste: 4 }, { feel: 1, oxid: 3, scent: 1 }, [], [], [], '開けたら早めに使い切る。'),
+  K('k_macadamia', 'マカデミアナッツオイル', { ole: 58, pmo: 20, pal: 8, ste: 3, lin: 2 }, { feel: 2, oxid: 1, scent: 2 }, [], [HOGUSU], ['al_nut']),
+  K('k_rice', 'ライスブランオイル（米ぬか）', { ole: 42, lin: 35, pal: 17 }, { feel: 2, oxid: null, scent: 1 }, [], [HOGUSU], ['al_rice'], '酸化しやすさは空けてある。資料で確かめて入れる。'),
+  K('k_sesame', 'セサミオイル（生のごま）', { ole: 40, lin: 43, pal: 9, ste: 5 }, { feel: 3, oxid: 1, scent: null }, [], [], ['al_sesame'], '料理用の茶色いごま油とは別のもの。香りは空けてある。'),
+  K('k_apricot', 'アプリコットカーネルオイル', { ole: 65, lin: 27, pal: 5 }, { feel: 1, oxid: 2, scent: 1 }, ['sk_dry'], [], ['al_nut'], 'あんずの種の中身のオイル。ナッツのアレルギーがある人は、念のため確かめる。'),
+  K('k_tsubaki', '椿オイル', { ole: 85, lin: 4, pal: 8 }, { feel: 3, oxid: 1, scent: 1 }, [], [], []),
+  K('k_argan', 'アルガンオイル', { ole: 46, lin: 33, pal: 13, ste: 5 }, { feel: 2, oxid: 2, scent: 2 }, [], [], ['al_nut'], 'アルガンの木の実の種のオイル。ナッツのアレルギーがある人は、念のため確かめる。'),
+  K('k_rosehip', 'ローズヒップオイル', { lin: 44, aln: 33, ole: 14 }, { feel: null, oxid: 3, scent: 2 }, [], [], [], 'とても酸化しやすい。ほかのオイルに少し混ぜて使うことが多い。冷蔵庫で保管し、早めに使い切る。'),
+  K('k_avocado', 'アボカドオイル', { ole: 65, pal: 15, lin: 12, pmo: 5 }, { feel: 3, oxid: 2, scent: null }, ['sk_dry'], [], [], '重いので、ほかのオイルに混ぜて使うことが多い。精製したものと、していないもので色・香りが違う。'),
+  K('k_mct', 'ココナッツオイル（分留したもの）', { mct: 95 }, { feel: 1, oxid: 1, scent: 1 }, [], [], [], '固まるふつうのココナッツオイルとは別。液体のまま固まらない。'),
+];
 
 // メニューは買った人が自分で作る前提。はじめは例を3つだけ。
 export const DEFAULT_MENUS = [
