@@ -1,7 +1,7 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg } from '../ui.js';
-import { S, blankCustomer, saveCustomer, deleteCustomer, person, visitsOf, newVisit } from '../state.js';
+import { S, blankCustomer, saveCustomer, deleteCustomer, person, visitsOf, newVisit, saveVisit } from '../state.js';
 import * as db from '../db.js';
-import { ageOf, jpDate, todayStr, addDays } from '../logic.js';
+import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel } from '../logic.js';
 const allergenName = (id) => (S.settings.allergens.find((c) => c.id === id) || {}).name || '';
 import { bodyPad, FIGURES } from '../bodymap.js';
 
@@ -81,6 +81,53 @@ export async function customerFormView(id) {
   });
 }
 
+// これまでの記録を、横にめくってさかのぼる（新しい順）。どの回も同じ並び・同じ大きさで出すので、めくると変化が目に入る。
+// 回数が多くても重くならないように、中身を作るのは「いま見ている回と、その前後」だけ。
+function history(visits, det, copyFrom) {
+  const n = visits.length; const today = todayStr(); let idx = 0;
+  const dropMl = S.settings.dropMl || 0.05;
+  const slideOf = (v, k) => {
+    const nth = n - k; const c = blendCalc(v.blend, dropMl);
+    const lim = limitFor(S.settings, v.blend.areaId, [...new Set([...(det.conds || []), ...(v.conds || [])])]); const lv = limitLevel(c.pct, lim.max);
+    const oils = (v.blend.oils || []).filter((x) => x.drops > 0), cars = (v.blend.carriers || []).filter((x) => x.ml > 0);
+    const conds = (v.conds || []).map(condName).filter(Boolean);
+    const row = (label, ...kids) => h('div', { class: 'hrow' }, h('div', { class: 'hlabel' }, label), h('div', { class: 'hval' }, kids.some((x) => x != null && x !== '' && !(Array.isArray(x) && !x.length)) ? kids : h('span', { class: 'muted' }, '—')));
+    return [
+      h('div', { class: 'hhead' }, h('b', null, jpDate(v.date)), h('span', { class: 'muted' }, `${nth}回目`),
+        v.date === today && v.status === 'draft' ? badge('今日・書きかけ', 'amber') : k === 0 ? badge('いちばん新しい記録') : badge(`${k}回前`, 'draft'), conds.map((x) => badge(x, 'warn'))),
+      h('div', { class: 'hbody' },
+        h('div', { class: 'thumbs' }, FIGURES.map((f) => h('div', { class: 'thumb' }, h('span', { class: 'small muted' }, f.name), bodyPad({ kind: f.id, strokes: v.figures[f.id] || [], marks: S.settings.marks, readOnly: true })))),
+        h('div', { class: 'hrows' },
+          row('つらさ（前→後）', v.interview.symptoms.map((s) => { const a = v.after.levels[s.id]; return h('div', { class: 'hsym' }, `${symName(s.id) || '（消した症状）'} ${s.level}${a != null ? '→' + a : ''}`, a != null && a < s.level ? h('span', { class: 'down' }, ` ▼${s.level - a}`) : a != null && a > s.level ? h('span', { class: 'up' }, ` ▲${a - s.level}`) : null); })),
+          row('ブレンド', oils.length || cars.length ? [h('div', null, oils.map((x) => `${x.name} ${x.drops}滴`).join('・') || '精油なし'), h('div', null, cars.map((x) => `${x.name} ${x.ml}ml`).join('・') || 'キャリアオイルなし')] : null),
+          row('濃度', c.pct != null ? h('span', { class: 'hpct ' + lv }, `${c.pct.toFixed(1)}％`, lv === 'over' ? '（目安をこえている）' : '') : null),
+          row('メニュー', v.menus.map((m) => `${m.name}${m.minutes ? m.minutes + '分' : ''}`).join('・')),
+          row('施術後', [v.after.scent ? `香り：${v.after.scent}` : '', v.after.note].filter(Boolean).join('　') || null))),
+      h('div', { class: 'row hact' }, h('a', { class: 'btn', href: `#/v/${v.id}/monshin` }, 'この回のカルテを開く ›'),
+        v.date === today ? null : btn('この回の問診とブレンドを今日に写す', () => copyFrom(v))),
+    ];
+  };
+  const slides = visits.map(() => h('div', { class: 'slide' }));
+  const made = new Set();
+  const make = (i) => { if (i < 0 || i >= n || made.has(i)) return; made.add(i); fill(slides[i], ...slideOf(visits[i], i)); };
+  const track = h('div', { class: 'track', tabindex: '0', 'aria-label': 'これまでの記録（横にめくる）' }, slides);
+  const pos = h('span', { class: 'hpos' }); const dots = h('span', { class: 'hdots' });
+  const newer = btn('‹ 新しい', () => goTo(idx - 1), 'chip'), older = btn('古い ›', () => goTo(idx + 1), 'chip');
+  const show = () => {
+    make(idx); make(idx + 1); make(idx - 1);
+    pos.textContent = `${idx + 1}／全${n}回（新しい順）`; newer.disabled = idx === 0; older.disabled = idx === n - 1;
+    fill(dots, ...(n > 1 && n <= 12 ? visits.map((_, i) => h('i', { class: i === idx ? 'on' : '' })) : []));
+  };
+  const goTo = (i) => { idx = Math.max(0, Math.min(n - 1, i)); track.scrollTo({ left: slides[idx].offsetLeft - track.offsetLeft, behavior: 'smooth' }); show(); };
+  let raf = 0;
+  track.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth)); if (i !== idx && i >= 0 && i < n) { idx = i; show(); } }); }, { passive: true });
+  show();
+  return h('section', { class: 'card hist' },
+    h('h2', null, 'これまでの記録'),
+    n > 1 ? h('div', { class: 'hnav' }, newer, h('div', { class: 'hmid' }, pos, dots), older) : null,
+    track, n > 1 ? h('p', { class: 'hint center' }, '横にめくる（スワイプする）と、前の回にさかのぼれます。') : null);
+}
+
 export const notFound = () => page({ title: '見つかりません', back: '#/', body: h('p', { class: 'muted pad' }, 'このページは見つかりませんでした。') });
 
 export async function customerView(id) {
@@ -95,6 +142,14 @@ export async function customerView(id) {
     const draft = visits.find((v) => v.status === 'draft' && v.date === todayStr());
     const v = draft || await newVisit(id); go(`#/v/${v.id}/monshin`);
   };
+  // めくった先の回の問診とブレンドを、今日のカルテに写す（今日のカルテがなければ作る）
+  const copyFrom = async (src) => {
+    const draft = visits.find((v) => v.date === todayStr() && v.id !== src.id);
+    if (!(await confirmDlg(`${jpDate(src.date)} の問診とブレンドを、今日のカルテに写します。${draft ? '\n今日のカルテにもう書いてある問診とブレンドは、入れ替わります。' : ''}\n（からだの図・施術・施術後は写しません）`, '写す'))) return;
+    const v = draft || await newVisit(id); const c = (o) => JSON.parse(JSON.stringify(o));
+    v.interview = { skins: [], ...c(src.interview), memo: '' }; v.blend = c(src.blend); v.copied = true; v.status = 'draft';
+    await saveVisit(v); toast('写しました。変わったところだけ直してね'); go(`#/v/${v.id}/monshin`);
+  };
   const nextIn = h('input', { type: 'date', class: 'input', value: p.nextDate, 'aria-label': '次回の予定日' });
   const setNext = async (d) => { p.nextDate = d; nextIn.value = d; await saveCustomer(p, null); toast(d ? `次回：${jpDate(d)}` : '予定を消しました'); };
   nextIn.onchange = () => setNext(nextIn.value);
@@ -108,12 +163,7 @@ export async function customerView(id) {
         warns.length ? h('div', { class: 'chips' }, warns.map((w) => badge(w, 'warn'))) : null,
         det.allergy || tags.length ? h('p', null, h('b', null, 'アレルギー：'), [...tags, det.allergy].filter(Boolean).join('／')) : null,
         det.history ? h('p', null, h('b', null, 'これまでの病気・けが：'), det.history) : null) : null,
-      last ? card(h('h2', null, `前回（${jpDate(last.date)}）`, last.status === 'draft' ? badge('書きかけ', 'amber') : null),
-        h('div', { class: 'last' },
-          h('div', { class: 'grow' }, visitSummary(last).map((t) => h('p', null, t)),
-            last.after.scent ? h('p', null, `香りの感想：${last.after.scent}`) : null,
-            last.after.note ? h('p', null, `施術後：${last.after.note}`) : null),
-          h('div', { class: 'thumbs' }, FIGURES.map((f) => bodyPad({ kind: f.id, strokes: last.figures[f.id] || [], marks: S.settings.marks, readOnly: true }))))) : null,
+      visits.length ? history(visits, det, copyFrom) : null,
       det.memo ? card(h('h2', null, 'メモ'), h('p', { class: 'pre' }, det.memo)) : null,
       card(h('h2', null, '次回の予定日'), h('div', { class: 'row' }, nextIn,
         btn('1週間後', () => setNext(addDays(todayStr(), 7))), btn('2週間後', () => setNext(addDays(todayStr(), 14))), btn('1か月後', () => setNext(addDays(todayStr(), 28))),

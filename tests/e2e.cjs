@@ -170,6 +170,20 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes path').count();
   assert.deepEqual(await pad.counts(), { c: 1, v: 2, b: 1 }, 'バックアップから元どおり');
   await shot('11-home');
 
+  // --- これまでの記録を横にめくる（前回 → 1回前 …） ---
+  await p.getByLabel('お客さんをさがす').fill('しけん'); await p.locator('.list .row-link', { hasText: '試験 みほ' }).tap(); await p.waitForSelector('.hist');
+  assert.equal(await p.locator('.hist .slide').count(), 2, '来店の回数ぶんの紙がある'); assert.ok((await p.locator('.hpos').textContent()).startsWith('1／全2回'));
+  assert.ok(await p.getByText('‹ 新しい').isDisabled(), 'いちばん新しい回では「新しい」は押せない');
+  await tap('古い ›'); await p.waitForFunction(() => document.querySelector('.hpos').textContent.startsWith('2／全2回')); await p.waitForTimeout(500);
+  const s2 = await p.locator('.hist .slide').nth(1).textContent();
+  assert.ok(s2.includes('1回前') && s2.includes('肩こり 8→3') && s2.includes('▼5') && s2.includes('ラベンダー（真正） 3滴') && s2.includes('0.7％') && s2.includes('とても好き'), '前の回の中身が同じ並びで出る：' + s2.slice(0, 200));
+  const f0 = await p.locator('.hist .slide').nth(0).locator('.bodypad').first().evaluate((e) => [e.clientWidth, e.clientHeight, e.getBoundingClientRect().top]);
+  const f1 = await p.locator('.hist .slide').nth(1).locator('.bodypad').first().evaluate((e) => [e.clientWidth, e.clientHeight, e.getBoundingClientRect().top]);
+  assert.deepEqual(f0, f1, 'からだの図は、どの回も同じ大きさ・同じ高さ'); await shot('11b-history');
+  await p.locator('.hist .slide').nth(1).getByText('この回の問診とブレンドを今日に写す').tap(); await p.locator('.dialog').getByText('写す', { exact: true }).tap(); await p.waitForSelector('.steps');
+  assert.equal(await p.locator('.symrow').count(), 3, 'めくった先の回の問診が今日に写る'); assert.deepEqual(await pad.counts(), { c: 1, v: 2, b: 1 }, '今日のカルテがあれば、そこに写す（増やさない）');
+  await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
+
   // --- 版の移し替え（端末の中のデータ）：前の版（版1）の形にもどしてから開き直す → 版2 に直る ---
   await p.evaluate(async () => {
     const db = await import('./js/db.js');
@@ -311,6 +325,11 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes path').count();
   assert.deepEqual(await ph.counts(), { c: 1, v: 2, b: 1 }, 'iPad → iPhone に移せる');
   await q.getByLabel('お客さんをさがす').fill('しけん'); await q.locator('.list .row-link', { hasText: '試験 みほ' }).tap(); await q.waitForSelector('text=来店の記録');
   assert.equal(await q.locator('.thumbs .strokes path').count(), 1, '図の線もいっしょに移る'); await ph.shot('12-moved');
+  const tb = await q.locator('.hist .track').boundingBox(); // 指で横にめくる
+  await ph.touchLine([[tb.x + tb.width * 0.85, tb.y + 200], [tb.x + tb.width * 0.6, tb.y + 202], [tb.x + tb.width * 0.35, tb.y + 204], [tb.x + tb.width * 0.15, tb.y + 205]]);
+  await q.waitForFunction(() => document.querySelector('.hpos').textContent.startsWith('2／全2回'), null, { timeout: 5000 }); await q.waitForTimeout(400);
+  await ph.noOverflow('これまでの記録'); await ph.shot('12b-history-swiped');
+  const tops = await q.locator('.hist .slide .thumbs').evaluateAll((els) => els.map((e) => e.offsetTop)); assert.equal(tops[0], tops[1], 'iPhone でも、図はどの回も同じ高さ：' + tops.join());
   // iPhone で書き出したものを iPad に戻す
   await p.goto(BASE + '#/set/backup'); await p.waitForSelector('text=書き出す');
   await p.locator('input[type=file]').setInputFiles(file2); await p.waitForSelector('text=合言葉なし'); await tap('このバックアップに入れ替える'); await tap('入れ替える'); await p.waitForSelector('.home-top');
