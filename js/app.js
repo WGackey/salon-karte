@@ -61,6 +61,6 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     if (reg.waiting) offer(reg.waiting);
     reg.addEventListener('updatefound', () => { const w = reg.installing; w && w.addEventListener('statechange', () => { if (w.state === 'installed') offer(w); }); });
   }).catch(() => {});
-  let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', async () => { if (reloaded) return; reloaded = true; await flush(); location.reload(); });
+  let reloaded = false; const hadCtl = !!navigator.serviceWorker.controller; // はじめて開いたときは読みこみ直さない（書きかけが消えないように）
+  navigator.serviceWorker.addEventListener('controllerchange', async () => { if (reloaded || !hadCtl) return; reloaded = true; await flush(); location.reload(); });
 }

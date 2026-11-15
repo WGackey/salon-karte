@@ -215,6 +215,12 @@ html.noscroll, html.noscroll body { overflow: hidden; }
   .zu.full { display: grid; grid-template-columns: 290px 1fr; grid-template-rows: auto 1fr; } .zu.full .fullbar { grid-column: 1 / -1; } .zu.full .toolbar { grid-column: 1; grid-row: 2; } .zu.full .zu-main { grid-column: 2; grid-row: 2; }
   .zu .tlabel { margin: 2px 0 -2px; } .zu .widthbtn { min-height: 46px; }
 }
+/* たて向きの iPad：道具は上にくっついたまま、場所をとりすぎないように（見出しを横に・ボタンを少し小さく） */
+@media (min-width: 701px) and (max-width: 899px), (min-width: 701px) and (orientation: portrait) {
+  .zu:not(.full) .toolbar { gap: 6px 8px; align-items: center; } .zu:not(.full) .tlabel { flex: none; margin: 0 2px 0 0; }
+  .zu:not(.full) .toolbar .chips { gap: 6px; } .zu:not(.full) .toolbar .chip, .zu:not(.full) .markbtn { min-height: 40px; padding: 0 10px 0 8px; font-size: .88rem; } .zu:not(.full) .widthbtn { min-height: 40px; flex-direction: row; gap: 6px; min-width: 0; } .zu:not(.full) .widthbtn .wline { width: 22px; }
+  .zu:not(.full) .trow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; flex: 1 0 100%; } .zu:not(.full) .viewtools { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+}
 /* iPhone など小さい画面：たて持ち・片手で通せるように */
 @media (max-width: 700px) {
   body { font-size: 16px; }
@@ -246,7 +252,7 @@ html.noscroll, html.noscroll body { overflow: hidden; }
   .zu.full .trow { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 14px; flex: none; } .zu.full .trow::-webkit-scrollbar { display: none; }
   .zu.full .trow .chips { flex-wrap: nowrap; flex: none; gap: 6px; } .zu.full .toolbar .chip { flex: none; min-height: 44px; padding: 0 11px; font-size: .86rem; }
   .zu.full .padname { display: none; } .zu.full .tlabel { flex: none; align-self: center; margin: 0; } .zu.full .pennow { display: none; } .zu.full .widthbtn { min-height: 44px; flex-direction: row; gap: 6px; } .zu.full .widthbtn .wline { width: 22px; }
-  .closefull { padding: 0 12px; } .fullview .chip { padding: 0 14px; }
+  .zu.full .fullbar { gap: 6px; } .closefull { padding: 0 10px; font-size: .95rem; } .fullview .chip, .guestmode .fullview .chip { padding: 0 12px; min-width: 46px; min-height: 44px; justify-content: center; font-size: .95rem; } .undofull, .guestmode .zu .undofull { padding: 0 8px; font-size: .9rem; min-height: 44px; }
   .sheet-body { padding: 8px 14px 16px; } .dialog { padding: 18px; }
 }
 .comprow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-bottom: 1px solid #eee; } .comprow .chips { flex-wrap: nowrap; } .subrow { padding: 8px 0; border-bottom: 1px solid #eee; }
