@@ -86,6 +86,7 @@ function settingsV4(v) {
   n.symptoms = (v.symptoms || []).map((s) => (s.acts ? s : { ...s, acts: { ...(DEFAULT_SYM_ACTS[s.id] || {}) } }));
   if (!n.actions) n.actions = clone(DEFAULT_SETTINGS.actions);
   if (!n.ageRules) n.ageRules = clone(DEFAULT_SETTINGS.ageRules);
+  if (!(n.marks || []).some((m) => m.id === 'm_notouch')) n.marks = [...(n.marks || []), ...DEFAULT_SETTINGS.marks.filter((m) => m.id === 'm_notouch').map(clone)];
   if (!n.unknownPct) n.unknownPct = DEFAULT_SETTINGS.unknownPct;
   return n;
 }

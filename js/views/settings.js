@@ -45,7 +45,7 @@ export function oilsView() {
     const sw = h('button', { type: 'button', class: 'mini big' + (o.owned ? ' on' : ''), 'aria-pressed': String(!!o.owned) }, o.owned ? '✓ 手持ち' : '持っていない');
     sw.onclick = async () => { o.owned = !o.owned; await saveMaster('oils', o); draw(); };
     return h('div', { class: 'row-link', style: { '--fam': fam(o.family).color } },
-      h('a', { class: 'grow famline', href: `#/set/oil/${o.id}` }, h('div', { class: 'name' }, o.name, ' ', o.ref === false ? badge('資料にない', 'amber') : o.draft ? badge('下書き', 'draft') : badge('確かめた', 'ok')), h('div', { class: 'muted' }, [fam(o.family).name || '系統なし', o.plant].filter(Boolean).join('・'))), sw);
+      h('a', { class: 'grow famline', href: `#/set/oil/${o.id}` }, h('div', { class: 'name' }, o.name, ' ', o.ref === false ? badge('資料にない', 'amber') : o.draft ? badge('下書き', 'draft') : badge('確かめた', 'ok')), h('div', { class: 'muted' }, [fam(o.family).name || '系統は未記入', o.plant].filter(Boolean).join('・'))), sw);
   }));
   draw();
   return page({ title: '精油の一覧と手持ち', back: '#/set', actions: h('a', { class: 'btn', href: '#/set/oil/new' }, '＋ 足す'),
@@ -65,7 +65,7 @@ export function oilEditView(id) {
     const box = h('div', { class: 'comprow' });
     const draw = () => {
       const state = !has(c.id) ? 'none' : o.components[c.id] === 'tr' ? 'tr' : 'yes';
-      const num = h('input', { type: 'number', inputmode: 'decimal', class: 'input num', placeholder: '空き', value: typeof o.components[c.id] === 'number' ? o.components[c.id] : '', disabled: state !== 'yes' });
+      const num = h('input', { type: 'number', inputmode: 'decimal', class: 'input num', placeholder: '未記入', value: typeof o.components[c.id] === 'number' ? o.components[c.id] : '', disabled: state !== 'yes' });
       num.oninput = () => { o.components[c.id] = num.value === '' ? null : Number(num.value); sum(); };
       fill(box, h('div', { class: 'grow' }, c.name),
         chips([{ id: 'none', name: 'なし' }, { id: 'yes', name: '入っている' }, { id: 'tr', name: '微量' }], state, { multi: false, onChange: (x) => {
@@ -86,8 +86,8 @@ export function oilEditView(id) {
   return page({
     title: isNew ? '精油を足す' : o.name, back: '#/set/oils', body: [
       o.draft ? DRAFT_NOTE(o.ref === false ? undefined : AROMA_SRC) : null,
-      card(field('名前', input(o, 'name')), group('香りの系統', chips(st.families, o.family || '', { multi: false, onChange: (v) => { o.family = v || ''; } }), 'もう一度押すと外れます（系統なし）'),
-        field('植物の科（資料の「種類」）', input(o, 'plant', { placeholder: '例：シソ科' }), '植物アレルギー（キク科・イネ科など）の判定に使います'),
+      card(field('名前', input(o, 'name')), group('香りの系統', chips(st.families, o.family || '', { multi: false, onChange: (v) => { o.family = v || ''; } }), 'もう一度押すと外れます（未記入）'),
+        field('植物の科（資料の「種類」）', input(o, 'plant', { placeholder: '未記入' })),
         h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: o.owned, onchange: (e) => { o.owned = e.target.checked; } }), '手持ち（持っている）')),
       card(h('h2', null, '成分の分類と割合'), h('p', { class: 'hint' }, '資料に割合がないときは「入っている」にして、数字は空けたままに（もっともらしく埋めない）。'),
         S.cats.map(compRow), total),
@@ -247,7 +247,7 @@ export function catsView() {
 // ---- 外す決まり（割合・年齢） ----
 export function rulesView() {
   const st = S.settings; const save = () => saveSettings();
-  st.ageRules = st.ageRules || { infant: 6, child: 15, old: 65 };
+  st.ageRules = st.ageRules || { infant: null, child: null, old: null };
   const ar = st.ageRules;
   return page({
     title: '外す決まり', back: '#/set', body: [
@@ -256,11 +256,11 @@ export function rulesView() {
         group('割合が分からないとき（資料に「入っている」とだけある）', chips([{ id: 'block', name: '外す（安全側）' }, { id: 'warn', name: '外さずに ⚠ をつける' }], st.unknownPct || 'block', { multi: false, onChange: (v) => { st.unknownPct = v || 'block'; save(); } }),
           'はじめは「外す」。資料に割合がない精油が多いので、⚠ にすると候補に残るものが増えます'),
         h('p', { class: 'hint' }, '「微量」と書いた成分では外しません。')),
-      card(h('h2', null, '年齢で自動でつける状態'), h('p', { class: 'hint' }, 'お客さんの生年月日から、その日の年齢でつけます。空けると自動でつけません。数字は下書きです。'),
-        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '乳幼児'), h('span', { class: 'row tight' }, numIn(ar, 'infant', { onInput: () => { delete ar.draft; save(); }, placeholder: '空き' }), '歳まで')),
-        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '子ども'), h('span', { class: 'row tight' }, numIn(ar, 'child', { onInput: () => { delete ar.draft; save(); }, placeholder: '空き' }), '歳まで')),
-        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '高齢'), h('span', { class: 'row tight' }, numIn(ar, 'old', { onInput: () => { delete ar.draft; save(); }, placeholder: '空き' }), '歳から')),
-        ar.draft ? badge('下書き', 'draft') : null),
+      card(h('h2', null, '年齢で自動でつける状態'), h('p', { class: 'hint' }, 'お客さんの生年月日から、その日の年齢でつけます。資料に数字がないので、はじめは未記入（自動でつけない）です。入れると自動でつきます。'),
+        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '乳幼児'), h('span', { class: 'row tight' }, numIn(ar, 'infant', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳まで')),
+        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '子ども'), h('span', { class: 'row tight' }, numIn(ar, 'child', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳まで')),
+        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '高齢'), h('span', { class: 'row tight' }, numIn(ar, 'old', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳から')),
+        null),
     ],
   });
 }

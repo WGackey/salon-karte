@@ -78,16 +78,17 @@ test('妊娠の時期：月数から初期・中期・後期。月数がなけ�
   assert.ok(at(9).o_juniper.blocks.length > 0, '「妊娠」のNGは時期を問わない');
   assert.ok(at(null).o_cypress.blocks[0].includes('月数が入っていない'));
 });
-test('年齢：生年月日から乳幼児・子ども・高齢が自動でつく', () => {
-  const ec = (birth) => effectiveConds({ settings: DEFAULT_SETTINGS, det: { birth, conds: [] }, visit: { conds: [] }, today: '2026-11-15' }).ids;
+test('年齢：区切りを入れると、生年月日から乳幼児・子ども・高齢が自動でつく', () => {
+  const ec = (birth, settings = { ...DEFAULT_SETTINGS, ageRules: { infant: 6, child: 15, old: 65 } }) => effectiveConds({ settings, det: { birth, conds: [] }, visit: { conds: [] }, today: '2026-11-15' }).ids;
   assert.deepEqual(ec('2023-01-01').sort(), ['c_child', 'c_infant']); assert.deepEqual(ec('2016-01-01'), ['c_child']);
   assert.deepEqual(ec('1950-01-01'), ['c_old']); assert.deepEqual(ec('1990-01-01'), []); assert.deepEqual(ec(''), []);
+  assert.deepEqual(ec('2023-01-01', DEFAULT_SETTINGS), [], 'はじめは区切りが未記入なので、自動でつけない');
   const by = byId(pick({ condIds: ec('2023-01-01') }));
   assert.ok(by.o_peppermint.blocks.length > 0); assert.equal(by.o_ravensara.blocks.length, 0);
 });
 test('割合が分からない成分の注意：はじめは外す（安全側）。設定で ⚠ だけにできる。資料のOKと食いちがうときは書く', () => {
   const g = byId(pick({ condIds: ['c_preg'] })).o_geranium;
-  assert.ok(g.blocks.some((t) => t.includes('ケトン類') && t.includes('割合は分からない') && t.includes('「OK」')), g.blocks.join());
+  assert.ok(g.blocks.some((t) => t.includes('ケトン類') && t.includes('割合は未記入') && t.includes('「OK」')), g.blocks.join());
   const w = byId(pickOils({ oils: DEFAULT_OILS, cats: DEFAULT_CATS, settings: { ...DEFAULT_SETTINGS, unknownPct: 'warn' }, symptoms: [], condIds: ['c_preg'] }));
   assert.equal(w.o_geranium.blocks.length, 0); assert.ok(w.o_geranium.warns.some((t) => t.includes('ケトン類')));
   assert.ok(w.o_peppermint.blocks.length > 0, '割合が分かっていて目安をこえるものは外す');
@@ -98,12 +99,11 @@ test('外さずに ⚠：敏感肌のイランイラン・アトピーのカモ�
   assert.ok(by.o_chamomile_g.warns.some((t) => t.includes('アトピー')));
   assert.ok(byId(pick({})).o_rose.warns.some((t) => t.includes('うすめて')), 'フェノール類は、だれにでも「うすめて」の注意');
 });
-test('植物アレルギー：資料のNG（ブタクサ・イネ科）と、同じ科の精油も外す', () => {
+test('植物アレルギー：資料のNG（ブタクサ・イネ科）にあたる精油だけ外す（資料にない広げ方はしない）', () => {
   const rag = byId(pick({ allergyTags: ['al_ragweed'] }));
-  for (const id of ['o_chamomile_g', 'o_chamomile', 'o_helichrysum']) assert.ok(rag[id].blocks.length > 0, id);
-  assert.ok(rag.o_chamomile.blocks[0].includes('キク科')); assert.equal(rag.o_lavender.blocks.length, 0);
+  assert.ok(rag.o_chamomile_g.blocks.length > 0); assert.equal(rag.o_chamomile.blocks.length, 0); assert.equal(rag.o_lavender.blocks.length, 0);
   const grass = byId(pick({ allergyText: 'イネ科の花粉' }));
-  assert.ok(grass.o_palmarosa.blocks.length > 0 && grass.o_lemongrass.blocks.length > 0);
+  assert.ok(grass.o_palmarosa.blocks.length > 0); assert.equal(grass.o_lemongrass.blocks.length, 0);
 });
 test('候補：アレルギーの欄・避ける精油', () => {
   const by = byId(pick({ allergyText: 'ナッツ、ラベンダー', avoidOilIds: ['o_lemon'] }));

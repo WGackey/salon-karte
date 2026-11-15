@@ -47,7 +47,7 @@ export const DEFAULT_CONDS = [
   { id: 'c_preg_early', name: '妊娠初期（4か月まで）', when: 'auto' },
   { id: 'c_preg_mid', name: '妊娠中期（5〜7か月）', when: 'auto' },
   { id: 'c_preg_late', name: '妊娠後期（8か月から）', when: 'auto' },
-  { id: 'c_nurse', name: '授乳中', when: 'visit' },
+  { id: 'c_post', name: '出産してまもない', when: 'visit' }, { id: 'c_nurse', name: '授乳中', when: 'visit' },
   { id: 'c_mens', name: '月経中', when: 'visit' }, { id: 'c_sun', name: SUN_NAME, when: 'visit' },
   { id: 'c_drive', name: 'このあと運転する', when: 'visit' }, { id: 'c_drink', name: 'このあとお酒を飲む（飲んできた）', when: 'visit' },
   { id: 'c_bp', name: '高血圧', when: 'person' }, { id: 'c_bpmed', name: '血圧の薬をのんでいる', when: 'person' },
@@ -63,7 +63,7 @@ export const DEFAULT_SETTINGS = {
   dropMl: 0.05, // 1滴の量（ml）
   cautionPct: 10, // 気をつける成分が何％以上入っていたら外すか
   unknownPct: 'block', // 気をつける成分が「入っている・割合は分からない」とき：block＝外す（安全側）／warn＝⚠をつけて候補に残す
-  ageRules: { infant: 6, child: 15, old: 65, draft: true }, // 生年月日から自動でつける：乳幼児（○歳まで）・子ども（○歳まで）・高齢（○歳から）
+  ageRules: { infant: null, child: null, old: null }, // 生年月日から自動でつける：乳幼児（○歳まで）・子ども（○歳まで）・高齢（○歳から）。資料に数字がないので、はじめは未記入（自動でつけない）
   areas: [
     { id: 'a_body', name: '体', max: 1, draft: true },
     { id: 'a_face', name: '顔', max: 0.5, draft: true },
@@ -82,6 +82,8 @@ export const DEFAULT_SETTINGS = {
     { id: 'm_pain', name: '痛い', color: '#e0483e' }, { id: 'm_kori', name: 'こっている', color: '#3d74d9' },
     { id: 'm_hari', name: 'はっている', color: '#f08a24' }, { id: 'm_hie', name: '冷えている', color: '#35b3c9' },
     { id: 'm_mukumi', name: 'むくみ', color: '#3fa860' }, { id: 'm_other', name: 'そのほか', color: '#8d6cc0' },
+    // 触れてほしくないところ。図には × で出し、次の来店にも写す
+    { id: 'm_notouch', name: '触れないで（×）', color: '#2b2b2b', x: true },
   ],
   jobs: ['営業系', '事務系', '工業系', '主婦(夫)', '学生(運動)', '学生(文化)', 'そのほか'],
   purposes: ['こり・はりをほぐしたい', 'リラックスしたい', '疲れをとりたい', 'ぐっすり眠りたい', 'むくみをすっきり', '気分を変えたい'],
@@ -93,7 +95,6 @@ export const DEFAULT_SETTINGS = {
     { id: 'sk_age', name: 'ハリ・うるおいが気になる' }, { id: 'sk_normal', name: 'とくに気にならない' },
   ],
   // アレルギーのしるし。words＝アレルギーの欄にこの言葉が書いてあったら、あてはまるとみなす
-  // plants＝この「科」の植物からとった精油も外す（資料の「種類」のらん）
   allergens: [
     { id: 'al_nut', name: 'ナッツ類（木の実）', words: 'ナッツ、アーモンド、くるみ、クルミ、カシュー、マカデミア、ヘーゼル、ピスタチオ、木の実' },
     { id: 'al_peanut', name: 'ピーナッツ（落花生）', words: 'ピーナッツ、落花生' },
@@ -101,8 +102,8 @@ export const DEFAULT_SETTINGS = {
     { id: 'al_rice', name: '米', words: '米ぬか、こめ、お米' },
     { id: 'al_wheat', name: '小麦', words: '小麦' },
     { id: 'al_soy', name: '大豆', words: '大豆' },
-    { id: 'al_ragweed', name: 'ブタクサ・キク科の植物', words: 'ブタクサ、キク科、ヨモギ、よもぎ、菊', plants: 'キク科' },
-    { id: 'al_grass', name: 'イネ科の植物（花粉など）', words: 'イネ科、カモガヤ、イネ花粉', plants: 'イネ科' },
+    { id: 'al_ragweed', name: 'ブタクサ', words: 'ブタクサ' },
+    { id: 'al_grass', name: 'イネ科の植物', words: 'イネ科' },
   ],
   // キャリアオイルの成分（脂肪酸など）。uses＝こんな肌の状態で選ばれることが多い。すべて下書き
   fats: [
@@ -156,8 +157,9 @@ export const DEFAULT_CATS = [
 //   uses      ：資料の「OK」と使いどころのうち、つらいところの言葉にあてはまるもの
 //   okConds   ：資料の「OK」のうち、お客さんの状態にあてはまるもの（妊産婦・乳幼児・高齢者）
 //   cautions  ：資料の「NG」→ あてはまるお客さんには外す。warns＝外さずに ⚠
-//   allergens ：資料の「NG」の植物アレルギー。plant＝資料の「種類」（科）
-const PREG = ['c_preg', 'c_nurse']; // 資料の「妊産婦」。授乳中もふくめた（安全側）
+//   allergens ：資料の「NG」の植物アレルギー。plant＝資料の「種類」（科。いまは見せるだけ）
+// 資料にない数字・注意は足さない（空き＝未記入）。資料が正本
+const PREG = ['c_preg', 'c_post']; // 資料の「妊産婦」＝妊娠中と、出産してまもない人
 const BP = ['c_bp', 'c_bpmed'];
 const O = (id, name, family, plant, components, subs, actions, uses, x = {}) => ({
   id, name, family, plant, components, subs, actions, uses,

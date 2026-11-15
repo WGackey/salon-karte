@@ -66,7 +66,7 @@ export function effectiveConds({ settings, det = {}, visit = {}, today = todaySt
 }
 
 // 成分の割合の見せ方。null＝入っている（割合は資料になし）、'tr'＝微量
-export const pctText = (p) => (p === 'tr' ? '微量' : p == null || p === '' ? '割合は分からない' : `約${p}％`);
+export const pctText = (p) => (p === 'tr' ? '微量' : p == null || p === '' ? '割合は未記入' : `約${p}％`);
 // 書き方のゆれ（ティートゥリー／ティートリー、スウィート／スイート）を同じとみなす
 const kanaLoose = (t) => t.replace(/ウィ/g, 'イ').replace(/ゥ/g, '');
 const has = (comp, id) => !!comp && Object.prototype.hasOwnProperty.call(comp, id);
@@ -132,10 +132,6 @@ export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidO
       else if (cat.tip) warns.push(`${cat.name}が入っている：${cat.tip}`);
     }
     for (const a of oil.allergens || []) if (hits[a]) blocks.push(hits[a]);
-    for (const a of settings.allergens || []) {
-      if (!hits[a.id] || (oil.allergens || []).includes(a.id) || !a.plants || !oil.plant) continue;
-      if (a.plants.split(/[、,\s]+/).filter(Boolean).includes(oil.plant)) blocks.push(`${hits[a.id]} ← この精油は${oil.plant}（資料の「種類」）`);
-    }
     if (avoid.has(oil.id)) blocks.push('このお客さんの「避ける精油」に入っている');
     const base = oil.name.split(/[・（(]/)[0];
     if (allergy && base.length >= 2 && kanaLoose(allergy).includes(kanaLoose(base))) blocks.push(`アレルギーの欄に「${base}」と書いてある`);
