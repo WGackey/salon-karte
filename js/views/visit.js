@@ -1,11 +1,15 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone, saveBadge } from '../ui.js';
 import { S, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
-import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchOf } from '../logic.js';
-import { bodyPad, FIGURES } from '../bodymap.js';
+import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchAll } from '../logic.js';
+import { figureEditor, hasLines } from '../figedit.js';
 import { notFound, blendText, noTouchFigures } from './customer.js';
+import { handoverSheet } from './guest.js';
 
-const STEPS = [['monshin', '問診'], ['zu', 'からだの図'], ['seiyu', 'オイル'], ['blend', 'ブレンド'], ['sejutsu', '施術'], ['after', '施術後']];
+// 来店の流れは2つに分かれる。前半（guest）＝お客さんから聞くこと／後半（staff）＝施術する人の記録
+const STEPS = [['monshin', '問診', 'guest'], ['kininaru', '気になるところ', 'guest'],
+  ['shoken', '所見', 'staff'], ['seiyu', 'オイル', 'staff'], ['blend', 'ブレンド', 'staff'], ['sejutsu', '施術', 'staff'], ['after', '施術後', 'staff']];
+const PHASES = { guest: ['前半', 'お客さんから聞くこと'], staff: ['後半', '施術者の記録'] };
 const fam = (id) => S.settings.families.find((f) => f.id === id) || { name: '', color: '#bbb' };
 const symName = (id) => (S.settings.symptoms.find((c) => c.id === id) || {}).name || '（消した症状）';
 const condName = (id) => (S.settings.conds.find((c) => c.id === id) || {}).name || '';
@@ -30,7 +34,9 @@ export async function visitView(id, step) {
   const all = await visitsOf(v.customerId);
   const prev = all.find((x) => x.id !== v.id && (x.date + x.createdAt) < (v.date + v.createdAt));
   const nth = all.length - all.findIndex((x) => x.id === v.id);
+  if (step === 'zu') step = 'shoken'; // 前の版のアドレス
   if (!STEPS.some((s) => s[0] === step)) step = 'monshin';
+  v.guestFigures = v.guestFigures || { front: [], back: [] }; v.figures = v.figures || { front: [], back: [] };
   const idx = STEPS.findIndex((s) => s[0] === step);
   const save = () => saveSoon(() => saveVisit(v));
   const eff = () => effectiveConds({ settings: S.settings, det, visit: v });
@@ -69,7 +75,7 @@ export async function visitView(id, step) {
         h('div', { class: 'symname' }, symName(s.id)), levelPicker(s.level, (n) => { s.level = n; save(); }))));
       drawSym();
       return [
-        v.copied && prev ? h('div', { class: 'notice ok' }, `前回（${jpDate(prev.date)}）の問診が入っています。変わったところだけ直してね。`) : null,
+        v.copied && prev && !(v.intake && v.intake.by === 'guest') ? h('div', { class: 'notice ok' }, `前回（${jpDate(prev.date)}）の問診が入っています。変わったところだけ直してね。`) : null,
         card(h('div', { class: 'row' }, field('来店日', input(v, 'date', { type: 'date', onInput: () => { save(); } })), h('span', { class: 'muted' }, `${nth}回目`)),
           group('今日の状態', chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; save(); drawPreg(); } }), condHint()), pregBox),
         card(h('h2', null, 'つらいところ'), h('p', { class: 'hint' }, 'あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます'),
@@ -82,81 +88,22 @@ export async function visitView(id, step) {
           group('好きな香りの系統', chips(S.settings.families, iv.famLikes || [], { onChange: (x) => { iv.famLikes = x; save(); } }), '精油の候補の画面で、はじめにこの系統でしぼります'),
           group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; save(); } })),
           field('くらしのようす（睡眠・食事・仕事など）', textarea(iv, 'life', { onInput: save })),
-          field('今日のメモ', textarea(iv, 'memo', { onInput: save, rows: 2 }))),
+          field('お客さんから伝えたいこと・気をつけてほしいこと', textarea(iv, 'wish', { onInput: save, rows: 2 })),
+          field('今日のメモ（施術する人用）', textarea(iv, 'memo', { onInput: save, rows: 2 }))),
       ];
     },
-    // ---------- からだの図 ----------
-    zu() {
-      const marks = S.settings.marks; const tool = { mode: 'draw', mark: marks[0].id, width: 14 };
-      const pads = {}; let view = isPhone() ? 'front' : 'both'; let zone = 'all'; let full = false;
-      const copy = () => JSON.parse(JSON.stringify(Object.fromEntries(FIGURES.map((f) => [f.id, v.figures[f.id] || []]))));
-      const atOpen = copy(); // この画面を開いたときの図（「開く前に戻す」用）
-      // したことの記録（「ひとつ戻す」用）。かいた・消しゴムで消した・ぜんぶ消した・開く前に戻した、のどれも1手として戻せる
-      const hist = [];
-      const padBox = h('div', { class: 'pads' });
-      const drawPads = () => {
-        padBox.className = 'pads ' + view;
-        fill(padBox, ...FIGURES.filter((f) => view === 'both' || view === f.id).map((f) => {
-          v.figures[f.id] = v.figures[f.id] || [];
-          pads[f.id] = bodyPad({ kind: f.id, strokes: v.figures[f.id], marks, getTool: () => tool, onChange: (act) => { hist.push({ ...act, fig: f.id }); sync(); save(); } });
-          pads[f.id].setZone(view === 'both' ? 'all' : zone);
-          return h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name), pads[f.id]);
-        }));
-      };
-      // えらぶボタン（もう一度押しても外れない）。症状＝色つきの丸いボタン、太さ＝線の太さが見える四角いボタン、と形を変えてある
-      const markBtns = marks.map((m) => h('button', { type: 'button', class: 'markbtn', style: { '--c': m.color }, onclick: () => { tool.mark = m.id; tool.mode = 'draw'; sync(); } }, h('span', { class: 'dot' }), m.name));
-      const WIDTHS = [[6, '細い'], [14, 'ふつう'], [26, '太い']];
-      const widthBtns = WIDTHS.map(([w, name]) => h('button', { type: 'button', class: 'widthbtn', onclick: () => { tool.width = w; tool.mode = 'draw'; sync(); } }, h('span', { class: 'wline', style: { height: Math.round(w * 0.6) + 'px' } }), name));
-      const now = h('div', { class: 'pennow' });
-      const eraser = btn('消しゴム（線をえらぶ）', () => { tool.mode = tool.mode === 'erase' ? 'draw' : 'erase'; sync(); }, 'chip');
-      const undo = btn('↩ ひとつ戻す', () => {
-        const a = hist.pop(); if (!a) return;
-        if (a.type === 'add') { const arr = v.figures[a.fig]; const i = arr.lastIndexOf(a.stroke); if (i >= 0) arr.splice(i, 1); }
-        else if (a.type === 'erase') v.figures[a.fig].splice(Math.min(a.index, v.figures[a.fig].length), 0, a.stroke); // 消しゴムで消した線を、元の場所に戻す
-        else if (a.type === 'all') for (const f of FIGURES) v.figures[f.id] = a.before[f.id];
-        drawPads(); sync(); save();
-        toast(a.type === 'add' ? 'かいた線を1本、取り消しました' : a.type === 'erase' ? '消しゴムで消した線を戻しました' : '元に戻しました');
-      }, 'chip');
-      const replaceAll = (next) => { hist.push({ type: 'all', before: copy() }); for (const f of FIGURES) v.figures[f.id] = next[f.id]; drawPads(); sync(); save(); };
-      const clear = btn('ぜんぶ消す', async () => {
-        if (!(await confirmDlg('図にかいた線をぜんぶ消します。（「ひとつ戻す」で元に戻せます）', '消す', true))) return;
-        replaceAll(Object.fromEntries(FIGURES.map((f) => [f.id, []]))); }, 'chip');
-      const revert = btn('開く前に戻す', async () => {
-        if (!(await confirmDlg('この画面を開いたあとにかいた・消した分をやめて、開く前の図に戻します。（「ひとつ戻す」で元に戻せます）', '開く前に戻す', true))) return;
-        replaceAll(JSON.parse(JSON.stringify(atOpen))); }, 'chip');
-      const sync = () => {
-        const er = tool.mode === 'erase'; const m = marks.find((x) => x.id === tool.mark) || marks[0];
-        markBtns.forEach((b, i) => b.classList.toggle('on', !er && marks[i].id === tool.mark));
-        widthBtns.forEach((b, i) => b.classList.toggle('on', !er && WIDTHS[i][0] === tool.width));
-        eraser.classList.toggle('on', er); eraser.textContent = er ? '✓ 消しゴム中（線にさわる）' : '消しゴム（線をえらぶ）';
-        undo.disabled = hist.length === 0; root.classList.toggle('erasing', er);
-        fill(now, er ? h('b', null, 'いま：消しゴム') : [h('span', { class: 'small' }, 'いまのペン'), h('span', { class: 'penline', style: { background: m.color, height: Math.round(tool.width * 0.6) + 'px' } }), h('b', null, m.name)]);
-      };
-      // 見え方（ならべる・前だけ・後ろだけ）と、大きくするところ（全体・上半身・下半身）
-      const viewBox = h('div', { class: 'viewtools' });
-      const drawView = () => fill(viewBox,
-        chips([{ id: 'both', name: 'ならべる' }, { id: 'front', name: '前だけ' }, { id: 'back', name: '後ろだけ' }], view, { multi: false, onChange: (x) => { view = x || view; if (view === 'both') zone = 'all'; drawView(); drawPads(); } }),
-        chips([{ id: 'all', name: '全体' }, { id: 'top', name: '上半身' }, { id: 'bottom', name: '下半身' }], zone, { multi: false, onChange: (z) => { zone = z || 'all'; if (zone !== 'all' && view === 'both') view = 'front'; drawView(); drawPads(); } }));
-      const root = h('div', { class: 'zu' });
-      const fullBtn = btn('', () => setFull(!full), 'chip fullbtn');
-      const setFull = (on) => {
-        full = on; root.classList.toggle('full', on); document.documentElement.classList.toggle('noscroll', on);
-        fullBtn.textContent = on ? '✕ 大きい画面をとじる' : '⤢ 画面いっぱいでかく'; fullBtn.classList.toggle('on', on);
-        if (on && isPhone() && view === 'both') { view = 'front'; drawView(); drawPads(); }
-        if (!on) scrollTo(0, 0);
-      };
-      drawPads(); drawView(); setFull(false); sync();
-      const label = (t) => h('div', { class: 'tlabel' }, t);
-      // 道具は見出しつきの3つのまとまり。小さい画面の「画面いっぱい」では、1まとまり＝横に流せる1行になる
-      fill(root,
-        h('div', { class: 'toolbar' },
-          h('div', { class: 'trow' }, label('症状（色）'), h('div', { class: 'chips' }, markBtns)),
-          h('div', { class: 'trow' }, label('ペンの太さ'), h('div', { class: 'chips widths' }, widthBtns), label('直す'), h('div', { class: 'chips' }, undo, eraser, clear, revert)),
-          h('div', { class: 'trow' }, label('見え方'), h('div', { class: 'chips' }, fullBtn), viewBox)),
-        h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), now, padBox,
-          h('p', { class: 'hint center' }, '「症状（色）」と「ペンの太さ」をえらんで、つらいところをなぞってね。指でもペンでもかけます。かいた線は自動で保存されます。「触れないで（×）」は、次の来店にも写ります。'),
-          h('p', { class: 'hint center' }, '「ひとつ戻す」＝直前にしたこと（かいた・消した）を1つ取り消す。「消しゴム」＝前にかいた線でも、さわった線だけ消す。')));
-      return root;
+    // ---------- 気になるところ（お客さんの図） ----------
+    kininaru() {
+      return figureEditor({ figures: v.guestFigures, layer: 'guest', marks: S.settings.marks, onSave: save, markLabel: 'どんなふうに気になる？（色）',
+        hints: ['お客さんに聞きながら、気になるところ・つらいところをなぞります。お客さんに渡したときは、お客さんが自分でなぞった図がここに出ます。',
+          'お客さんの線は「つぶつぶ」で出ます（施術する人の所見は、ぬった線）。「触れないで（×）」は、次の来店にも写ります。'] });
+    },
+    // ---------- 所見（施術する人の図） ----------
+    shoken() {
+      return figureEditor({ figures: v.figures, layer: 'staff', marks: S.settings.marks, onSave: save,
+        under: { figures: v.guestFigures, layer: 'guest', label: 'お客さんの図も重ねる' },
+        hints: ['さわって・見て分かったことを、施術する人がなぞります（ぬった線）。' + (hasLines(v.guestFigures) ? 'お客さんの「気になるところ」は、つぶつぶの線で下に重ねて出しています（「お客さんの図も重ねる」で出す・かくす）。' : ''),
+          '「ひとつ戻す」＝直前にしたこと（かいた・消した）を1つ取り消す。「消しゴム」＝前にかいた線でも、さわった線だけ消す。「触れないで（×）」は施術する人も足せて、次の来店にも写ります。'] });
     },
     // ---------- オイルの候補（精油・キャリアオイル） ----------
     seiyu() {
@@ -317,7 +264,7 @@ export async function visitView(id, step) {
         }, 'chip' + (on ? ' on' : ''));
       }), ...v.menus.filter((x) => !S.menus.some((m) => m.id === x.id)).map((x) => btn(`${x.name}（前のメニュー）×`, () => { v.menus = v.menus.filter((y) => y !== x); draw(); save(); }, 'chip on')));
       draw();
-      const nt = noTouchOf(v.figures, S.settings.marks);
+      const nt = noTouchAll(v, S.settings.marks);
       return [
         Object.keys(nt).length ? h('div', { class: 'warnbox' }, h('strong', null, '✕ 触れないでほしいところがあります'), noTouchFigures(nt)) : null,
         card(h('h2', null, '施術メニュー'), box, h('p', { class: 'hint' }, 'いくつでもえらべます。メニューは 設定 → 施術メニュー で作れます。')),
@@ -352,16 +299,28 @@ export async function visitView(id, step) {
     v.status = 'done'; v.copied = false; saveSoon(null); await saveVisit(v); await recount(p.id);
     toast('カルテをとじました（保存済み）'); go(`#/c/${p.id}`);
   };
-  const nav = h('nav', { class: 'steps' }, STEPS.map(([k, name], i) => h('a', { class: 'stepbtn' + (k === step ? ' on' : ''), href: `#/v/${id}/${k}` }, h('span', { class: 'num' }, String(i + 1)), name)));
+  const phase = STEPS[idx][2];
+  const stepBtn = ([k, name], i) => h('a', { class: 'stepbtn' + (k === step ? ' on' : ''), href: `#/v/${id}/${k}` }, h('span', { class: 'num' }, String(i + 1)), name);
+  const nav = h('nav', { class: 'steps' }, Object.keys(PHASES).map((ph) => h('div', { class: 'stepgroup ' + ph + (ph === phase ? ' now' : '') },
+    h('div', { class: 'glabel' }, h('b', null, PHASES[ph][0]), ph === 'guest' ? 'お客さん' : '施術者'),
+    STEPS.map((s, i) => (s[2] === ph ? stepBtn(s, i) : null)))));
+  // いまどちらの番かを、色のついた帯でいつも見せる。前半には「お客さんに渡す」を置く
+  const inGuest = v.intake && v.intake.by === 'guest';
+  const phaseBar = phase === 'guest'
+    ? h('div', { class: 'phasebar guest' }, h('div', { class: 'grow' }, h('b', null, '前半｜お客さんから聞くこと'),
+        h('div', { class: 'small' }, inGuest ? `✓ お客さんが自分で書きました（${jpDate(v.intake.at.slice(0, 10), false)}）。目を通して、足りないところを聞いてね` : '聞きながら書くか、端末を渡してお客さんに書いてもらいます')),
+      btn(inGuest ? 'もう一度お客さんに渡す' : 'お客さんに渡して書いてもらう', () => handoverSheet(p, det, v), inGuest ? '' : 'primary'))
+    : h('div', { class: 'phasebar staff' }, h('div', { class: 'grow' }, h('b', null, '後半｜施術者の記録'), h('div', { class: 'small' }, 'ここからは施術する人が書きます（お客さんに渡す画面には出ません）')));
   const warn = effectiveConds({ settings: S.settings, det, visit: v }).ids.filter((c) => !c.startsWith('c_preg_')).map(condName).filter(Boolean);
-  if (Object.keys(noTouchOf(v.figures, S.settings.marks)).length) warn.push('触れないでほしいところあり');
+  if (Object.keys(noTouchAll(v, S.settings.marks)).length) warn.push('触れないでほしいところあり');
   const hasAllergy = !!det.allergy || (det.allergyTags || []).length > 0; const hasWarn = warn.length > 0 || hasAllergy;
+  const nextLabel = idx < STEPS.length - 1 ? (STEPS[idx + 1][2] !== phase ? `後半へ：${STEPS[idx + 1][1]} ›` : `次へ：${STEPS[idx + 1][1]} ›`) : '';
   return page({
-    cls: 'visit' + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ）' : ''}`, badgeEl: saveBadge(), back: `#/c/${p.id}`,
-    body: [hasWarn ? h('div', { class: 'visit-warn' }, '⚠ ' + [...new Set(warn), hasAllergy ? 'アレルギーあり' : ''].filter(Boolean).join('・')) : null, nav, body],
+    cls: 'visit phase-' + phase + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ）' : ''}`, badgeEl: saveBadge(), back: `#/c/${p.id}`,
+    body: [hasWarn ? h('div', { class: 'visit-warn' }, '⚠ ' + [...new Set(warn), hasAllergy ? 'アレルギーあり' : ''].filter(Boolean).join('・')) : null, nav, phaseBar, body],
     footer: [
       idx > 0 ? h('a', { class: 'btn big', href: `#/v/${id}/${STEPS[idx - 1][0]}` }, '‹ 前へ') : h('span'),
-      idx < STEPS.length - 1 ? h('a', { class: 'btn primary big grow', href: `#/v/${id}/${STEPS[idx + 1][0]}` }, `次へ：${STEPS[idx + 1][1]} ›`)
+      idx < STEPS.length - 1 ? h('a', { class: 'btn primary big grow', href: `#/v/${id}/${STEPS[idx + 1][0]}` }, nextLabel)
         : btn('できた（カルテをとじる）', finish, 'primary big grow'),
     ],
   });

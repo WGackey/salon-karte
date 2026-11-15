@@ -194,6 +194,12 @@ export function noTouchOf(figures, marks) {
   for (const [k, arr] of Object.entries(figures || {})) { const f = (arr || []).filter((s) => xs.has(s.m)); if (f.length) out[k] = f; }
   return out;
 }
+// 来店ひとつ分の「触れないで」。お客さんの図と、施術する人の図の両方から集める
+export function noTouchAll(visit, marks) {
+  const a = noTouchOf((visit || {}).guestFigures, marks), b = noTouchOf((visit || {}).figures, marks); const out = {};
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) out[k] = [...(a[k] || []), ...(b[k] || [])];
+  return out;
+}
 // 同意の記録のうち、いちばん新しいもの。stale＝いまの文より前の版に同意したもの
 export function consentState(consents, consent) {
   const last = [...(consents || [])].sort((a, b) => (b.at || '').localeCompare(a.at || ''))[0] || null;
