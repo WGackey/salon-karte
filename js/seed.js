@@ -105,10 +105,10 @@ export const DEFAULT_SETTINGS = {
   // 濃度の目安（精油 ÷ キャリアオイル）。0.10.0 から資料の数字：全身 5％まで・顔 3％まで・部分ぬり ふつう10％まで（資料に「例外あり」）
   // 資料のメモ：はじめての人・敏感肌は うすめに（数字は書いていない）。子ども・高齢・妊娠中の数字は資料にない → 状態ごとの目安は空のまま
   areas: [
-    // firstMax＝はじめての人（来店1回目）の目安（0.11.0）。がっき〜がまだ数字を決めていないので、体 1％・顔 0.5％を仮に入れた下書き（firstDraft）
-    { id: 'a_body', name: '体', max: 5, draft: true, firstMax: 1, firstDraft: true },
-    { id: 'a_face', name: '顔', max: 3, draft: true, firstMax: 0.5, firstDraft: true },
-    { id: 'a_part', name: '手・足だけ', max: null }, // 手・足のトリートメントの数字は資料にない（部分ぬりの10％とは別のこととして空けてある）
+    // firstMax＝はじめての人（来店1回目）の目安（0.11.0・2026-11-16 がっき〜が決めた：体 1％・顔 0.5％）
+    { id: 'a_body', name: '体', max: 5, draft: true, firstMax: 1 },
+    { id: 'a_face', name: '顔', max: 3, draft: true, firstMax: 0.5 },
+    { id: 'a_part', name: '手・足だけ', max: 5, firstMax: 1 }, // 2026-11-16 がっき〜：手・足だけのトリートメントは体と同じ（部分ぬりの10％とは別）
     { id: 'a_spot', name: '部分ぬり（気になるところに少しだけ）', max: 10, draft: true },
   ],
   stateLimits: {}, // 状態ごとの目安（はじめは空。使う人が入れる）

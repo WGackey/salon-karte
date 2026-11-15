@@ -103,7 +103,7 @@ export const MIGRATIONS = [
     },
     add: { carriers: DEFAULT_CARRIERS },
   },
-  { // 版10：がっき〜の答え（11/16）。濃度の目安に「はじめての人」（体 1％・顔 0.5％の下書き）を足す。問診の「肌の状態」に「敏感肌」を足し、
+  { // 版10：がっき〜の答え（11/16）。濃度の目安に「はじめての人」（体 1％・顔 0.5％・手足 1％）、手・足だけに 5％（体と同じ）を入れる。問診の「肌の状態」に「敏感肌」を足し、
     //   資料で敏感肌向きのオイル（アプリコット・ピーチ・カレンデュラ）にしるしをつける。使う人が直した・確かめたものはさわらない
     to: 10,
     stores: {
@@ -120,8 +120,14 @@ function settingsV10(v) {
     const i = skins.findIndex((x) => x.id === 'sk_normal'); const add = { id: 'sk_sensitive', name: '敏感肌' };
     n.skins = i >= 0 ? [...skins.slice(0, i), add, ...skins.slice(i)] : [...skins, add];
   }
-  const FIRST = { a_body: 1, a_face: 0.5 };
-  n.areas = (v.areas || []).map((a) => (a.id in FIRST && !('firstMax' in a) ? { ...a, firstMax: FIRST[a.id], firstDraft: true } : a));
+  // はじめての人の目安（がっき〜が決めた数字）。手・足だけは「体と同じ」：空きのまま（だれも直していない）なら 5％・はじめての人 1％
+  const FIRST = { a_body: 1, a_face: 0.5, a_part: 1 };
+  n.areas = (v.areas || []).map((a) => {
+    let o = a;
+    if (o.id === 'a_part' && o.max == null && !('firstMax' in o)) o = { ...o, max: 5 };
+    if (o.id in FIRST && !('firstMax' in o)) o = { ...o, firstMax: FIRST[o.id] };
+    return o;
+  });
   return n;
 }
 

@@ -124,7 +124,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
 
   // --- ブレンド ---
   // 0.10.0：はじめの目安は資料の数字（体 5％・顔 3％・部分ぬり 10％・手足は空き）。0.11.0：はじめての人（体 1％・顔 0.5％・下書き）
-  assert.deepEqual(await p.evaluate(async () => (await import('./js/state.js')).S.settings.areas.map((a) => [a.id, a.max, a.firstMax ?? null])), [['a_body', 5, 1], ['a_face', 3, 0.5], ['a_part', null, null], ['a_spot', 10, null]]);
+  assert.deepEqual(await p.evaluate(async () => (await import('./js/state.js')).S.settings.areas.map((a) => [a.id, a.max, a.firstMax ?? null])), [['a_body', 5, 1], ['a_face', 3, 0.5], ['a_part', 5, 1], ['a_spot', 10, null]]);
   await tap('次へ：ブレンド ›'); await p.waitForSelector('.meter');
   // 1回目の来店なので、はじめから「はじめての人の目安（1％）」で見る
   assert.ok(await p.locator('.firstsel.on').count(), '1回目は、はじめての人の目安'); assert.ok((await p.locator('.meter').textContent()).includes('体（はじめての人） 1％まで'));

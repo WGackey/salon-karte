@@ -35,7 +35,7 @@ test('目安：部位と状態のうち低いほう。未設定なら「目安�
   const st = { ...DEFAULT_SETTINGS, stateLimits: { c_old: 0.5 } };
   assert.equal(limitFor(st, 'a_body', []).max, 5, '資料：全身 5％まで'); assert.equal(limitFor(st, 'a_face', []).max, 3, '資料：顔 3％まで'); assert.equal(limitFor(st, 'a_spot', []).max, 10, '資料：部分ぬり 10％まで');
   assert.equal(limitFor(st, 'a_body', ['c_old']).max, 0.5);
-  assert.equal(limitFor(st, 'a_part', []).max, null);
+  assert.equal(limitFor(st, 'a_part', []).max, 5, '手・足だけは体と同じ（11/16 がっき〜）');
   assert.equal(limitLevel(1.2, 1), 'over'); assert.equal(limitLevel(0.95, 1), 'near'); assert.equal(limitLevel(0.5, 1), 'ok'); assert.equal(limitLevel(0.5, null), 'unknown');
 });
 const pick = (o) => pickOils({ oils: DEFAULT_OILS, cats: DEFAULT_CATS, settings: DEFAULT_SETTINGS, symptoms: [], condIds: [], avoidOilIds: [], allergyText: '', ...o });
@@ -386,13 +386,13 @@ test('だれが書いたかは画面に出さない（11/16 がっき〜：お�
 test('はじめての人の目安：体 1％・顔 0.5％（下書き）。1回目の来店は、はじめからこちら。施術する人が切りかえられる', () => {
   const st = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   const a = Object.fromEntries(st.areas.map((x) => [x.id, x]));
-  assert.equal(a.a_body.firstMax, 1); assert.equal(a.a_face.firstMax, 0.5); assert.ok(a.a_body.firstDraft && a.a_face.firstDraft, '下書きのしるし');
-  assert.equal(a.a_part.max, null, '手・足だけは空きのまま'); assert.equal(a.a_part.firstMax, undefined);
+  assert.equal(a.a_body.firstMax, 1); assert.equal(a.a_face.firstMax, 0.5); assert.ok(!a.a_body.firstDraft && !a.a_face.firstDraft, '決まった数字（下書きではない）');
+  assert.equal(a.a_part.max, 5, '手・足だけは体と同じ 5％'); assert.equal(a.a_part.firstMax, 1, 'はじめての人も体と同じ 1％');
   assert.equal(limitFor(st, 'a_body', [], { first: true }).max, 1); assert.equal(limitFor(st, 'a_body', [], { first: true }).by, '体（はじめての人）');
   assert.equal(limitFor(st, 'a_body', []).max, 5, 'ふつうは 5％');
   assert.equal(limitFor(st, 'a_face', [], { first: true }).max, 0.5);
   assert.equal(limitFor(st, 'a_spot', [], { first: true }).max, 10, 'はじめての人の数字がない部位は、ふつうの目安');
-  assert.equal(limitFor(st, 'a_part', [], { first: true }).max, null);
+  assert.equal(limitFor(st, 'a_part', [], { first: true }).max, 1);
   st.stateLimits.c_old = 0.5; assert.equal(limitFor(st, 'a_body', ['c_old'], { first: true }).max, 0.5, '状態ごとの目安と、低いほう');
   assert.equal(isFirstBlend({}, 1), true, '1回目は、はじめての人'); assert.equal(isFirstBlend({}, 2), false);
   assert.equal(isFirstBlend({ first: false }, 1), false, '施術する人が切りかえたら、それ'); assert.equal(isFirstBlend({ first: true }, 3), true);
@@ -420,15 +420,16 @@ test('版10への移し替え：はじめての人の目安と、肌の状態の
       { id: 'k_apricot', skins: ['sk_dry'], draft: true }, { id: 'k_peach', skins: ['sk_dry', 'sk_age'], draft: true },
       { id: 'k_calendula', skins: ['sk_dry'], draft: false }, { id: 'mine', skins: ['sk_dry'], draft: true },
     ],
-    meta: [{ key: 'settings', value: { areas: [{ id: 'a_body', name: '体', max: 5, draft: true }, { id: 'a_face', name: '顔', max: 2 }, { id: 'a_part', name: '手・足だけ', max: null }],
+    meta: [{ key: 'settings', value: { areas: [{ id: 'a_body', name: '体', max: 5, draft: true }, { id: 'a_face', name: '顔', max: 2 }, { id: 'a_part', name: '手・足だけ', max: null }, { id: 'x', name: '自分で足した手', max: 3 }],
       skins: [{ id: 'sk_dry', name: 'かさかさ' }, { id: 'sk_normal', name: 'ふつう' }] } }],
   } };
   const d = migrateDump(v9, MIGRATIONS, DATA_VERSION); const c = Object.fromEntries(d.stores.carriers.map((x) => [x.id, x]));
   assert.deepEqual(c.k_apricot.skins, ['sk_dry', 'sk_sensitive']); assert.deepEqual(c.k_peach.skins, ['sk_dry', 'sk_age'], '直したオイルはさわらない');
   assert.deepEqual(c.k_calendula.skins, ['sk_dry'], '確かめたオイルはさわらない'); assert.deepEqual(c.mine.skins, ['sk_dry']);
   const st = d.stores.meta[0].value; const a = Object.fromEntries(st.areas.map((x) => [x.id, x]));
-  assert.equal(a.a_body.firstMax, 1); assert.equal(a.a_body.firstDraft, true); assert.equal(a.a_face.firstMax, 0.5); assert.equal(a.a_face.max, 2, '直した数字は残す');
-  assert.equal('firstMax' in a.a_part, false, '手・足だけは空きのまま');
+  assert.equal(a.a_body.firstMax, 1); assert.equal(a.a_body.firstDraft, undefined); assert.equal(a.a_face.firstMax, 0.5); assert.equal(a.a_face.max, 2, '直した数字は残す');
+  assert.equal(a.a_part.max, 5, '空きのままの手・足だけは 5％（体と同じ）'); assert.equal(a.a_part.firstMax, 1);
+  assert.deepEqual(a.x, { id: 'x', name: '自分で足した手', max: 3 }, '自分で足した部位はさわらない');
   assert.deepEqual(st.skins.map((x) => x.id), ['sk_dry', 'sk_sensitive', 'sk_normal']); assert.equal(st.skins[0].name, 'かさかさ', '直した言葉は残す');
   assert.deepEqual(migrateDump(d, MIGRATIONS, DATA_VERSION).stores, d.stores, '2回かけても変わらない');
 });
@@ -449,7 +450,7 @@ test('版9への移し替え：キャリアオイルと濃度の目安を資料�
   assert.deepEqual(c.k_tsubaki.fatty, { ole: 85 }, '確かめたオイルはさわらない'); assert.equal(c.mine.name, '自分の油');
   assert.ok(c.k_olive && c.k_stjohns, '資料にある新しい油が入る'); assert.equal(c.k_argan.ref, false, '資料にない油はしるし');
   const st = d.stores.meta[0].value; const ar = Object.fromEntries(st.areas.map((a) => [a.id, a.max]));
-  assert.deepEqual(ar, { a_body: 5, a_face: 1, a_part: null, a_spot: 10 }, '下書きのままの「体 1％」は資料の5％に。直した「顔」はそのまま。手・足は空けたまま');
+  assert.deepEqual(ar, { a_body: 5, a_face: 1, a_part: 5, a_spot: 10 }, '下書きのままの「体 1％」は資料の5％に。直した「顔」はそのまま。手・足は版10で体と同じ 5％');
   assert.ok(st.fats.some((f) => f.id === 'gla'));
   assert.deepEqual(migrateDump(d, MIGRATIONS, DATA_VERSION).stores, d.stores, '2回かけても変わらない');
 });
