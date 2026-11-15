@@ -23,7 +23,8 @@ async function kit(b, opt, prefix) {
     await touchLine([[b.x + b.width * 0.45, b.y + b.height * 0.5], [b.x + b.width * 0.5, b.y + b.height * 0.55], [b.x + b.width * 0.55, b.y + b.height * 0.6]]);
   };
   const pin = async (d = '1234') => { for (const c of d) await p.locator('.pinkey', { hasText: c }).first().tap(); };
-  return { ctx, p, shot, tap, touchLine, noOverflow, drawOn, pin };
+  const skipStart = async () => { await p.waitForSelector('.page'); if (await p.locator('.startskip').count()) { await p.locator('.startskip').tap(); await p.waitForSelector('.home-top'); } };
+  return { skipStart, ctx, p, shot, tap, touchLine, noOverflow, drawOn, pin };
 }
 const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db.js'); await (await import('./js/state.js')).flush(); const id = location.hash.split('/')[2]; return db.get('visits', id); });
 
@@ -31,7 +32,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   const b = await chromium.launch();
   const pad = await kit(b, { viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 }, 'pad-');
   const { p, shot, tap, drawOn } = pad;
-  await p.goto(BASE); await p.waitForSelector('.page');
+  await p.goto(BASE); await pad.skipStart();
 
   // ---------- ① 部位だけのカルテ ----------
   await tap('＋ 新しいお客さん'); await p.getByPlaceholder('山田 花子').fill('見本 てのひら'); await p.getByPlaceholder('やまだ はなこ').fill('みほん てのひら');
@@ -98,7 +99,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
     await db.batch(['menus', 'visits', 'meta'], (os) => { ms.forEach((m) => os.menus.put(m)); vs.forEach((x) => os.visits.put(x)); os.meta.put({ key: 'settings', value: st }); os.meta.put({ key: 'dataVersion', value: 5 }); }); });
   await p.reload(); await p.waitForSelector('.home-top');
   const mig = await p.evaluate(async () => { const db = await import('./js/db.js'); const st = await db.getMeta('settings'); return { ver: await db.getMeta('dataVersion'), parts: st.parts.length, menus: (await db.all('menus')).map((m) => m.scope), n: (await db.all('visits')).length }; });
-  assert.deepEqual(mig, { ver: 6, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 7, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
   await p.goto(BASE + `#/v/${vid}/monshin`); await p.waitForSelector('.scopepick'); assert.ok(await p.locator('.scopesel .wholechip.on').count(), '0.6.0 のカルテは全身として開く');
 
   // ---------- ② 経過のページ ----------
@@ -152,7 +153,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
 
   // ---------- iPhone ----------
   const ph = await kit(b, { viewport: { width: 390, height: 664 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }, 'ph-'); const q = ph.p;
-  await q.goto(BASE); await q.waitForSelector('.page'); await ph.tap('＋ 新しいお客さん'); await q.getByPlaceholder('山田 花子').fill('見本 あしうら'); await ph.tap('保存する'); await q.waitForSelector('text=今日の来店をはじめる');
+  await q.goto(BASE); await ph.skipStart(); await ph.tap('＋ 新しいお客さん'); await q.getByPlaceholder('山田 花子').fill('見本 あしうら'); await ph.tap('保存する'); await q.waitForSelector('text=今日の来店をはじめる');
   await ph.tap('今日の来店をはじめる'); await q.waitForSelector('.scopepick'); await q.locator('.scopepick .chip', { hasText: 'フットトリートメント' }).tap(); await q.waitForSelector('.shortnote'); await ph.shot('01-monshin-foot'); await ph.noOverflow('iPhone 問診');
   await ph.tap('次へ：気になるところ ›'); await q.waitForSelector('.zu.guest .bodypad.pt'); assert.equal(await q.locator('.zu .bodypad').count(), 1, 'iPhone は図を1つずつ'); await ph.shot('02-kininaru-foot'); await ph.noOverflow('iPhone 図');
   await q.locator('.openfull').tap(); await q.waitForSelector('.zu.full'); await ph.drawOn('.zu .bodypad', 0); await ph.shot('03-full-foot');

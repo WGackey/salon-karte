@@ -290,7 +290,7 @@ test('版6への移し替え：部位の設定が足される・メニューと�
     visits: [{ id: 'v1', customerId: 'c1', scope: { type: 'whole' }, figures: { front: [line], back: [] }, guestFigures: { front: [line], back: [] }, menus: [{ id: 'm1', name: '自分のメニュー', minutes: 45 }] }, { id: 'v0', customerId: 'c1', figures: { front: [], back: [line] } }],
   } };
   const d = migrateDump(v5, MIGRATIONS, DATA_VERSION); const st = d.stores.meta[0].value;
-  assert.equal(d.dataVersion, 6);
+  assert.equal(d.dataVersion, DATA_VERSION);
   assert.deepEqual(st.parts.map((p) => p.id), ['hand', 'foot', 'head', 'neck', 'back']); assert.equal(st.salonName, 'みほんの店'); assert.equal(st.areas[0].max, 2, '濃度の目安はさわらない');
   assert.equal(d.stores.meta[1], v5.stores.meta[1], '変えない行は同じものを返す');
   assert.deepEqual(d.stores.menus, [{ id: 'm1', name: '自分のメニュー', minutes: 45, scope: null }], 'メニューは増やさない');
@@ -346,4 +346,20 @@ test('予定の一覧：今日・今週・その先・過ぎた人。予定の�
   const w = schedule(people, ap, T).week;
   assert.deepEqual(w.map((x) => [x.key, x.title, !!x.unsure]), [['a:1', 'く', false], ['a:2', '山田さま', true], ['p:d', 'え', false]], '同じ人・同じ日は1つ。お客さんが決まっていない予定は「確かめる」');
   assert.deepEqual(schedule([], undefined, T), { overdue: [], today: [], week: [], later: [] });
+});
+
+test('版7への移し替え：もう使っている端末には案内を出さない・施術する人の名前と反射区の入れ物（はじめは出さない）・直した値は戻らない', async () => {
+  const v6 = { dataVersion: 6, stores: { meta: [{ key: 'settings', value: { salonName: 'みほんの店', areas: [{ id: 'a_body', name: '体', max: 2 }] } }, { key: 'nextNo', value: 3 }], visits: [{ id: 'v1', scope: { type: 'whole' } }] } };
+  const d = migrateDump(v6, MIGRATIONS, DATA_VERSION); const st = d.stores.meta[0].value;
+  assert.equal(d.dataVersion, 7); assert.equal(st.onboard.done, true); assert.equal(st.staffName, ''); assert.equal(st.salonName, 'みほんの店'); assert.equal(st.areas[0].max, 2);
+  assert.equal(st.reflex.show, false); assert.equal(st.reflex.checked, false); assert.ok(st.reflex.zones.length >= 8);
+  assert.equal(d.stores.meta[1], v6.stores.meta[1]); assert.equal(d.stores.visits[0], v6.stores.visits[0], '来店はさわらない');
+  st.staffName = '見本'; st.reflex.show = true; st.reflex.zones[0].name = 'あたま';
+  const again = migrateDump({ ...d, dataVersion: 6 }, MIGRATIONS, DATA_VERSION).stores.meta[0].value;
+  assert.equal(again.staffName, '見本'); assert.equal(again.reflex.show, true); assert.equal(again.reflex.zones[0].name, 'あたま');
+});
+test('バックアップのファイル名：お店の名前が頭につく・使えない字は外す', async () => {
+  const { backupName } = await import('../js/logic.js');
+  assert.equal(backupName('', '2026-11-15'), 'カルテのバックアップ_2026-11-15.json');
+  assert.equal(backupName(' みほん/サロン: A ', '2026-11-15'), 'みほん_サロン_A_カルテのバックアップ_2026-11-15.json');
 });

@@ -1,6 +1,6 @@
 // 部位の図（手・足・頭・首肩・背中）と、「全身／部分」の決まりごと。
 // 図はどれも自分で描き起こしたもの。なぞった線は図ごとの座標で残すので、★形を大きく変えると前の線がずれる（変えるなら移し替えを入れる）。
-// 足の裏の反射区（第3段）は、図の上に重ねる層として足せる：FIGS[図].overlays に { id, name, svg } を足すと、bodyPad が線の下に重ねる。
+// 足の裏の反射区は、図の上に重ねる層（このファイルの下のほうの REFLEX_SHAPES と reflexSvg）。bodyPad の overlaySvg に渡すと、図と線のあいだに重なる。
 const O = '#a89c8c', F = '#f3ede4';
 // りんかくをきれいにつなぐ描き方：同じ形を「ふち色で太く」→「中の色で」の2回重ねる（指と手のひらの境目に線が出ない）
 const limb = (pts, w) => (ly) => { // pts：[x,y,太さ]…（つけ根 → 先）
@@ -65,8 +65,8 @@ export const FIGS = {
   hand_palm_l: { name: '左手のひら', part: 'hand', box: HB, svg: mirror(HAND + PALM, 300) },
   hand_back_l: { name: '左手の甲', part: 'hand', box: HB, svg: HAND + HANDBACK },
   hand_back_r: { name: '右手の甲', part: 'hand', box: HB, svg: mirror(HAND + HANDBACK, 300) },
-  foot_sole_r: { name: '右足の裏', part: 'foot', box: FB, svg: FOOT + SOLE, overlays: [] },
-  foot_sole_l: { name: '左足の裏', part: 'foot', box: FB, svg: mirror(FOOT + SOLE, 300), overlays: [] },
+  foot_sole_r: { name: '右足の裏', part: 'foot', box: FB, svg: FOOT + SOLE },
+  foot_sole_l: { name: '左足の裏', part: 'foot', box: FB, svg: mirror(FOOT + SOLE, 300) },
   foot_top_l: { name: '左足の甲', part: 'foot', box: FB, svg: FOOTTOP },
   foot_top_r: { name: '右足の甲', part: 'foot', box: FB, svg: mirror(FOOTTOP, 300) },
   head_front: { name: '頭（前）', part: 'head', box: HDB, svg: HEADF + label(34, 60, '右') + label(266, 60, '左') },
@@ -114,4 +114,35 @@ export function scopeFromMenus(menus) {
   if (!sc.length) return null;
   if (sc.some((s) => s.type === 'whole')) return { type: 'whole' };
   return { type: 'part', parts: Object.keys(PART_FIGS).filter((id) => sc.some((s) => s.parts.includes(id))) };
+}
+
+// ---- 反射区（足の裏の区分け） ----
+// 自分で描き起こした、大まかな区分けだけの下書き（本の図の写しではない）。確かめていない → 画面に「下書き・確かめていません」と出す。
+// 形は右足の裏の座標（親指が右）。左足は左右を返す。名前と色は設定（settings.reflex.zones）で、使う人が直せる。番号は並びの順。
+// 位置に自信のない区分け（左右でちがうもの・小さいもの・資料によって場所がちがうもの）は入れていない：引き継ぎメモに一覧
+const E = (cx, cy, rx, ry, rot = 0) => ({ d: `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"${rot ? ` transform="rotate(${rot} ${cx} ${cy})"` : ''}/>`, at: [cx, cy] });
+export const REFLEX_SHAPES = {
+  rz_head: E(214, 74, 19, 21), // 親指のはら
+  rz_neck: E(214, 106, 19, 8), // 親指のつけ根
+  rz_eye: E(154, 110, 30, 9), // 人さし指・中指のつけ根
+  rz_ear: E(100, 128, 22, 9, -28), // 薬指・小指のつけ根
+  rz_shoulder: E(90, 164, 12, 15), // 小指の下・外側のふち
+  rz_chest: E(154, 152, 44, 21), // 指のつけ根の下のふくらみ
+  rz_stomach: E(184, 214, 20, 15), // 土ふまずの上のほう・内側
+  rz_gut: E(150, 292, 38, 33), // 土ふまずの下のほう
+  rz_spine: { d: '<path class="rzline" d="M233 150C227 190 210 226 205 262C200 300 195 330 194 368"/>', at: [222, 190] }, // 内側のふちにそって
+  rz_pelvis: E(150, 368, 34, 24), // かかと
+};
+export const REFLEX_FIGS = { foot_sole_r: false, foot_sole_l: true }; // 図 → 左右を返すか
+export const hasReflex = (figs) => (figs || []).some((f) => (f.id || f) in REFLEX_FIGS);
+// 出す区分け（形があって、使う人が外していないもの）。番号つき
+export const reflexZones = (reflex) => ((reflex && reflex.zones) || []).filter((z) => REFLEX_SHAPES[z.id] && !z.off).map((z, i) => ({ ...z, no: i + 1 }));
+const safeColor = (c) => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : '#888888');
+export function reflexSvg(figId, reflex) {
+  if (!(figId in REFLEX_FIGS)) return '';
+  const flip = REFLEX_FIGS[figId];
+  return reflexZones(reflex).map((z) => {
+    const sh = REFLEX_SHAPES[z.id]; const x = flip ? 300 - sh.at[0] : sh.at[0];
+    return `<g class="rz" data-z="${z.id}" style="--c:${safeColor(z.color)}">${flip ? mirror(sh.d, 300) : sh.d}<text x="${x}" y="${sh.at[1] + 4}">${z.no}</text></g>`;
+  }).join('');
 }

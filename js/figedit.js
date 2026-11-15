@@ -5,12 +5,15 @@
 //   simple ：お客さんに渡すとき用。道具を少なく・ボタンを大きく
 import { h, fill, btn, chips, toast, confirmDlg, isPhone } from './ui.js';
 import { bodyPad, FIGURES } from './bodymap.js';
+import { hasReflex, reflexSvg, reflexZones } from './parts.js';
 
 const WIDTHS = [[6, '細い'], [14, 'ふつう'], [26, '太い']];
 export const hasLines = (figs) => Object.values(figs || {}).some((a) => (a || []).length > 0);
 
 //   figs   ：出す図の並び（全身＝前・後ろ／部分＝手のひら・手の甲 など。parts.js の figsOf）
-export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under = null, marks, onSave, simple = false, markLabel = '症状（色）', hints = [] }) {
+export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under = null, marks, onSave, simple = false, markLabel = '症状（色）', hints = [], reflex = null }) {
+  // reflex：反射区（足の裏の区分け）を重ねるとき { get: () => settings.reflex, save }。足の裏の図があるときだけボタンが出る。はじめは出さない
+  const rfOn = () => !!reflex && hasReflex(figs) && !!(reflex.get() || {}).show;
   const FIGURES_ = figs; const whole = figs.every((f) => !f.box); const many = figs.length > 2;
   const tool = { mode: 'draw', mark: marks[0].id, width: 14 };
   const pads = {}; let view = figs.length < 2 || isPhone() ? figs[0].id : 'both'; let zone = 'all'; let full = false;
@@ -25,12 +28,25 @@ export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under =
     padBox.className = 'pads ' + (view === 'both' ? 'both' : 'one ' + view) + (many ? ' many' : '') + (whole ? '' : ' pt');
     fill(padBox, ...FIGURES_.filter((f) => view === 'both' || view === f.id).map((f) => {
       figures[f.id] = figures[f.id] || [];
-      pads[f.id] = bodyPad({ kind: f.id, strokes: figures[f.id], marks, layer, getTool: () => tool,
+      pads[f.id] = bodyPad({ kind: f.id, strokes: figures[f.id], marks, layer, getTool: () => tool, overlaySvg: rfOn() ? reflexSvg(f.id, reflex.get()) : '',
         under: showUnder ? [{ strokes: under.figures[f.id] || [], layer: under.layer }] : [],
         onChange: (act) => { hist.push({ ...act, fig: f.id }); sync(); onSave(); } });
       pads[f.id].setZone(view === 'both' ? 'all' : zone);
       return h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name), pads[f.id]);
     }));
+    drawLegend();
+  };
+  // 反射区の名前の一覧（番号 ＝ 図の中の番号）。名前を押すと、その区分けが少しのあいだ濃くなる
+  const legend = h('div', { class: 'rzlegend' });
+  const drawLegend = () => {
+    if (!rfOn()) { fill(legend); legend.hidden = true; return; }
+    const r = reflex.get(); legend.hidden = false;
+    fill(legend, h('span', { class: 'rznote' }, r.checked ? '反射区' : '反射区（下書き・確かめていません）'),
+      reflexZones(r).map((z) => h('button', { type: 'button', class: 'rzkey', style: { '--c': z.color }, onclick: () => {
+        root.querySelectorAll('.rz').forEach((g) => g.classList.toggle('hi', g.dataset.z === z.id));
+        legend.querySelectorAll('.rzkey').forEach((b) => b.classList.remove('on')); const me = legend.querySelector(`[data-z="${z.id}"]`); me && me.classList.add('on');
+        clearTimeout(legend._t); legend._t = setTimeout(() => { root.querySelectorAll('.rz.hi').forEach((g) => g.classList.remove('hi')); me && me.classList.remove('on'); }, 2500);
+      }, 'data-z': z.id }, h('b', null, z.no), z.name || '（名前なし）')));
   };
   // えらぶボタン（もう一度押しても外れない）。しるし＝色つきの丸いボタン、太さ＝線の太さが見える四角いボタン、と形を変えてある
   const markBtns = marks.map((m) => h('button', { type: 'button', class: 'markbtn', style: { '--c': m.color }, onclick: () => { tool.mark = m.id; tool.mode = 'draw'; sync(); } }, h('span', { class: 'dot' }), m.name));
@@ -68,7 +84,8 @@ export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under =
     fill(viewBox,
       figs.length > 1 ? chips([{ id: 'both', name: 'ならべる' }, ...figs.map((f) => ({ id: f.id, name: whole ? f.name + 'だけ' : f.name }))], view, { multi: false, cls: 'viewsel', onChange: setView }) : null,
       whole ? chips([{ id: 'all', name: '全体' }, { id: 'top', name: '上半身' }, { id: 'bottom', name: '下半身' }], zone, { multi: false, cls: 'zonesel', onChange: (z) => { zone = z || 'all'; if (zone !== 'all' && view === 'both') view = 'front'; drawView(); drawPads(); } }) : null,
-      under ? chips([{ id: 'on', name: under.label }], showUnder ? ['on'] : [], { cls: 'undersel', onChange: (x) => { showUnder = x.length > 0; drawPads(); } }) : null);
+      under ? chips([{ id: 'on', name: under.label }], showUnder ? ['on'] : [], { cls: 'undersel', onChange: (x) => { showUnder = x.length > 0; drawPads(); } }) : null,
+      reflex && hasReflex(figs) ? chips([{ id: 'on', name: '反射区を重ねる' }], rfOn() ? ['on'] : [], { cls: 'rzsel', onChange: (x) => { reflex.get().show = x.length > 0; reflex.save(); drawPads(); } }) : null);
     fill(fullView, figs.length > 1 ? chips([...(isPhone() ? [] : [{ id: 'both', name: 'ならべる' }]), ...figs.map((f) => ({ id: f.id, name: f.name }))], view, { multi: false, cls: 'seg', onChange: setView }) : h('b', null, figs[0].name));
   };
   const fullBtn = btn('⤢ 画面いっぱいでかく', () => setFull(true), 'chip fullbtn');
@@ -89,7 +106,7 @@ export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under =
       h('div', { class: 'trow' }, label(markLabel), h('div', { class: 'chips' }, markBtns)),
       h('div', { class: 'trow' }, label('ペンの太さ'), h('div', { class: 'chips widths' }, widthBtns), label('直す'), h('div', { class: 'chips fixes' }, undo, simple ? null : eraser, clear, simple ? null : revert)),
       h('div', { class: 'trow' }, label('見え方'), h('div', { class: 'chips fullwrap' }, fullBtn), viewBox)),
-    h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), now, padBox,
+    h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), now, padBox, legend,
       hints.map((t) => h('p', { class: 'hint center' }, t))));
   return root;
 }

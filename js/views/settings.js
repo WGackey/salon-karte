@@ -1,14 +1,17 @@
 import { scopeChips } from '../scopepick.js';
-import { PART_FIGS, FIGS } from '../parts.js';
-import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, AUTO_NOTE } from '../ui.js';
+import { PART_FIGS, FIGS, REFLEX_SHAPES, REFLEX_FIGS, reflexSvg } from '../parts.js';
+import { bodyPad } from '../bodymap.js';
+import { DEFAULT_REFLEX } from '../seed.js';
+import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, HERE, AUTO_NOTE } from '../ui.js';
 import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin } from '../state.js';
 import { choosePin, askPin } from './guest.js';
 import * as db from '../db.js';
-import { todayStr, daysBetween, ymd, jpDate, TRAITS } from '../logic.js';
+import { todayStr, daysBetween, ymd, jpDate, TRAITS, backupName } from '../logic.js';
 import { makeBackupText, readBackupHead, restoreBackup, handOver } from '../backup.js';
 import { addSamples, removeSamples } from '../sample.js';
 import { notFound } from './customer.js';
 import { APP_VERSION } from '../version.js';
+import { checkAndTell, lastCheck } from '../update.js';
 
 const link = (href, title, desc) => h('a', { class: 'row-link', href }, h('div', { class: 'grow' }, h('div', { class: 'name' }, title), h('div', { class: 'muted' }, desc)), h('span', { class: 'chev' }, '›'));
 const fam = (id) => S.settings.families.find((f) => f.id === id) || { name: '', color: '#bbb' };
@@ -34,12 +37,17 @@ export function settingsView() {
         link('#/set/handover', 'お客さんに渡すとき（合言葉）', hasPin() ? '合言葉：決めてあります' : '合言葉：まだ決めていません'),
         link('#/set/menus', '施術メニュー', `${S.menus.length}個。メニューごとに「施術するところ（全身・手だけ など）」を決められる`),
         link('#/set/parts', '部位（手だけ・足だけ などのカルテ）', '部位の名前・濃度の目安・関わる「つらいところ」'),
+        link('#/set/reflex', '反射区（足の裏の区分け）', `足の裏の図に重ねる区分け。いまは「${(S.settings.reflex || {}).show ? '出す' : '出さない'}」・${(S.settings.reflex || {}).checked ? '確かめた' : '下書き（確かめていません）'}`),
         link('#/set/lists', 'えらぶ言葉を直す', '症状・肌の状態・アレルギー・目的・香りの好み・お仕事 など'),
-        link('#/set/salon', 'お店の名前', S.settings.salonName || '（まだ入っていません）'))),
+        link('#/set/salon', 'お店の名前・施術する人の名前', [S.settings.salonName, S.settings.staffName].filter(Boolean).join('・') || '（まだ入っていません）'))),
       card(h('h2', null, 'データ'), h('div', { class: 'list' },
-        link('#/set/backup', 'バックアップ（書き出し・戻し）', `データは この ${DEVICE} の中だけにあります。こまめに書き出してね`),
+        link('#/set/backup', 'バックアップ（書き出し・戻し）', `データは ${HERE} の中だけにあります。こまめに書き出してね`),
         link('#/set/sample', '見本のデータ', '速さを試すための、作りもののお客さん'),
         link('#/set/about', 'このアプリについて', `版 ${APP_VERSION}`))),
+      card(h('h2', null, '使い方'), h('div', { class: 'list' },
+        link('#/set/tebiki', '使い方の手引き', 'ホーム画面への追加・1回の来店の流れ・新しい版への切りかえ・端末のあいだの移し方'),
+        link('#/set/kangae', 'この考え方で作っています', '下書きであること・医療ではないこと・データの置き場'),
+        link('#/hajime', 'はじめの案内をもう一度', 'お店の名前 → 合言葉 → 手持ちのオイル → メニュー → 下書きの確かめ → バックアップ'))),
     ],
   });
 }
@@ -198,6 +206,37 @@ export const menusView = () => simpleList({
     (it, save) => h('div', { class: 'menuscope' }, h('span', { class: 'small muted' }, '施術するところ：'), scopeChips(it.scope, (sc) => { it.scope = sc; save(); }, { none: true }))],
   blank: () => ({ id: db.uid(), name: '', minutes: 60, scope: null }), onSave: (it) => saveMaster('menus', it), onDelete: (it) => deleteMaster('menus', it.id),
 });
+
+// ---- 反射区（足の裏の区分け） ----
+export function reflexView() {
+  const st = S.settings; st.reflex = st.reflex || JSON.parse(JSON.stringify(DEFAULT_REFLEX)); const r = st.reflex;
+  const save = () => { saveSettings(); drawPrev(); };
+  const prev = h('div', { class: 'pads both pt rzprev' }); const list = h('div');
+  const drawPrev = () => fill(prev, ...Object.keys(REFLEX_FIGS).map((id) => h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, FIGS[id].name),
+    bodyPad({ kind: id, strokes: [], marks: st.marks, readOnly: true, overlaySvg: reflexSvg(id, r) }))));
+  const drawList = () => {
+    let no = 0;
+    fill(list, ...r.zones.filter((z) => REFLEX_SHAPES[z.id]).map((z) => h('div', { class: 'edit-row' },
+      h('b', { class: 'rzno' }, z.off ? '－' : ++no),
+      input(z, 'name', { placeholder: '区分けの名前', cls: 'grow', onInput: save }),
+      (() => { const c = h('input', { type: 'color', class: 'colorin', value: z.color, 'aria-label': '色' }); c.oninput = () => { z.color = c.value; save(); }; return c; })(),
+      (() => { const b = h('button', { type: 'button', class: 'mini' + (z.off ? '' : ' on') }, z.off ? '出さない' : '✓ 出す'); b.onclick = () => { z.off = !z.off; save(); drawList(); }; return b; })())));
+  };
+  drawPrev(); drawList();
+  return page({
+    title: '反射区（足の裏の区分け）', back: '#/set', body: [
+      AUTO_NOTE(),
+      h('div', { class: 'notice draft' }, 'はじめから入っている区分けは「下書き」で、確かめていません。一般に知られている大まかな区分けを、このアプリ用に描いたものです。資料や流派によって、場所や名前はちがいます。自分の資料で確かめてから使ってください。からだの不調を診断したり、治したりするものではありません。'),
+      card(h('h2', null, '図に重ねる'),
+        chips([{ id: 'on', name: '足の裏の図に、反射区を重ねて出す' }], r.show ? ['on'] : [], { cls: 'col', onChange: (x) => { r.show = x.length > 0; save(); } }),
+        h('p', { class: 'hint' }, '出るのは、施術する人がなぞる「所見」の図（足の裏）だけです。お客さんに渡す画面には出ません。所見の画面の「反射区を重ねる」でも、出す・出さないを切りかえられます。'),
+        chips([{ id: 'ok', name: '自分の資料で確かめた（「下書き」のしるしを外す）' }], r.checked ? ['ok'] : [], { cls: 'col', onChange: (x) => { r.checked = x.length > 0; save(); } })),
+      card(h('h2', null, '見え方'), prev),
+      card(h('h2', null, '区分けの名前と色'), h('p', { class: 'hint' }, '名前・色を直せます。使わない区分けは「出さない」にできます。場所（形）は、いまは直せません。'), list,
+        h('div', { class: 'row' }, btn('はじめの下書きに戻す', async () => { if (!(await confirmDlg('区分けの名前・色・出す出さないを、はじめの下書きに戻します。', '戻す', true))) return; r.zones = JSON.parse(JSON.stringify(DEFAULT_REFLEX.zones)); r.checked = false; save(); drawList(); }, 'ghost'))),
+    ],
+  });
+}
 
 // ---- 部位（手だけ・足だけ などのカルテ） ----
 export function partsView() {
@@ -368,8 +407,14 @@ export function listsView() {
     ],
   });
 }
+// お店の名前・施術する人の名前（設定と、はじめの案内の両方で使う）
+export const salonFields = () => [
+  field('お店の名前', input(S.settings, 'salonName', { onInput: () => saveSettings(), placeholder: '例：〇〇サロン' }), 'ホームの上・お客さん用の画面・同意書・バックアップのファイル名に出ます。'),
+  field('施術する人の名前', input(S.settings, 'staffName', { onInput: () => saveSettings(), placeholder: '例：山田' }), '同意書のサインの記録と、お客さん用の画面の「スタッフ（〇〇）にお返しください」に出ます。'),
+  h('p', { class: 'hint' }, 'どちらも空のままで使えます。あとからいつでも直せます。'),
+];
 export function salonView() {
-  return page({ title: 'お店の名前', back: '#/set', body: [AUTO_NOTE(), card(field('ホームの上に出る名前', input(S.settings, 'salonName', { onInput: () => saveSettings(), placeholder: '例：〇〇サロン' })))] });
+  return page({ title: 'お店の名前・施術する人の名前', back: '#/set', body: [AUTO_NOTE(), card(salonFields())] });
 }
 
 // ---- お客さんに渡すとき ----
@@ -404,7 +449,7 @@ export async function backupView() {
       // iPad・iPhone の「共有」の画面は、ボタンを押したその場でしか出せないので、できあがってからもう一度押してもらう
       fill(ready, h('div', { class: 'notice ok' }, 'バックアップができました。下のボタンで保存先をえらんでね。'),
         btn('保存先をえらぶ', async () => {
-          if (await handOver(text, `カルテのバックアップ_${todayStr()}.json`)) { await db.setMeta('lastBackupAt', Date.now()); toast('書き出しました'); go('#/set/backup?' + Date.now()); }
+          if (await handOver(text, backupName(S.settings.salonName, todayStr()))) { await db.setMeta('lastBackupAt', Date.now()); toast('書き出しました'); go('#/set/backup?' + Date.now()); }
         }, 'primary big wide'));
     } catch (e) { fill(ready); toast('書き出せませんでした：' + e.message); }
   };
@@ -423,7 +468,7 @@ export async function backupView() {
   };
   const doRestore = async () => {
     if (!head) return;
-    if (!(await confirmDlg(`いま この ${DEVICE} の中にあるデータ（お客さん ${S.people.length}人）を、このバックアップの中身に入れ替えます。いまのデータは消えます（混ぜることはできません）。`, '入れ替える', true))) return;
+    if (!(await confirmDlg(`いま ${HERE} の中にあるデータ（お客さん ${S.people.length}人）を、このバックアップの中身に入れ替えます。いまのデータは消えます（混ぜることはできません）。`, '入れ替える', true))) return;
     try { await restoreBackup(head, o.rpass); await reload(); toast('バックアップから戻しました'); go('#/'); }
     catch (e) { toast(e.message); }
   };
@@ -468,10 +513,17 @@ export async function aboutView() {
   const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false;
   return page({
     title: 'このアプリについて', back: '#/set', body: [
+      (() => {
+        const out = h('p', { class: 'hint' }); const when = () => { const t = lastCheck(); out.textContent = t ? `最後にさがしたとき：${jpDate(ymd(new Date(t)))} ${new Date(t).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}` : 'まだ、さがしていません'; };
+        const res = h('div'); when();
+        return card(h('h2', null, '新しい版'), h('p', null, `いまの版：${APP_VERSION}`),
+          btn('新しい版をさがす', async () => { fill(res, h('div', { class: 'notice' }, '新しい版をさがしています…')); const m = await checkAndTell(); fill(res, h('div', { class: 'notice ok' }, m)); when(); }, 'primary'), res, out,
+          h('p', { class: 'hint' }, 'アプリを閉じなくても、ときどき自分で新しい版をさがします。ホームの画面のいちばん上で、下に引っぱってもさがせます。新しい版にするのは、案内を押したときだけです。入れたデータはそのまま残ります。'));
+      })(),
       card(h('p', null, `版 ${APP_VERSION}（データの形 ${db.DATA_VERSION}）`), est ? h('p', null, `使っている容量：${est}`) : null,
         h('p', null, persisted ? 'データは「消されにくい保存」になっています。' : 'ホーム画面に追加したアイコンから開くと、データが消されにくくなります。')),
       card(h('h2', null, 'データについて'), h('ul', { class: 'plain' },
-        h('li', null, `お客さんのデータは、この ${DEVICE} の中だけに保存します。インターネットのどこにも送りません。`),
+        h('li', null, `お客さんのデータは、${HERE} の中だけに保存します。インターネットのどこにも送りません。`),
         h('li', null, 'Safari の「履歴とWebサイトデータを消去」をすると、カルテも消えます。バックアップをこまめに。'),
         h('li', null, 'Safari で開いたときと、ホーム画面のアイコンから開いたときでは、データの置き場がちがいます。いつもホーム画面のアイコンから開いてください。'),
         h('li', null, 'iPad と iPhone の両方で使えますが、データは端末ごとに別々です。移すときは 設定 → バックアップ の「iPad と iPhone のあいだで移す」を見てね。'))),

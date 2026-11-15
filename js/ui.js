@@ -2,6 +2,7 @@
 // いま使っている端末の呼び名（画面の説明に使う）。iPad は Mac のふりをすることがあるので、タッチできるかも見る
 const ua = navigator.userAgent || '';
 export const DEVICE = /iPhone|iPod/.test(ua) ? 'iPhone' : (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) ? 'iPad' : 'この端末';
+export const HERE = DEVICE === 'この端末' ? 'この端末' : 'この ' + DEVICE; // 「この iPad」「この端末」
 export const isPhone = () => matchMedia('(max-width: 700px)').matches;
 export function h(tag, props, ...kids) {
   const el = document.createElement(tag);
