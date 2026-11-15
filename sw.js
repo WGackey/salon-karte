@@ -4,7 +4,7 @@
 const VERSION = '0.8.0';
 const CACHE = 'salon-karte-' + VERSION;
 const FILES = ['./', './index.html', './manifest.webmanifest', './css/app.css', './icons/icon-180.png', './icons/icon-512.png',
-  './js/app.js', './js/db.js', './js/logic.js', './js/seed.js', './js/state.js', './js/ui.js', './js/bodymap.js', './js/parts.js', './js/scopepick.js', './js/figedit.js', './js/signpad.js', './js/backup.js', './js/sample.js', './js/version.js',
+  './js/app.js', './js/db.js', './js/logic.js', './js/seed.js', './js/state.js', './js/ui.js', './js/bodymap.js', './js/parts.js', './js/scopepick.js', './js/figedit.js', './js/signpad.js', './js/backup.js', './js/sample.js', './js/version.js', './js/update.js',
   './js/views/home.js', './js/views/customer.js', './js/views/visit.js', './js/views/progress.js', './js/views/guest.js', './js/views/settings.js', './js/views/guide.js'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))));

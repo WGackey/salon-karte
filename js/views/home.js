@@ -1,6 +1,7 @@
 import { h, fill, page, card, btn, badge, go } from '../ui.js';
 import { S } from '../state.js';
 import { startView } from './guide.js';
+import { pullToCheck } from '../update.js';
 import * as db from '../db.js';
 import { todayStr, daysBetween, jpDate, searchPeople, ymd, schedule } from '../logic.js';
 
@@ -55,7 +56,7 @@ export async function homeView() {
       list.length ? box : h('p', { class: 'muted' }, empty));
   };
 
-  return page({
+  const pg = page({
     title: S.settings.salonName || 'カルテ', sub: jpDate(today),
     actions: h('a', { class: 'btn ghost', href: '#/set' }, '設定'),
     body: [
@@ -69,6 +70,8 @@ export async function homeView() {
       h('div', { class: 'row' }, h('a', { class: 'btn', href: '#/list' }, `お客さんの一覧（${S.people.length}人）`), bk),
     ],
   });
+  pg.querySelector('.main').prepend(pullToCheck(pg)); // いちばん上で下に引っぱると、新しい版をさがす
+  return pg;
 }
 
 export async function listView() {

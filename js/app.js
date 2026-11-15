@@ -7,6 +7,7 @@ import { customerView, customerFormView, notFound } from './views/customer.js';
 import { visitView } from './views/visit.js';
 import { progressView } from './views/progress.js';
 import * as st from './views/settings.js';
+import { initUpdate, showOffer } from './update.js';
 import { startView, ideaView, guideView } from './views/guide.js';
 
 const ROUTES = [
@@ -29,7 +30,7 @@ async function render() {
     if (root.firstElementChild && root.firstElementChild.classList.contains('guestmode')) return; // もう出ている（書きかけを消さない）
     const gv = await guestView(); if (my !== seq || !S.guest) return;
     document.documentElement.classList.remove('noscroll'); document.documentElement.classList.add('guest');
-    root.replaceChildren(gv); scrollTo(0, 0); return;
+    root.replaceChildren(gv); scrollTo(0, 0); showOffer(); return;
   }
   document.documentElement.classList.remove('guest');
   if (location.hash === '#/guest') { history.replaceState(null, '', '#/'); }
@@ -45,7 +46,7 @@ async function render() {
   if (my !== seq) return;
   document.documentElement.classList.remove('noscroll'); // 図の「画面いっぱい」のまま移ったときのため
   document.querySelectorAll('.overlay:not(.pinwrap)').forEach((o) => o.remove()); // 開いたままのパネルは、画面を移るときに閉じる
-  root.replaceChildren(view); scrollTo(0, 0);
+  root.replaceChildren(view); scrollTo(0, 0); showOffer();
 }
 addEventListener('hashchange', render); addEventListener('popstate', () => { if (S.guest && location.hash !== '#/guest') render(); });
 
@@ -54,17 +55,5 @@ boot().then(render).catch((e) => {
   root.replaceChildren(h('div', { class: 'notice red pad' }, 'データを開けませんでした。Safari の「プライベートブラウズ」では保存できません。ふつうの画面で開き直してね。（' + e.message + '）'));
 });
 
-// ネットなしでも動くように、アプリのファイルを端末に置いておく係
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-  navigator.serviceWorker.register('./sw.js').then((reg) => {
-    const offer = (w) => {
-      if (!navigator.serviceWorker.controller) return; // はじめての読みこみ
-      const bar = h('button', { class: 'update-bar', type: 'button', onclick: () => w.postMessage('skipWaiting') }, '新しい版があります。ここを押すと新しくなります');
-      document.body.append(bar);
-    };
-    if (reg.waiting) offer(reg.waiting);
-    reg.addEventListener('updatefound', () => { const w = reg.installing; w && w.addEventListener('statechange', () => { if (w.state === 'installed') offer(w); }); });
-  }).catch(() => {});
-  let reloaded = false; const hadCtl = !!navigator.serviceWorker.controller; // はじめて開いたときは読みこみ直さない（書きかけが消えないように）
-  navigator.serviceWorker.addEventListener('controllerchange', async () => { if (reloaded || !hadCtl) return; reloaded = true; await flush(); location.reload(); });
-}
+// ネットなしでも動くように、アプリのファイルを端末に置いておく係。新しい版に気づくしくみも（js/update.js）
+initUpdate();

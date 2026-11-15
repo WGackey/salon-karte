@@ -11,6 +11,7 @@ import { makeBackupText, readBackupHead, restoreBackup, handOver } from '../back
 import { addSamples, removeSamples } from '../sample.js';
 import { notFound } from './customer.js';
 import { APP_VERSION } from '../version.js';
+import { checkAndTell, lastCheck } from '../update.js';
 
 const link = (href, title, desc) => h('a', { class: 'row-link', href }, h('div', { class: 'grow' }, h('div', { class: 'name' }, title), h('div', { class: 'muted' }, desc)), h('span', { class: 'chev' }, '›'));
 const fam = (id) => S.settings.families.find((f) => f.id === id) || { name: '', color: '#bbb' };
@@ -512,6 +513,13 @@ export async function aboutView() {
   const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false;
   return page({
     title: 'このアプリについて', back: '#/set', body: [
+      (() => {
+        const out = h('p', { class: 'hint' }); const when = () => { const t = lastCheck(); out.textContent = t ? `最後にさがしたとき：${jpDate(ymd(new Date(t)))} ${new Date(t).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}` : 'まだ、さがしていません'; };
+        const res = h('div'); when();
+        return card(h('h2', null, '新しい版'), h('p', null, `いまの版：${APP_VERSION}`),
+          btn('新しい版をさがす', async () => { fill(res, h('div', { class: 'notice' }, '新しい版をさがしています…')); const m = await checkAndTell(); fill(res, h('div', { class: 'notice ok' }, m)); when(); }, 'primary'), res, out,
+          h('p', { class: 'hint' }, 'アプリを閉じなくても、ときどき自分で新しい版をさがします。ホームの画面のいちばん上で、下に引っぱってもさがせます。新しい版にするのは、案内を押したときだけです。入れたデータはそのまま残ります。'));
+      })(),
       card(h('p', null, `版 ${APP_VERSION}（データの形 ${db.DATA_VERSION}）`), est ? h('p', null, `使っている容量：${est}`) : null,
         h('p', null, persisted ? 'データは「消されにくい保存」になっています。' : 'ホーム画面に追加したアイコンから開くと、データが消されにくくなります。')),
       card(h('h2', null, 'データについて'), h('ul', { class: 'plain' },

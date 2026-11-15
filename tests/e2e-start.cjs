@@ -47,7 +47,7 @@ if (require.main === module) (async () => {
     // --- 設定：考え方・手引き・案内をもう一度 ---
     await p.goto(BASE + '#/set'); await p.waitForSelector('text=使い方の手引き'); assert.ok(await p.getByText('みほん/サロン・見本 たろう').count());
     await p.goto(BASE + '#/set/kangae'); await p.waitForSelector('text=医療ではありません'); await shot('k1-kangae'); await k.noOverflow('考え方');
-    await p.goto(BASE + '#/set/tebiki'); await p.waitForSelector('.guide'); await p.locator('.guide summary').nth(5).tap(); await p.waitForSelector('text=新しい版があります', { exact: false }); await p.locator('.guide summary').nth(0).tap(); await shot('k2-tebiki'); await k.noOverflow('手引き');
+    await p.goto(BASE + '#/set/tebiki'); await p.waitForSelector('.guide'); await p.locator('.guide summary').nth(5).tap(); await p.waitForSelector('text=下に引っぱります', { exact: false }); await p.locator('.guide summary').nth(0).tap(); await shot('k2-tebiki'); await k.noOverflow('手引き');
     await p.goto(BASE + '#/hajime'); await p.waitForSelector('text=ようこそ'); await p.locator('.startskip').tap(); await p.waitForSelector('.home-top');
     // --- お客さん用の画面・同意書・バックアップの名前に、お店と施術する人の名前が出る ---
     await tap('＋ 新しいお客さん'); await p.getByPlaceholder('山田 花子').fill('見本 はじめ'); await tap('保存する'); await p.waitForSelector('.handbtn');
