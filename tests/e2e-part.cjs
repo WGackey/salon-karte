@@ -101,6 +101,30 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   assert.deepEqual(mig, { ver: 6, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
   await p.goto(BASE + `#/v/${vid}/monshin`); await p.waitForSelector('.scopepick'); assert.ok(await p.locator('.scopesel .wholechip.on').count(), '0.6.0 のカルテは全身として開く');
 
+  // ---------- ② 経過のページ ----------
+  const kid = await p.evaluate(async () => { // 6回分の来店を作る（作りものの数字）
+    const st = await import('./js/state.js'); const db = await import('./js/db.js'); const { addDays, todayStr } = await import('./js/logic.js');
+    const { slim, det } = st.blankCustomer(); slim.name = '見本 けいか'; slim.kana = 'みほん けいか'; await st.saveCustomer(slim, det);
+    const O = st.S.oils, C = st.S.carriers[0]; const plan = [[8, 7, 7, 6, [0, 1], 6], [8, 5, 6, 4, [2, 3], 6], [7, 6, 6, 6, [0, 1], 6], [7, 3, 5, 2, [2, 3], 9], [6, 4, null, null, [2, 3], 6], [5, null, 4, null, [4], 3]];
+    for (let i = 0; i < plan.length; i++) { const [b1, a1, b2, a2, oi, drops] = plan[i]; const v = await st.newVisit(slim.id);
+      v.date = addDays(todayStr(), -(plan.length - 1 - i) * 14); v.status = i === plan.length - 1 ? 'draft' : 'done'; v.createdAt = Date.now() + i;
+      v.interview.symptoms = [{ id: 's_kata', level: b1 }, ...(b2 != null ? [{ id: 's_nemuri', level: b2 }] : [])]; v.after.levels = { ...(a1 != null ? { s_kata: a1 } : {}), ...(a2 != null ? { s_nemuri: a2 } : {}) };
+      v.blend.oils = oi.map((k, j) => ({ oilId: O[k].id, name: O[k].name, drops: j ? drops - Math.ceil(drops / 2) : Math.ceil(drops / 2) })); v.blend.carriers = [{ carrierId: C.id, name: C.name, ml: 30 }];
+      v.menus = [{ id: 'mn_2', name: 'アロマトリートメント', minutes: 60 }]; if (i === 2) { v.scope = { type: 'part', parts: ['hand'] }; v.blend.areaId = 'a_part'; } v.after.scent = '好き'; v.after.note = i === 3 ? 'よく眠れたとのこと' : ''; await db.put('visits', v); }
+    await st.recount(slim.id); return slim.id; });
+  await p.goto(BASE + `#/c/${kid}`); await p.waitForSelector('.keikabtn'); await p.locator('.hist').evaluate((e) => e.scrollIntoView()); await shot('20-hist-entry');
+  await p.locator('.keikabtn').tap(); await p.waitForSelector('.pchart');
+  assert.equal(await p.locator('.pchart .pdot.before').count(), 6, '前のつらさが6回分'); assert.equal(await p.locator('.pchart .pdot.after').count(), 5, '後は入っている回だけ');
+  assert.equal(await p.locator('.plist .prow').count(), 6); assert.ok(await p.locator('.plist .prow').first().textContent().then((t) => t.includes('6回目') && t.includes('書きかけ')), '新しい順');
+  assert.equal(await p.locator('.pgroup').count(), 3, '同じ精油の組み合わせでまとまる'); await shot('21-keika');
+  await p.locator('.pchart .phit').nth(3).tap(); await p.waitForSelector('.ppicked'); assert.ok(await p.locator('.ppicked').textContent().then((t) => t.includes('4回目') && t.includes('7 → 3')), '回を押すと中身が出る'); await shot('22-keika-pick');
+  await p.locator('.symsel .chip', { hasText: '眠りが浅い' }).tap(); assert.equal(await p.locator('.pchart .pdot.before').count(), 5, '症状を切りかえる');
+  await p.locator('.sortsel .chip', { hasText: 'つらさが下がった順' }).tap(); assert.ok(await p.locator('.plist .prow').first().textContent().then((t) => t.includes('4回目')), '下がった順'); assert.equal(await p.locator('.plist .prow').count(), 5);
+  await p.locator('.plist').evaluate((e) => e.scrollIntoView()); await shot('23-keika-list'); await pad.noOverflow('経過のページ');
+  await p.locator('.symsel .chip', { hasText: '肩こり' }).tap(); await p.locator('.pchart .phit').nth(1).tap(); await tap('この回を「これまでの記録」で見る'); await p.waitForSelector('.hist .hpos');
+  await p.waitForFunction(() => document.querySelector('.hpos').textContent.startsWith('5／全6回')); // 2回目＝新しい順で5番目
+  await p.goto(BASE + `#/c/${kid}/keika`); await p.waitForSelector('.pchart'); await p.locator('.plist .prow').first().tap(); await p.waitForSelector('.steps');
+
   // ---------- iPhone ----------
   const ph = await kit(b, { viewport: { width: 390, height: 664 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }, 'ph-'); const q = ph.p;
   await q.goto(BASE); await q.waitForSelector('.page'); await ph.tap('＋ 新しいお客さん'); await q.getByPlaceholder('山田 花子').fill('見本 あしうら'); await ph.tap('保存する'); await q.waitForSelector('text=今日の来店をはじめる');
@@ -110,6 +134,16 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   await q.locator('.fullview .chip', { hasText: '左足の甲' }).scrollIntoViewIfNeeded(); await q.locator('.fullview .chip', { hasText: '左足の甲' }).tap(); await ph.drawOn('.zu .bodypad', 0); await ph.shot('04-full-foot-top'); await ph.tap('‹ もどる（とじる）');
   await q.goto(q.url().replace(/\/[^/]+$/, '/after')); await ph.tap('できた（カルテをとじる）'); await q.waitForSelector('.hist'); await q.locator('.hist').scrollIntoViewIfNeeded(); await ph.shot('05-customer-foot'); await ph.noOverflow('iPhone お客さんのページ');
   await q.locator('.hist button.thumbs').first().tap(); await q.waitForSelector('.bigfigs'); await ph.shot('06-bigfigs'); await ph.noOverflow('iPhone 図を大きく');
+  await q.goto(BASE + '#/list'); await q.waitForSelector('.list'); assert.equal(await q.locator('.overlay').count(), 0, '開いたままのパネルは、画面を移ると閉じる');
+
+  // 経過のページ（iPhone）
+  const kid2 = await q.evaluate(async () => { const st = await import('./js/state.js'); const db = await import('./js/db.js'); const { addDays, todayStr } = await import('./js/logic.js'); const id = st.S.people[0].id;
+    for (let i = 0; i < 12; i++) { const v = await st.newVisit(id); v.date = addDays(todayStr(), -(i + 1) * 10); v.status = 'done'; v.interview.symptoms = [{ id: 's_ashi', level: 4 + (i % 5) }]; v.after.levels = { s_ashi: 2 + (i % 3) };
+      v.blend.oils = [{ oilId: st.S.oils[i % 2].id, name: st.S.oils[i % 2].name, drops: 3 }]; v.blend.carriers = [{ carrierId: st.S.carriers[0].id, name: st.S.carriers[0].name, ml: 10 }]; v.scope = { type: 'part', parts: ['foot'] }; await db.put('visits', v); }
+    await st.recount(id); return id; });
+  await q.goto(BASE + `#/c/${kid2}/keika`); await q.waitForSelector('.pchart'); await ph.shot('07-keika'); await ph.noOverflow('iPhone 経過');
+  await q.locator('.plist').evaluate((e) => e.scrollIntoView()); await ph.shot('08-keika-list');
+  await q.goto(BASE + `#/c/${kid2}`); await q.waitForSelector('.keikabtn'); await q.locator('.hist').evaluate((e) => e.scrollIntoView()); await ph.shot('09-hist-entry'); await ph.noOverflow('iPhone これまでの記録');
 
   assert.deepEqual(errs, [], 'エラーなし'); assert.deepEqual(outside, [], '外への通信なし');
   console.log('✓ ぜんぶ通った（第2段）'); await b.close();

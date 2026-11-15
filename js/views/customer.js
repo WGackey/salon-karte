@@ -110,8 +110,8 @@ export async function customerFormView(id) {
 
 // これまでの記録を、横にめくってさかのぼる（新しい順）。どの回も同じ並び・同じ大きさで出すので、めくると変化が目に入る。
 // 回数が多くても重くならないように、中身を作るのは「いま見ている回と、その前後」だけ。
-function history(visits, det, copyFrom) {
-  const n = visits.length; const today = todayStr(); let idx = 0; let figMode = 'both'; // 図の見せ方：both 両方／guest お客さん／staff 施術者
+function history(visits, det, copyFrom, startIdx = 0, customerId = '') {
+  const n = visits.length; const today = todayStr(); let idx = Math.max(0, Math.min(n - 1, startIdx | 0)); let figMode = 'both'; // 図の見せ方：both 両方／guest お客さん／staff 施術者
   const dropMl = S.settings.dropMl || 0.05;
   // 図の小さな写し。全身＝前・後ろ／部分＝その部位の図（多いときは、線のある図を先に4つまで）。押すと大きく見られる
   const padOf = (v, f) => bodyPad({ kind: f.id, marks: S.settings.marks, readOnly: true, layer: figMode === 'guest' ? 'guest' : 'staff',
@@ -161,12 +161,14 @@ function history(visits, det, copyFrom) {
   let raf = 0;
   track.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth)); if (i !== idx && i >= 0 && i < n) { idx = i; show(); } }); }, { passive: true });
   show();
+  if (idx > 0) requestAnimationFrame(() => track.scrollTo({ left: slides[idx].offsetLeft - track.offsetLeft })); // 経過のページから「この回を見る」で来たとき
   // 図は2つ：お客さんの「気になるところ」（つぶつぶの線）と、施術する人の「所見」（ぬった線）。重ねる・片方だけを切りかえ
   const figSel = h('div', { class: 'figsel' }, h('span', { class: 'small' }, '図：'),
     chips([{ id: 'both', name: '両方を重ねる' }, { id: 'guest', name: 'お客さんの「気になるところ」' }, { id: 'staff', name: '施術者の「所見」' }], figMode, { multi: false, cls: 'tight', onChange: (x) => { figMode = x || 'both'; figSel.querySelectorAll('.chip').forEach((c, i) => c.classList.toggle('on', ['both', 'guest', 'staff'][i] === figMode)); made.clear(); show(); } }),
     h('span', { class: 'legend' }, h('i', { class: 'lg guest' }), 'つぶつぶ＝お客さん', h('i', { class: 'lg staff' }), 'ぬった線＝施術者'));
   return h('section', { class: 'card hist' },
-    h('h2', null, 'これまでの記録'), figSel,
+    h('div', { class: 'histhead' }, h('div', { class: 'grow' }, h('h2', null, 'これまでの記録'), h('p', { class: 'hint' }, '1回ずつ くわしく見る：ここで横にめくる　／　ぜんぶの回を並べて見る：経過のページ')),
+      h('a', { class: 'btn keikabtn', href: `#/c/${customerId}/keika` }, '📈 経過を並べて見る ›')), figSel,
     n > 1 ? h('div', { class: 'hnav' }, newer, h('div', { class: 'hmid' }, pos, dots), older) : null,
     track, n > 1 ? h('p', { class: 'hint center' }, '横にめくる（スワイプする）と、前の回にさかのぼれます。') : null);
 }
@@ -229,7 +231,7 @@ export async function customerView(id) {
         det.history ? h('p', null, h('b', null, 'これまでの病気・けが：'), det.history) : null,
         hasNoTouch ? h('div', null, h('p', null, h('b', null, '✕ 触れないでほしいところがあります')), noTouchFigures(noTouch)) : null) : null,
       consentCard(p, cs),
-      visits.length ? history(visits, det, copyFrom) : null,
+      visits.length ? history(visits, det, copyFrom, Number(new URLSearchParams((location.hash.split('?')[1] || '')).get('k')) || 0, id) : null,
       det.memo ? card(h('h2', null, 'メモ'), h('p', { class: 'pre' }, det.memo)) : null,
       card(h('h2', null, '生活の様子'), h('p', null, life || h('span', { class: 'muted' }, 'まだ聞いていません（「情報を直す」で入れられます）')),
         life && det.life.updated ? h('p', { class: 'muted small' }, `${jpDate(det.life.updated)} に直した`) : null),

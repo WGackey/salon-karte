@@ -321,3 +321,14 @@ test('全身／部分：出す図・濃度の目安・関わるつらいとこ�
   // 図の番号は保存に使うので、そろっていること
   for (const ids of Object.values(P.PART_FIGS)) for (const id of ids) { assert.ok(P.FIGS[id].box && P.FIGS[id].svg && P.FIGS[id].name, id); }
 });
+test('経過：回ごとの行（古い順）と、ブレンドごとのまとめ', async () => {
+  const { progressRows, blendGroups } = await import('../js/logic.js');
+  const mk = (date, b, a, oils, ml = 30) => ({ id: date, date, createdAt: 1, status: 'done', interview: { symptoms: [{ id: 's_kata', level: b }] }, after: { levels: a == null ? {} : { s_kata: a } },
+    blend: { oils: oils.map(([oilId, drops]) => ({ oilId, name: oilId, drops })), carriers: [{ carrierId: 'c', name: 'c', ml }] }, menus: [] });
+  const rows = progressRows([mk('2026-03-01', 6, 2, [['lav', 3], ['ora', 3]]), mk('2026-01-01', 8, 7, [['tea', 6]]), mk('2026-02-01', 7, 4, [['ora', 2], ['lav', 2]]), mk('2026-04-01', 5, null, [['lav', 1], ['ora', 1]])]);
+  assert.deepEqual(rows.map((r) => [r.date, r.nth, r.drop]), [['2026-01-01', 1, 1], ['2026-02-01', 2, 3], ['2026-03-01', 3, 4], ['2026-04-01', 4, null]]);
+  assert.equal(rows[0].pct.toFixed(1), '1.0'); assert.deepEqual(rows[3].syms, [{ id: 's_kata', before: 5, after: null }]);
+  const g = blendGroups(rows);
+  assert.deepEqual(g.map((x) => [x.key, x.n, x.rated, x.avg]), [['lav+ora', 3, 2, 3.5], ['tea', 1, 1, 1]], '同じ組み合わせ（順番・滴数がちがっても）でまとまる。後が未記入の回は平均に入れない');
+  assert.equal(g[0].last, '2026-04-01'); assert.deepEqual(blendGroups(progressRows([{ id: 'x', date: '2026-01-01', interview: {}, after: {}, blend: {} }])), []);
+});

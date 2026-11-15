@@ -212,3 +212,33 @@ export function searchPeople(people, q) {
   const k = norm(q); if (!k) return people;
   return people.filter((p) => (p._k || (p._k = norm(p.name) + '|' + norm(p.kana) + '|' + p.no)).includes(k));
 }
+
+// ---- 経過のページ ----
+// 来店の記録（新しい順でも古い順でもよい）を、古い順の「1回＝1行」に直す。つらさ（前→後）・ブレンド・濃度・メニュー・部位を並べて見るため。
+//   drop＝その回の、つらさの下がった合計（後が入っている症状だけ）。後が1つも入っていなければ null
+export function progressRows(visits, dropMl = 0.05) {
+  const vs = [...(visits || [])].sort((a, b) => (a.date + (a.createdAt || 0)).localeCompare(b.date + (b.createdAt || 0)) || (a.createdAt || 0) - (b.createdAt || 0));
+  return vs.map((v, i) => {
+    const after = (v.after || {}).levels || {};
+    const syms = ((v.interview || {}).symptoms || []).map((s) => ({ id: s.id, before: s.level, after: after[s.id] ?? null }));
+    const done = syms.filter((s) => s.after != null);
+    const b = v.blend || {}; const c = blendCalc(b, dropMl);
+    const oils = (b.oils || []).filter((x) => x.drops > 0), carriers = (b.carriers || []).filter((x) => x.ml > 0);
+    return { id: v.id, date: v.date, nth: i + 1, status: v.status, scope: v.scope || { type: 'whole' }, syms,
+      drop: done.length ? done.reduce((t, s) => t + (s.before - s.after), 0) : null,
+      oils, carriers, pct: c.pct, areaId: b.areaId || '', menus: v.menus || [], scent: (v.after || {}).scent || '', note: (v.after || {}).note || '',
+      blendKey: oils.map((o) => o.oilId || o.name).sort().join('+') };
+  });
+}
+// 同じ精油の組み合わせ（滴数はちがってもよい）ごとに、回数と、つらさの下がり方の平均をまとめる。回数の多い順
+export function blendGroups(rows) {
+  const m = new Map();
+  for (const r of rows) {
+    if (!r.blendKey) continue;
+    const g = m.get(r.blendKey) || { key: r.blendKey, names: r.oils.map((o) => o.name).sort((a, b) => a.localeCompare(b, 'ja')), rows: [], n: 0, rated: 0, sum: 0, pcts: [] };
+    g.rows.push(r); g.n++; if (r.drop != null) { g.rated++; g.sum += r.drop; } if (r.pct != null) g.pcts.push(r.pct);
+    m.set(r.blendKey, g);
+  }
+  return [...m.values()].map((g) => ({ ...g, avg: g.rated ? g.sum / g.rated : null, last: g.rows[g.rows.length - 1].date }))
+    .sort((a, b) => b.n - a.n || (b.avg ?? -99) - (a.avg ?? -99));
+}

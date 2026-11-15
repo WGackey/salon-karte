@@ -321,3 +321,20 @@ button.thumbs { border: 0; background: none; padding: 0; margin: 0; font: inheri
 }
 .guestmode .pads.one.pt .bodypad { height: min(58dvh, 520px); }
 .phasebar .grow { min-width: min(100%, 230px); }
+
+/* ---- 経過のページ ---- */
+.histhead { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; } .histhead h2 { margin: 0; } .histhead .hint { margin: 2px 0 0; } .keikabtn { flex: none; border-color: var(--accent); color: #2c4a3c; font-weight: 700; }
+.pscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 6px 0; border: 1px solid var(--line); border-radius: 14px; background: #fff; } .pchart { display: block; min-width: 100%; }
+.pgrid { stroke: #ece6dc; stroke-width: 1; } .pgrid.base { stroke: #cfc6b8; } .paxis { font-size: 12px; fill: var(--muted); } .pxl { font-size: 12px; fill: var(--ink); } .pxl.sub { font-size: 10.5px; fill: var(--muted); }
+.pline { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; } .pline.before { stroke-dasharray: 5 4; } .pdrop { stroke: #b9b0a3; stroke-width: 1.5; }
+.pdot.before { fill: #fff; stroke-width: 2.5; } .pdot.after { stroke: #fff; stroke-width: 2; } .pval { font-size: 13px; font-weight: 700; fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; } .ppick { fill: #f4efe6; } .phit { cursor: pointer; }
+.plegend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: .9rem; margin-top: 8px; } .lgd { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; } .lgd.before { border: 2.5px solid; background: #fff; }
+.ppicked { background: #f4efe6; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.psym { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .psym .pname { min-width: 7em; } .psym.on .pname { font-weight: 700; } .progress .down { color: var(--ok); font-weight: 700; } .progress .up { color: var(--red); font-weight: 700; }
+.pgroups { display: flex; flex-direction: column; } .pgroup { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); } .pgroup:last-child { border-bottom: 0; } .pavg { display: flex; flex-direction: column; align-items: flex-end; flex: none; } .pavg b { font-size: 1.15rem; }
+.plist { display: flex; flex-direction: column; margin-top: 8px; } .prow { display: grid; grid-template-columns: 150px minmax(0, 1.2fr) minmax(0, 1.3fr) minmax(0, 1fr) 16px; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; align-items: start; } .prow:last-child { border-bottom: 0; }
+.plabel { display: none; font-size: .78rem; color: var(--muted); font-weight: 700; } .ptotal { font-size: .88rem; color: var(--muted); margin-top: 2px; } .pnote { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .prow .chev { align-self: center; }
+@media (max-width: 700px) {
+  .prow { grid-template-columns: 1fr 16px; gap: 6px 8px; } .prow .pc { grid-column: 1; } .prow .chev { grid-column: 2; grid-row: 1 / span 4; } .plabel { display: block; margin-top: 4px; } .pc.date { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; } .pc.date .chips.tight { margin-top: 0; }
+  .keikabtn { flex: 1 1 100%; justify-content: center; } .pgroup { flex-wrap: wrap; } .pavg { flex-direction: row; gap: 8px; align-items: baseline; }
+}

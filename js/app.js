@@ -5,11 +5,12 @@ import { h, page } from './ui.js';
 import { homeView, listView } from './views/home.js';
 import { customerView, customerFormView, notFound } from './views/customer.js';
 import { visitView } from './views/visit.js';
+import { progressView } from './views/progress.js';
 import * as st from './views/settings.js';
 
 const ROUTES = [
   [/^\/$/, homeView], [/^\/list$/, listView], [/^\/new$/, () => customerFormView(null)],
-  [/^\/c\/([^/]+)$/, customerView], [/^\/c\/([^/]+)\/edit$/, customerFormView],
+  [/^\/c\/([^/]+)$/, customerView], [/^\/c\/([^/]+)\/edit$/, customerFormView], [/^\/c\/([^/]+)\/keika$/, progressView],
   [/^\/v\/([^/]+)\/([^/]+)$/, visitView],
   [/^\/set$/, st.settingsView], [/^\/set\/oils$/, st.oilsView], [/^\/set\/oil\/([^/]+)$/, st.oilEditView],
   [/^\/set\/carriers$/, st.carriersView], [/^\/set\/carrier\/([^/]+)$/, st.carrierEditView], [/^\/set\/fats$/, st.fatsView], [/^\/set\/menus$/, st.menusView], [/^\/set\/parts$/, st.partsView], [/^\/set\/limits$/, st.limitsView],
@@ -41,6 +42,7 @@ async function render() {
   }
   if (my !== seq) return;
   document.documentElement.classList.remove('noscroll'); // 図の「画面いっぱい」のまま移ったときのため
+  document.querySelectorAll('.overlay:not(.pinwrap)').forEach((o) => o.remove()); // 開いたままのパネルは、画面を移るときに閉じる
   root.replaceChildren(view); scrollTo(0, 0);
 }
 addEventListener('hashchange', render); addEventListener('popstate', () => { if (S.guest && location.hash !== '#/guest') render(); });
