@@ -2,6 +2,7 @@
 import * as db from './db.js';
 import { S, reload } from './state.js';
 import { todayStr, addDays } from './logic.js';
+import { PART_FIGS } from './parts.js';
 const SEI = [['春野', 'はるの'], ['夏川', 'なつかわ'], ['秋山', 'あきやま'], ['冬木', 'ふゆき'], ['朝倉', 'あさくら'], ['夕凪', 'ゆうなぎ'], ['星野', 'ほしの'], ['月岡', 'つきおか'], ['花村', 'はなむら'], ['森下', 'もりした'],
   ['川辺', 'かわべ'], ['海野', 'うみの'], ['空閑', 'くが'], ['雪村', 'ゆきむら'], ['風間', 'かざま'], ['水瀬', 'みなせ'], ['草薙', 'くさなぎ'], ['柚木', 'ゆずき'], ['桜庭', 'さくらば'], ['藤崎', 'ふじさき'],
   ['見本', 'みほん'], ['試田', 'ためしだ'], ['白石', 'しらいし'], ['黒沢', 'くろさわ'], ['青柳', 'あおやぎ'], ['赤城', 'あかぎ'], ['緑川', 'みどりかわ'], ['紺野', 'こんの'], ['茶谷', 'ちゃたに'], ['灰原', 'はいばら']];
@@ -11,8 +12,8 @@ const MEI = [['あおい', 'あおい'], ['ひなた', 'ひなた'], ['つむぎ
 let seed = 12345; // いつも同じ並びになる乱数（mulberry32）
 const rnd = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const ri = (n) => Math.floor(rnd() * n); const pick = (a) => a[ri(a.length)];
-function stroke(marks) {
-  const p = []; let x = 100 + ri(100), y = 100 + ri(400);
+function stroke(marks, maxY = 400) {
+  const p = []; let x = 100 + ri(100), y = 100 + ri(maxY);
   for (let i = 0; i < 18; i++) { p.push(x, y); x += ri(13) - 6; y += ri(13) - 4; }
   return { m: pick(marks).id, w: 14, p };
 }
@@ -25,11 +26,12 @@ export async function addSamples(n = 1000) {
       const date = addDays(today, -(1 + ri(30) + k * (14 + ri(30)))); if (date > last) last = date;
       const syms = [...new Set([pick(st.symptoms).id, pick(st.symptoms).id])].map((sid) => ({ id: sid, level: 3 + ri(7) }));
       const oils = [pick(S.oils), pick(S.oils)].map((o) => ({ oilId: o.id, name: o.name, drops: 1 + ri(3) }));
+      const part = rnd() < 0.15 ? pick(['hand', 'foot']) : null; const fg = part ? PART_FIGS[part] : ['front', 'back']; const sk = () => stroke(st.marks, part ? 200 : 400);
       visits.push({
-        id: db.uid(), customerId: id, date, status: 'done', scope: { type: 'whole' }, conds: [], sample: true,
+        id: db.uid(), customerId: id, date, status: 'done', scope: part ? { type: 'part', parts: [part] } : { type: 'whole' }, conds: [], sample: true,
         interview: { life: '見本のデータです', purposes: [pick(st.purposes)], moods: [pick(st.moods)], symptoms: syms, skins: rnd() < 0.5 ? [pick(st.skins).id] : [], memo: '' },
-        guestFigures: { front: [stroke(st.marks)], back: rnd() < 0.5 ? [stroke(st.marks)] : [] }, intake: null,
-        figures: { front: [stroke(st.marks), stroke(st.marks)], back: [stroke(st.marks), stroke(st.marks), stroke(st.marks)] },
+        guestFigures: { front: [], back: [], [fg[0]]: [sk()], [fg[1]]: rnd() < 0.5 ? [sk()] : [] }, intake: null,
+        figures: { front: [], back: [], [fg[0]]: [sk(), sk()], [fg[1]]: [sk(), sk(), sk()] },
         blend: { areaId: st.areas[0].id, oils, carriers: [{ carrierId: S.carriers[0].id, name: S.carriers[0].name, ml: 30 }], memo: '' },
         menus: S.menus[0] ? [{ id: S.menus[0].id, name: S.menus[0].name, minutes: S.menus[0].minutes }] : [], treat: { seitai: '', aroma: '見本' },
         after: { levels: Object.fromEntries(syms.map((x) => [x.id, Math.max(0, x.level - 1 - ri(4))])), scent: pick(st.scents), note: '' },

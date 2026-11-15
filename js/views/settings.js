@@ -1,3 +1,5 @@
+import { scopeChips } from '../scopepick.js';
+import { PART_FIGS, FIGS } from '../parts.js';
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, AUTO_NOTE } from '../ui.js';
 import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin } from '../state.js';
 import { choosePin, askPin } from './guest.js';
@@ -30,7 +32,8 @@ export function settingsView() {
       card(h('h2', null, 'カルテ'), h('div', { class: 'list' },
         link('#/set/consent', '同意書と注意事項', `お客さんにサインしてもらう文（いまの文は版 ${(S.settings.consent || {}).ver || 1}）`),
         link('#/set/handover', 'お客さんに渡すとき（合言葉）', hasPin() ? '合言葉：決めてあります' : '合言葉：まだ決めていません'),
-        link('#/set/menus', '施術メニュー', `${S.menus.length}個`),
+        link('#/set/menus', '施術メニュー', `${S.menus.length}個。メニューごとに「施術するところ（全身・手だけ など）」を決められる`),
+        link('#/set/parts', '部位（手だけ・足だけ などのカルテ）', '部位の名前・濃度の目安・関わる「つらいところ」'),
         link('#/set/lists', 'えらぶ言葉を直す', '症状・肌の状態・アレルギー・目的・香りの好み・お仕事 など'),
         link('#/set/salon', 'お店の名前', S.settings.salonName || '（まだ入っていません）'))),
       card(h('h2', null, 'データ'), h('div', { class: 'list' },
@@ -190,10 +193,29 @@ export function fatsView() {
   });
 }
 export const menusView = () => simpleList({
-  title: '施術メニュー', back: '#/set', items: () => S.menus, hint: 'メニューの名前と時間（分）を入れます。来店ごとにいくつでもえらべます。料金は入れません。',
-  fields: [nameField('メニューの名前'), (it, save) => h('span', { class: 'row tight' }, numIn(it, 'minutes', { onInput: save }), '分')],
-  blank: () => ({ id: db.uid(), name: '', minutes: 60 }), onSave: (it) => saveMaster('menus', it), onDelete: (it) => deleteMaster('menus', it.id),
+  title: '施術メニュー', back: '#/set', items: () => S.menus, hint: 'メニューの名前と時間（分）を入れます。来店ごとにいくつでもえらべます。料金は入れません。「施術するところ」を決めておくと、来店でメニューをえらぶだけで、からだの図・問診・濃度の目安がその部位に合わせて切りかわります（決めないメニューは、来店のときにえらびます）。',
+  fields: [nameField('メニューの名前'), (it, save) => h('span', { class: 'row tight' }, numIn(it, 'minutes', { onInput: save }), '分'),
+    (it, save) => h('div', { class: 'menuscope' }, h('span', { class: 'small muted' }, '施術するところ：'), scopeChips(it.scope, (sc) => { it.scope = sc; save(); }, { none: true }))],
+  blank: () => ({ id: db.uid(), name: '', minutes: 60, scope: null }), onSave: (it) => saveMaster('menus', it), onDelete: (it) => deleteMaster('menus', it.id),
 });
+
+// ---- 部位（手だけ・足だけ などのカルテ） ----
+export function partsView() {
+  const st = S.settings; const save = () => saveSettings();
+  const areaItems = () => st.areas.map((a) => ({ id: a.id, name: (a.name || '（名前なし）') + (a.max != null ? `（${a.max}％まで）` : '（目安なし）') }));
+  return page({
+    title: '部位（手だけ・足だけ などのカルテ）', back: '#/set', body: [
+      AUTO_NOTE(),
+      h('p', { class: 'hint' }, '来店ごとに「全身／部分」をえらべます。部分のときは、その部位の大きな図に切りかわり、問診が短くなり、濃度の目安もここで決めたものに切りかわります。濃度の数字そのものは 設定 → 濃度の目安 で直します。'),
+      card(h('h2', null, '全身'), group('濃度の目安', chips(areaItems(), st.wholeAreaId || '', { multi: false, onChange: (x) => { st.wholeAreaId = x; save(); } }))),
+      st.parts.filter((pt) => PART_FIGS[pt.id]).map((pt) => card(h('h2', null, pt.name || '（名前なし）'),
+        field('部位の名前', input(pt, 'name', { onInput: save })),
+        h('p', { class: 'muted small' }, '図：' + PART_FIGS[pt.id].map((f) => FIGS[f].name).join('・')),
+        group('濃度の目安', chips(areaItems(), pt.areaId || '', { multi: false, onChange: (x) => { pt.areaId = x; save(); } }), 'いくつかの部位をいっしょにえらんだときは、目安のいちばん低いものを使います'),
+        group('関わる「つらいところ」（短い問診で先に出す）', chips(st.symptoms, pt.syms || [], { onChange: (x) => { pt.syms = x; save(); } }), 'ここにないものも、問診の「ほかのつらいところも出す」でえらべます'))),
+    ],
+  });
+}
 
 // ---- 濃度の目安 ----
 export function limitsView() {

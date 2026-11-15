@@ -1,6 +1,7 @@
 // からだの図（前・後ろ）。自分で描き起こした、かんたんな輪郭。
 // なぞった線は「点の並び」で保存する（写真のような重いデータにしない）。
 // 線の形：{ m: しるしの番号, w: 太さ, p: [x,y,x,y,...] }  図の大きさは 横300×縦640。
+import { FIGS } from './parts.js';
 const NS = 'http://www.w3.org/2000/svg';
 const HALF = [[162, 80], [164, 100], [186, 109], [209, 119], [221, 138], [226, 175], [230, 215], [237, 255], [243, 290], [249, 316], [249, 336], [240, 345], [231, 336], [229, 312], [222, 288], [213, 252], [206, 218], [201, 186], [199, 162],
   [198, 200], [194, 240], [197, 275], [204, 305], [207, 345], [204, 395], [197, 440], [199, 482], [196, 525], [188, 570], [187, 592], [198, 610], [195, 621], [171, 621], [166, 600], [169, 570], [168, 525], [164, 482], [166, 440], [160, 395], [151, 342]];
@@ -21,20 +22,27 @@ const DETAIL = {
   back: '<path d="M150 96V300" stroke-dasharray="5 6"/><path d="M118 150q8 34 24 44M182 150q-8 34 -24 44M112 330q20 22 38 0q18 22 38 0M108 448h18M174 448h18"/>',
 };
 export const ZONES = { all: '15 5 270 628', top: '15 5 270 350', bottom: '15 290 270 343' };
-export const FIGURES = [{ id: 'front', name: '前' }, { id: 'back', name: '後ろ' }];
+export const FIGURES = [FIGS.front, FIGS.back]; // 全身の図。部位の図は parts.js の FIGS
 function el(tag, attrs) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
 const pathOf = (p) => { let d = `M${p[0]} ${p[1]}`; if (p.length === 2) d += `l0.1 0`; for (let i = 2; i < p.length; i += 2) d += `L${p[i]} ${p[i + 1]}`; return d; };
 
-// kind: 'front' | 'back'。strokes をその場で書きかえる。getTool() → {mode:'draw'|'erase', mark, width}
+// kind: 図の番号（'front' | 'back' | 'hand_palm_r' …）。strokes をその場で書きかえる。getTool() → {mode:'draw'|'erase', mark, width}
 // layer：だれの図か。'staff'＝施術する人の所見（ぬった線）／'guest'＝お客さんの気になるところ（つぶつぶの線）
 // under：下に重ねて見せるだけの図 [{ strokes, layer }]（なぞれない）
-export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = false, layer = 'staff', under = [] }) {
-  const svg = el('svg', { viewBox: '15 5 270 628', class: 'bodypad' + (readOnly ? ' ro' : ''), role: 'img', 'aria-label': `からだの図（${kind === 'front' ? '前' : '後ろ'}）` });
-  const left = kind === 'front' ? '右' : '左', right = kind === 'front' ? '左' : '右';
-  svg.innerHTML = `<g transform="translate(150 0) scale(1.22 1) translate(-150 0)"><g class="fig"><ellipse cx="150" cy="47" rx="23" ry="34"/><path d="${OUTLINE}"/></g><g class="fig-detail">${DETAIL[kind]}</g></g>
+export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = false, layer = 'staff', under = [], overlays = [] }) {
+  const def = FIGS[kind] || FIGS.front; const part = !!def.box; // part＝部位の図（手・足など）
+  const svg = el('svg', { viewBox: part ? def.box.join(' ') : ZONES.all, class: 'bodypad' + (part ? ' pt' : '') + (readOnly ? ' ro' : ''), role: 'img', 'aria-label': `からだの図（${def.name}）` });
+  if (part) {
+    // 重ねる層（反射区など・第3段）は、図のすぐ上・なぞった線の下に入る
+    svg.innerHTML = def.svg + (def.overlays || []).filter((o) => (overlays || []).includes(o.id)).map((o) => `<g class="fig-overlay">${o.svg}</g>`).join('');
+    svg.setZone = () => {};
+  } else {
+    const left = kind === 'front' ? '右' : '左', right = kind === 'front' ? '左' : '右';
+    svg.innerHTML = `<g transform="translate(150 0) scale(1.22 1) translate(-150 0)"><g class="fig"><ellipse cx="150" cy="47" rx="23" ry="34"/><path d="${OUTLINE}"/></g><g class="fig-detail">${DETAIL[kind]}</g></g>
     <text x="50" y="40" class="fig-lr">${left}</text><text x="250" y="40" class="fig-lr">${right}</text>`;
-  // 小さい画面用：上半身・下半身だけを大きく出す（線の位置は図の座標のままなので、ずれない）
-  svg.setZone = (z) => svg.setAttribute('viewBox', ZONES[z] || ZONES.all);
+    // 小さい画面用：上半身・下半身だけを大きく出す（線の位置は図の座標のままなので、ずれない）
+    svg.setZone = (z) => svg.setAttribute('viewBox', ZONES[z] || ZONES.all);
+  }
   const color = (m) => (marks.find((x) => x.id === m) || { color: '#888' }).color;
   const isX = (m) => !!(marks.find((x) => x.id === m) || {}).x;
   // 「触れないで」のしるしは、なぞった線を点線にして、まん中に大きな × を出す

@@ -8,6 +8,8 @@ import { todayStr, consentState } from '../logic.js';
 import { signPad } from '../signpad.js';
 import { figureEditor } from '../figedit.js';
 import { lifeFields, birthPicker } from './customer.js';
+import { scopePicker } from '../scopepick.js';
+import { isPart, figsOf, areaForScope, symsForScope, scopeText } from '../parts.js';
 
 // ---- 合言葉（数字4けた）を入れるボタン。端末のキーボードは出さない ----
 let wrong = 0, lockUntil = 0;
@@ -48,13 +50,18 @@ export const askPin = (title = 'スタッフ用：合言葉を入れてくださ
 
 // ---- 渡す前の確かめ（施術する人の画面に出る） ----
 const PARTS = [['profile', 'お客さんの情報（お名前・連絡先・からだのこと・生活の様子）'], ['consent', '同意書とサイン'], ['monshin', '今日の問診（今日の状態・つらいところ・気になるところの図・香りの好み）']];
-export async function startHandover(p, parts, visit) {
+export async function startHandover(p, parts, visit, pick = null) {
   if (!parts.length) { toast('書いてもらうものをえらんでね'); return false; }
   if (!hasPin()) {
     toast('はじめに、戻るための合言葉を決めます'); if (!(await choosePin())) return false;
   }
   let v = visit;
   if (parts.includes('monshin') && !v) { const vs = await visitsOf(p.id); v = vs.find((x) => x.status === 'draft' && x.date === todayStr()) || await newVisit(p.id); }
+  if (v && pick && parts.includes('monshin')) { // 渡す前にえらんだメニューと「施術するところ」を、今日のカルテに入れる
+    const was = JSON.stringify(v.scope); v.menus = pick.menus; v.scope = pick.scope;
+    if (was !== JSON.stringify(v.scope)) { const a = areaForScope(S.settings, v.scope); if (a) v.blend.areaId = a; }
+    await saveVisit(v);
+  }
   document.querySelectorAll('.overlay').forEach((o) => o.remove());
   await enterGuest({ customerId: p.id, visitId: parts.includes('monshin') ? v.id : null, parts });
   go('#/guest'); return true;
@@ -62,11 +69,15 @@ export async function startHandover(p, parts, visit) {
 export function handoverSheet(p, det, visit, preset) {
   const cs = consentState(det.consents, S.settings.consent);
   let parts = preset || [!det.intakeAt && !(p.visitCount > (visit ? 1 : 0)) ? 'profile' : null, !cs.last || cs.stale ? 'consent' : null, 'monshin'].filter(Boolean);
+  const pick = { menus: visit ? [...(visit.menus || [])] : [], scope: visit ? visit.scope : { type: 'whole' } };
+  const pickBox = h('div'); const drawPick = () => fill(pickBox, parts.includes('monshin') ? h('div', { class: 'pickbox' }, scopePicker(pick, () => {})) : null);
   const s = sheet('お客さんに渡す', h('div', { class: 'step' },
     h('p', null, 'お客さん用の画面に切りかわります。', h('b', null, 'ほかのお客さんのカルテ・後半の画面・設定には行けなくなります。'), '戻るには合言葉が要ります。'),
-    group('書いてもらうもの', chips(PARTS.map(([id, name]) => ({ id, name })), parts, { cls: 'col', onChange: (x) => { parts = PARTS.map((q) => q[0]).filter((q) => x.includes(q)); } })),
+    group('書いてもらうもの', chips(PARTS.map(([id, name]) => ({ id, name })), parts, { cls: 'col', onChange: (x) => { parts = PARTS.map((q) => q[0]).filter((q) => x.includes(q)); drawPick(); } })),
+    pickBox,
     hasPin() ? null : h('div', { class: 'notice amber' }, 'まだ合言葉を決めていません。次の画面で、数字4けたを決めます。'),
-    btn('この内容で、お客さんに渡す', () => startHandover(p, parts, visit), 'primary big wide handbtn')));
+    btn('この内容で、お客さんに渡す', () => startHandover(p, parts, visit, pick), 'primary big wide handbtn')));
+  drawPick();
   return s;
 }
 
@@ -92,8 +103,9 @@ export async function guestView() {
   const has = (part) => g.parts.includes(part) && (part !== 'monshin' || v);
   const consent = S.settings.consent || { text: '', ver: 1 };
 
-  // 画面の並び。1画面に少しずつ
-  const screens = ['hello', ...(has('profile') ? ['p1', 'p2', 'p3', 'p4'] : []), ...(has('consent') ? ['consent'] : []), ...(has('monshin') ? ['m1', 'm2', 'm3'] : []), 'done'];
+  // 画面の並び。1画面に少しずつ。部分の施術（手だけ など）のときは短い版：連絡先・ふだんの生活は聞かない（からだの状態・アレルギーは省かない）
+  const short = !!v && has('monshin') && isPart(v.scope); const rel = short ? symsForScope(S.settings, v.scope) : [];
+  const screens = ['hello', ...(has('profile') ? (short ? ['p1', 'p3'] : ['p1', 'p2', 'p3', 'p4']) : []), ...(has('consent') ? ['consent'] : []), ...(has('monshin') ? ['m1', 'm2', 'm3'] : []), 'done'];
   let i = Math.min(g.step || 0, screens.length - 1);
   const q = (title, hint, ...kids) => h('section', { class: 'gcard' }, h('h2', null, title), hint ? h('p', { class: 'ghint' }, hint) : null, kids);
   const personConds = S.settings.conds.filter((c) => c.when === 'person' && !['c_infant', 'c_child', 'c_old'].includes(c.id));
@@ -146,20 +158,27 @@ export async function guestView() {
       const drawSym = () => fill(symBox, ...iv.symptoms.map((s) => h('div', { class: 'symrow' }, h('div', { class: 'symname' }, symName(s.id)), levels(s.level, (n) => { s.level = n; saveV(); }))));
       const drawPreg = () => fill(pregBox, v.conds.includes('c_preg') ? group('いま何か月ですか', chips([...Array(10)].map((_, k) => ({ id: k + 1, name: `${k + 1}か月` })), v.pregMonth || '', { multi: false, onChange: (m) => { v.pregMonth = m || null; saveV(); } })) : null);
       drawSym(); drawPreg();
+      let moreSym = false; const symChipBox = h('div');
+      const drawSymChips = () => {
+        const list = short && !moreSym ? S.settings.symptoms.filter((s) => rel.includes(s.id) || iv.symptoms.some((x) => x.id === s.id)) : S.settings.symptoms;
+        fill(symChipBox, chips(list, iv.symptoms.map((s) => s.id), { onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); saveV(); } }),
+          short && !moreSym && list.length < S.settings.symptoms.length ? btn('ほかにも気になることがある', () => { moreSym = true; drawSymChips(); }, 'chip ghostchip moresym') : null);
+      };
+      drawSymChips();
       return { title: '今日のおからだの調子', body: [
         v.copied ? h('div', { class: 'gnote' }, '前回うかがった内容が入っています。変わったところだけ直してください。') : null,
         q('今日、あてはまるものはありますか', 'あてはまるものを押してください（なければ、そのまま下へ）', chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; saveV(); drawPreg(); } }), pregBox),
         q('つらいところ・気になること', 'あてはまるものを押して、つらさを 1（少し）〜 10（とても）でえらんでください',
-          chips(S.settings.symptoms, iv.symptoms.map((s) => s.id), { onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); saveV(); } }), symBox)] };
+          symChipBox, symBox)] };
     },
     m2: () => ({ title: '気になるところを、図に', wide: true, body: [h('section', { class: 'gcard' }, h('h2', null, '気になるところを、指でなぞってください'),
-      h('p', { class: 'ghint' }, '色をえらんでから、からだの図をなぞります。', h('b', null, '触れてほしくないところ'), 'は「触れないで（×）」をえらんでなぞってください。なければ、そのまま次へ。'),
-      figureEditor({ figures: v.guestFigures, layer: 'guest', marks: S.settings.marks, onSave: saveV, simple: true, markLabel: '色をえらぶ' }))] }),
+      h('p', { class: 'ghint' }, short ? `今日は「${scopeText(S.settings, v.scope)}」の施術です。色をえらんでから、図をなぞります。` : '色をえらんでから、からだの図をなぞります。', h('b', null, '触れてほしくないところ'), 'は「触れないで（×）」をえらんでなぞってください。なければ、そのまま次へ。'),
+      figureEditor({ figures: v.guestFigures, figs: figsOf(v.scope), layer: 'guest', marks: S.settings.marks, onSave: saveV, simple: true, markLabel: '色をえらぶ' }))] }),
     m3: () => { const iv = v.interview; return { title: '香りの好み・ご希望', body: [
-      q('今日の目的', 'あてはまるものを押してください', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; saveV(); } })),
+      short ? null : q('今日の目的', 'あてはまるものを押してください', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; saveV(); } })),
       q('お肌の状態', null, chips(S.settings.skins, iv.skins || [], { onChange: (x) => { iv.skins = x; saveV(); } })),
       q('好きな香り', 'オイルをえらぶときの参考にします', group('香りの系統', chips(S.settings.families, iv.famLikes || [], { onChange: (x) => { iv.famLikes = x; saveV(); } })),
-        group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; saveV(); } }))),
+        short ? null : group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; saveV(); } }))),
       q('伝えておきたいこと', '力かげん・気をつけてほしいこと・聞いておきたいこと など、なんでも', textarea(iv, 'wish', { rows: 3, onInput: saveV }))] }; },
     done: () => ({ title: '', done: true, body: [h('div', { class: 'gdone' }, h('div', { class: 'gcheck' }, '✓'), h('h1', null, 'ありがとうございました'),
       h('p', { class: 'gbig' }, 'スタッフにお返しください。'), btn('スタッフ：合言葉を入れてもどる', unlock, 'primary big'))] }),

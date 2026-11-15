@@ -75,7 +75,7 @@ export async function newVisit(customerId) {
   const prev = (await visitsOf(customerId))[0];
   const v = {
     id: db.uid(), customerId, date: todayStr(), status: 'draft',
-    scope: { type: 'whole' }, // 第2段で「部分（手・足など）」を足すための入れ物
+    scope: { type: 'whole' }, // 施術するところ。全身＝{type:'whole'}／部分＝{type:'part', parts:['hand','foot']}。毎回 全身から始めて、メニューか部位をえらぶと変わる
     conds: prev ? prev.conds.filter((c) => !['c_sun', 'c_drive', 'c_drink'].includes(c)) : [], // その日だけのもの（屋外・運転・お酒）は写さない。妊娠の月数も写さない
     interview: prev ? { ...clone(prev.interview), memo: '', wish: '' } : { life: '', purposes: [], moods: [], symptoms: [], skins: [], memo: '', wish: '' },
     // 図は2つ。guestFigures＝お客さんの「気になるところ」／figures＝施術する人の「所見」。図の名前 → なぞった線（第2段で手・足の図を足せる）

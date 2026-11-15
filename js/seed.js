@@ -71,6 +71,13 @@ export const DEFAULT_CONSENT_TEXT = `施術を受ける前に、次のことを�
 
 上のことを読み、説明を受けたうえで、施術を受けることに同意します。`;
 
+export const DEFAULT_PARTS = [
+  { id: 'hand', name: '手', areaId: 'a_part', syms: ['s_hie', 's_mukumi', 's_tsukare', 's_kinniku', 's_hada', 's_stress'] },
+  { id: 'foot', name: '足', areaId: 'a_part', syms: ['s_ashi', 's_mukumi', 's_hie', 's_tsukare', 's_kinniku', 's_hada'] },
+  { id: 'head', name: '頭', areaId: 'a_face', syms: ['s_atama', 's_me', 's_nemuri', 's_stress', 's_kubi', 's_kibun'] }, // 顔に近いので、低いほうの目安（安全側）。設定で直せる
+  { id: 'neck', name: '首・肩', areaId: 'a_body', syms: ['s_kata', 's_kubi', 's_atama', 's_me', 's_kinniku', 's_stress'] },
+  { id: 'back', name: '背中・腰', areaId: 'a_body', syms: ['s_senaka', 's_koshi', 's_kata', 's_kinniku', 's_tsukare'] },
+];
 export const DEFAULT_SETTINGS = {
   salonName: '',
   pin: null, // お客さん用の画面から戻るための合言葉（数字4けた）。{ salt, hash } の形で残す
@@ -87,6 +94,9 @@ export const DEFAULT_SETTINGS = {
     { id: 'a_part', name: '手・足だけ', max: null },
   ],
   stateLimits: {}, // 状態ごとの目安（はじめは空。使う人が入れる）
+  // 部位だけのカルテ（手だけ・足だけ など）。図は parts.js。名前・濃度の目安（areas のどれを使うか）・関わる「つらいところ」は設定で直せる
+  wholeAreaId: 'a_body', // 全身のときの濃度の目安
+  parts: DEFAULT_PARTS,
   symptoms: SYM.map(([id, name, acts]) => ({ id, name, acts: { ...acts } })),
   actions: DEFAULT_ACTIONS,
   conds: DEFAULT_CONDS,
@@ -250,4 +260,7 @@ export const DEFAULT_MENUS = [
   { id: 'mn_1', name: '整体', minutes: 60 },
   { id: 'mn_2', name: 'アロマトリートメント', minutes: 60 },
   { id: 'mn_3', name: 'アロマトリートメント', minutes: 90 },
+  // 部位だけのメニューの見本（scope＝施術するところ。メニューをえらぶだけで、図と濃度の目安がそろう）
+  { id: 'mn_4', name: 'ハンドトリートメント', minutes: 20, scope: { type: 'part', parts: ['hand'] } },
+  { id: 'mn_5', name: 'フットトリートメント', minutes: 30, scope: { type: 'part', parts: ['foot'] } },
 ];
