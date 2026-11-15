@@ -350,16 +350,35 @@ test('予定の一覧：今日・今週・その先・過ぎた人。予定の�
 
 test('版7への移し替え：もう使っている端末には案内を出さない・施術する人の名前と反射区の入れ物（はじめは出さない）・直した値は戻らない', async () => {
   const v6 = { dataVersion: 6, stores: { meta: [{ key: 'settings', value: { salonName: 'みほんの店', areas: [{ id: 'a_body', name: '体', max: 2 }] } }, { key: 'nextNo', value: 3 }], visits: [{ id: 'v1', scope: { type: 'whole' } }] } };
-  const d = migrateDump(v6, MIGRATIONS, DATA_VERSION); const st = d.stores.meta[0].value;
+  const d = migrateDump(v6, MIGRATIONS, 7); const st = d.stores.meta[0].value;
   assert.equal(d.dataVersion, 7); assert.equal(st.onboard.done, true); assert.equal(st.staffName, ''); assert.equal(st.salonName, 'みほんの店'); assert.equal(st.areas[0].max, 2);
   assert.equal(st.reflex.show, false); assert.equal(st.reflex.checked, false); assert.ok(st.reflex.zones.length >= 8);
   assert.equal(d.stores.meta[1], v6.stores.meta[1]); assert.equal(d.stores.visits[0], v6.stores.visits[0], '来店はさわらない');
   st.staffName = '見本'; st.reflex.show = true; st.reflex.zones[0].name = 'あたま';
-  const again = migrateDump({ ...d, dataVersion: 6 }, MIGRATIONS, DATA_VERSION).stores.meta[0].value;
+  const again = migrateDump({ ...d, dataVersion: 6 }, MIGRATIONS, 7).stores.meta[0].value;
   assert.equal(again.staffName, '見本'); assert.equal(again.reflex.show, true); assert.equal(again.reflex.zones[0].name, 'あたま');
 });
 test('バックアップのファイル名：お店の名前が頭につく・使えない字は外す', async () => {
   const { backupName } = await import('../js/logic.js');
   assert.equal(backupName('', '2026-11-15'), 'カルテのバックアップ_2026-11-15.json');
   assert.equal(backupName(' みほん/サロン: A ', '2026-11-15'), 'みほん_サロン_A_カルテのバックアップ_2026-11-15.json');
+});
+
+test('版8への移し替え：来店に staffEdits の入れ物。だれが書いたか（intake）はさわらない（無い回は「記録なし」）', async () => {
+  const { intakeInfo } = await import('../js/logic.js');
+  const v7 = { dataVersion: 7, stores: { visits: [{ id: 'a', intake: null, guestFigures: { front: [{ m: 'm_pain', w: 6, p: [1, 2] }] } }, { id: 'b', intake: { by: 'guest', at: '2026-11-15T01:00:00Z' } }] } };
+  const d = migrateDump(v7, MIGRATIONS, DATA_VERSION);
+  assert.equal(d.dataVersion, DATA_VERSION);
+  assert.deepEqual(d.stores.visits[0].staffEdits, {}); assert.equal(d.stores.visits[0].intake, null, 'うその印をつけない');
+  assert.equal(d.stores.visits[0].guestFigures.front[0].by, undefined, '前の線に by を足さない');
+  assert.equal(intakeInfo(d.stores.visits[0]).kind, 'unknown'); assert.equal(intakeInfo(d.stores.visits[0]).text, 'だれが書いたかの記録なし');
+  assert.equal(intakeInfo(d.stores.visits[1]).text, 'お客さんが自分で書いた');
+});
+test('だれが書いたか：お客さんが書いた回に、施術する人が直したらん・足した×が出る／聞き取った回', async () => {
+  const { intakeInfo } = await import('../js/logic.js');
+  const g = intakeInfo({ intake: { by: 'guest' }, staffEdits: { symptoms: 'x', wish: 'y', bogus: 'z' }, guestFigures: { back: [{ m: 'm_notouch', by: 'staff', p: [] }, { m: 'm_pain', p: [] }] } });
+  assert.deepEqual(g.edits, ['つらいところ', 'お客さんから伝えたいこと']); assert.equal(g.xByStaff, 1);
+  assert.match(g.text, /施術者が書き足した：つらいところ・お客さんから伝えたいこと/); assert.match(g.text, /施術者が1つ足した/);
+  assert.equal(intakeInfo({ intake: { by: 'staff' } }).text, '施術者が聞き取って書いた');
+  assert.equal(intakeInfo(null).kind, 'unknown');
 });

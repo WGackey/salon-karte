@@ -1,6 +1,6 @@
 // からだの図（前・後ろ）。自分で描き起こした、かんたんな輪郭。
 // なぞった線は「点の並び」で保存する（写真のような重いデータにしない）。
-// 線の形：{ m: しるしの番号, w: 太さ, p: [x,y,x,y,...] }  図の大きさは 横300×縦640。
+// 線の形：{ m: しるしの番号, w: 太さ, p: [x,y,x,y,...], by?: 'staff' }（by＝お客さんの図に施術する人がかいた線。0.9.0 から。前の線には無い）  図の大きさは 横300×縦640。
 import { FIGS } from './parts.js';
 const NS = 'http://www.w3.org/2000/svg';
 const HALF = [[162, 80], [164, 100], [186, 109], [209, 119], [221, 138], [226, 175], [230, 215], [237, 255], [243, 290], [249, 316], [249, 336], [240, 345], [231, 336], [229, 312], [222, 288], [213, 252], [206, 218], [201, 186], [199, 162],
@@ -29,7 +29,7 @@ const pathOf = (p) => { let d = `M${p[0]} ${p[1]}`; if (p.length === 2) d += `l0
 // kind: 図の番号（'front' | 'back' | 'hand_palm_r' …）。strokes をその場で書きかえる。getTool() → {mode:'draw'|'erase', mark, width}
 // layer：だれの図か。'staff'＝施術する人の所見（ぬった線）／'guest'＝お客さんの気になるところ（つぶつぶの線）
 // under：下に重ねて見せるだけの図 [{ strokes, layer }]（なぞれない）
-export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = false, layer = 'staff', under = [], overlaySvg = '' }) {
+export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = false, layer = 'staff', under = [], overlaySvg = '', canErase = null }) {
   const def = FIGS[kind] || FIGS.front; const part = !!def.box; // part＝部位の図（手・足など）
   const svg = el('svg', { viewBox: part ? def.box.join(' ') : ZONES.all, class: 'bodypad' + (part ? ' pt' : '') + (readOnly ? ' ro' : ''), role: 'img', 'aria-label': `からだの図（${def.name}）` });
   if (part) {
@@ -50,6 +50,7 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
     const xs = s.p.filter((_, i) => i % 2 === 0), ys = s.p.filter((_, i) => i % 2 === 1);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2, r = 14;
     g.append(el('path', { d: `M${cx - r} ${cy - r}L${cx + r} ${cy + r}M${cx + r} ${cy - r}L${cx - r} ${cy + r}`, stroke: color(s.m), 'stroke-width': 6, class: 'xmark' }));
+    return [cx, cy, r];
   };
   const drawOne = (s, to, ly) => {
     if (!isX(s.m)) {
@@ -58,7 +59,10 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
       const p = el('path', a); to.append(p); return p;
     }
     const g = el('g', { class: 'notouch' }); const p = el('path', { d: pathOf(s.p), stroke: color(s.m), 'stroke-width': Math.min(s.w, 8), 'stroke-dasharray': '6 6' });
-    g.append(p); xMark(s, g); to.append(g); return p;
+    g.append(p); const [cx, cy, r] = xMark(s, g);
+    // お客さんの図に、施術する人が足した × には「施術者」の札をつける（だれが足したか分かるように）
+    if (ly === 'guest' && s.by === 'staff') { const t = el('text', { x: cx + r + 3, y: cy - r + 2, class: 'bytag' }); t.textContent = '施術者'; g.append(t); }
+    to.append(g); return p;
   };
   for (const u of under) { const g = el('g', { class: 'strokes under ' + u.layer }); svg.append(g); (u.strokes || []).forEach((s) => drawOne(s, g, u.layer)); }
   const layerEl = el('g', { class: 'strokes own ' + layer }); svg.append(layerEl);
@@ -70,7 +74,7 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
   let cur = null, curEl = null, activeId = null, penDown = false;
   const eraseAt = ([x, y]) => {
     for (let i = strokes.length - 1; i >= 0; i--) {
-      const s = strokes[i], r = s.w / 2 + 8;
+      const s = strokes[i], r = s.w / 2 + 8; if (canErase && !canErase(s)) continue;
       for (let j = 0; j < s.p.length; j += 2) if (Math.abs(s.p[j] - x) < r && Math.abs(s.p[j + 1] - y) < r) { strokes.splice(i, 1); redraw(); onChange({ type: 'erase', index: i, stroke: s }); return; }
     }
   };
@@ -81,7 +85,7 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
     e.preventDefault(); activeId = e.pointerId; svg.setPointerCapture(e.pointerId);
     const tool = getTool(); const p = pt(e);
     if (tool.mode === 'erase') { cur = 'erase'; eraseAt(p); return; }
-    cur = { m: tool.mark, w: tool.width, p: [...p] }; curEl = drawOne(cur, layerEl, layer);
+    cur = { m: tool.mark, w: tool.width, p: [...p], ...(tool.by ? { by: tool.by } : {}) }; curEl = drawOne(cur, layerEl, layer);
   });
   svg.addEventListener('pointermove', (e) => {
     if (e.pointerId !== activeId || !cur) return;

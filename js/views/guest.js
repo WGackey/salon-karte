@@ -173,7 +173,7 @@ export async function guestView() {
           symChipBox, symBox)] };
     },
     m2: () => ({ title: '気になるところを、図に', wide: true, body: [h('section', { class: 'gcard' }, h('h2', null, '気になるところを、指でなぞってください'),
-      h('p', { class: 'ghint' }, short ? `今日は「${scopeText(S.settings, v.scope)}」の施術です。色をえらんでから、図をなぞります。` : '色をえらんでから、からだの図をなぞります。', h('b', null, '触れてほしくないところ'), 'は「触れないで（×）」をえらんでなぞってください。なければ、そのまま次へ。'),
+      h('p', { class: 'ghint' }, short ? `今日は「${scopeText(S.settings, v.scope)}」の施術です。下の図を押すと大きく開くので、色をえらんでから、なぞってください。` : '下の図を押すと大きく開くので、色をえらんでから、なぞってください。書けたら左上の「もどる（とじる）」。', h('b', null, '触れてほしくないところ'), 'は「触れないで（×）」をえらんでなぞってください。なければ、そのまま次へ。'),
       figureEditor({ figures: v.guestFigures, figs: figsOf(v.scope), layer: 'guest', marks: S.settings.marks, onSave: saveV, simple: true, markLabel: '色をえらぶ' }))] }),
     m3: () => { const iv = v.interview; return { title: '香りの好み・ご希望', body: [
       short ? null : q('今日の目的', 'あてはまるものを押してください', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; saveV(); } })),
@@ -188,7 +188,8 @@ export async function guestView() {
   const finishUp = async () => { // 書き終わったしるしを残す
     const at = new Date().toISOString();
     if (has('profile')) { det.intakeAt = det.intakeAt || at; dirty.p = true; }
-    if (has('monshin')) { v.intake = { by: 'guest', at }; v.copied = false; dirty.v = true; }
+    // お客さんが書き終えた＝前半はお客さんの書いたもの。前に施術する人が直したしるしは消す（この時点の中身はお客さんが見て返したもの）
+    if (has('monshin')) { v.intake = { by: 'guest', at }; v.staffEdits = {}; v.copied = false; dirty.v = true; }
     await flush(); await write();
   };
   async function show(n) {

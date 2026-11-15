@@ -2,7 +2,7 @@ import { h, fill, page, card, btn, badge, go, chips, field, group, input, textar
 import { signPad } from '../signpad.js';
 import { S, blankCustomer, saveCustomer, deleteCustomer, person, visitsOf, newVisit, saveVisit } from '../state.js';
 import * as db from '../db.js';
-import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, effectiveConds, noTouchAll, consentState } from '../logic.js';
+import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, effectiveConds, noTouchAll, consentState, intakeInfo } from '../logic.js';
 import { handoverSheet, startHandover } from './guest.js';
 const allergenName = (id) => (S.settings.allergens.find((c) => c.id === id) || {}).name || '';
 import { bodyPad } from '../bodymap.js';
@@ -140,6 +140,7 @@ function history(visits, det, copyFrom, startIdx = 0, customerId = '') {
           row('つらさ（前→後）', v.interview.symptoms.map((s) => { const a = v.after.levels[s.id]; return h('div', { class: 'hsym' }, `${symName(s.id) || '（消した症状）'} ${s.level}${a != null ? '→' + a : ''}`, a != null && a < s.level ? h('span', { class: 'down' }, ` ▼${s.level - a}`) : a != null && a > s.level ? h('span', { class: 'up' }, ` ▲${a - s.level}`) : null); })),
           row('ブレンド', oils.length || cars.length ? [h('div', null, oils.map((x) => `${x.name} ${x.drops}滴`).join('・') || '精油なし'), h('div', null, cars.map((x) => `${x.name} ${x.ml}ml`).join('・') || 'キャリアオイルなし')] : null),
           row('濃度', c.pct != null ? h('span', { class: 'hpct ' + lv }, `${c.pct.toFixed(1)}％`, lv === 'over' ? '（目安をこえている）' : '') : null),
+          row('書いた人', intakeInfo(v).text),
           row('メニュー', v.menus.map((m) => `${m.name}${m.minutes ? m.minutes + '分' : ''}`).join('・')),
           row('施術後', [v.after.scent ? `香り：${v.after.scent}` : '', v.after.note].filter(Boolean).join('　') || null))),
       h('div', { class: 'row hact' }, h('a', { class: 'btn', href: `#/v/${v.id}/monshin` }, 'この回のカルテを開く ›'),
@@ -207,13 +208,14 @@ export async function customerView(id) {
 
   const start = async () => {
     const draft = visits.find((v) => v.status === 'draft' && v.date === todayStr());
-    const v = draft || await newVisit(id); go(`#/v/${v.id}/monshin`);
+    // 「今日の来店をはじめる」＝施術する人が聞きながら書く回。新しく作った回にだけ「施術者が聞き取って書いた」をつける（前からある書きかけには、うその印をつけない）
+    const v = draft || await newVisit(id, { by: 'staff' }); go(`#/v/${v.id}/monshin`);
   };
   // めくった先の回の問診とブレンドを、今日のカルテに写す（今日のカルテがなければ作る）
   const copyFrom = async (src) => {
     const draft = visits.find((v) => v.date === todayStr() && v.id !== src.id);
     if (!(await confirmDlg(`${jpDate(src.date)} の問診とブレンドを、今日のカルテに写します。${draft ? '\n今日のカルテにもう書いてある問診とブレンドは、入れ替わります。' : ''}\n（からだの図・施術・施術後は写しません）`, '写す'))) return;
-    const v = draft || await newVisit(id); const c = (o) => JSON.parse(JSON.stringify(o));
+    const v = draft || await newVisit(id, { by: 'staff' }); const c = (o) => JSON.parse(JSON.stringify(o));
     v.interview = { skins: [], ...c(src.interview), memo: '' }; v.blend = c(src.blend); v.copied = true; v.status = 'draft';
     await saveVisit(v); toast('写しました。変わったところだけ直してね'); go(`#/v/${v.id}/monshin`);
   };

@@ -371,3 +371,24 @@ button.thumbs { border: 0; background: none; padding: 0; margin: 0; font: inheri
 .update-bar { padding: 8px 14px; line-height: 1.4; } .update-bar[hidden] { display: none; }
 .update-bar.small { left: auto; right: max(10px, env(safe-area-inset-right)); top: auto; bottom: calc(92px + env(safe-area-inset-bottom)); min-height: 36px; padding: 0 12px; font-size: .8rem; border-radius: 18px; opacity: .92; z-index: 30; }
 .pullnote { max-height: 0; overflow: hidden; text-align: center; color: var(--muted); font-size: .95rem; transition: max-height .15s; } .pullnote.show { max-height: 80px; padding: 8px 0; }
+
+/* 0.9.0：からだの図は「書くときは、いつも画面いっぱい」。来店の流れの中には小さな図（見るだけ）を置き、押すと画面いっぱいで開く */
+.zu:not(.full) { display: block; }
+.zu:not(.full) > .fullbar, .zu:not(.full) > .toolbar, .zu:not(.full) > .zu-main { display: none; }
+.zu.full > .zuprev, .zu.full > .zuhints { display: none; }
+.zuprev { display: block; width: 100%; max-width: 720px; margin: 0 auto 8px; padding: 10px; border: 2px dashed var(--accent); border-radius: var(--r); background: var(--card); cursor: pointer; font: inherit; color: inherit; position: relative; }
+.zuprev:active { background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+.prevpads { display: flex; justify-content: center; gap: 10px; pointer-events: none; }
+.prevpads .padwrap { flex: 1 1 0; max-width: 200px; min-width: 0; padding: 4px; }
+.prevpads .bodypad { width: 100%; height: auto; max-height: 250px; }
+.prevpads.pt { flex-wrap: wrap; } .prevpads.pt .padwrap { flex: 0 1 140px; } .prevpads.pt .bodypad { max-height: 180px; }
+.prevtag { display: flex; align-items: center; justify-content: center; min-height: 48px; margin-top: 8px; border-radius: 24px; background: var(--accent); color: #fff; font-weight: 800; font-size: 1.02rem; padding: 0 16px; }
+.prevnote { margin-top: 6px; font-size: .82rem; color: var(--muted); text-align: center; }
+.guestmode .prevtag { min-height: 60px; font-size: 1.15rem; }
+.locknote { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fff4e5; color: #6b4a12; font-size: .88rem; font-weight: 600; flex: 1 0 100%; }
+.bodypad text.bytag { font-size: 13px; font-weight: 800; fill: #2b2b2b; stroke: #fff; stroke-width: 3px; paint-order: stroke; }
+/* だれが書いたかの印（問診のらん・これまでの記録） */
+.bystaff { display: inline-block; margin: 0 0 0 6px; vertical-align: middle; padding: 2px 10px; border-radius: 99px; background: #e8f1ff; color: #24508f; font-size: .78rem; font-weight: 700; }
+.bystaff:empty { display: none; }
+.whobar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 12px; border-radius: 10px; background: #f3efe8; font-size: .88rem; margin-bottom: 10px; }
+.whobar b { font-weight: 800; }

@@ -1,7 +1,7 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
 import { DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 7;
+export const DATA_VERSION = 8;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
 // IDB_VERSION＝入れ物そのものを足すときに上げる（2：予定の入れ物 appts。Google カレンダーの取りこみ用・いまは空）
 const IDB_VERSION = 2;
@@ -77,6 +77,13 @@ export const MIGRATIONS = [
         const v = r.value; if (v.onboard && 'staffName' in v && v.reflex) return r;
         return { ...r, value: { ...v, staffName: v.staffName || '', onboard: v.onboard || { done: true, step: 0, ack: '' }, reflex: v.reflex || JSON.parse(JSON.stringify(DEFAULT_REFLEX)) } };
       },
+    },
+  },
+  { // 版8：前半をだれが書いたか。問診をお客さんが書いて返したあと、施術する人が直したらんを残す入れ物（staffEdits）を足す。
+    //       これまでの回の intake はさわらない（無い回は「だれが書いたかの記録なし」と出す。うその印をつけない）。線の「by」も足さない
+    to: 8,
+    stores: {
+      visits: (r) => ('staffEdits' in r ? r : { ...r, staffEdits: {} }),
     },
   },
 ];
