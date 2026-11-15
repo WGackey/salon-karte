@@ -33,7 +33,7 @@ test('目安におさまる滴数：その滴数は中、1滴足すとこえる'
 });
 test('目安：部位と状態のうち低いほう。未設定なら「目安なし」', () => {
   const st = { ...DEFAULT_SETTINGS, stateLimits: { c_old: 0.5 } };
-  assert.equal(limitFor(st, 'a_body', []).max, 1);
+  assert.equal(limitFor(st, 'a_body', []).max, 5, '資料：全身 5％まで'); assert.equal(limitFor(st, 'a_face', []).max, 3, '資料：顔 3％まで'); assert.equal(limitFor(st, 'a_spot', []).max, 10, '資料：部分ぬり 10％まで');
   assert.equal(limitFor(st, 'a_body', ['c_old']).max, 0.5);
   assert.equal(limitFor(st, 'a_part', []).max, null);
   assert.equal(limitLevel(1.2, 1), 'over'); assert.equal(limitLevel(0.95, 1), 'near'); assert.equal(limitLevel(0.5, 1), 'ok'); assert.equal(limitLevel(0.5, null), 'unknown');
@@ -116,24 +116,31 @@ test('資料にない精油（ref:false）は点数に入れない。気をつ�
 });
 const pickC = (o) => pickCarriers({ carriers: DEFAULT_CARRIERS, settings: DEFAULT_SETTINGS, skins: [], purposes: [], condIds: [], allergyTags: [], allergyText: '', avoidIds: [], ...o });
 test('キャリアオイルの候補：肌の状態・目的から、理由つきで出る', () => {
+  // 0.10.0：資料に合わせた。資料に「乾燥肌に向く」とある油が上に出る。割合（％）は資料にないので、成分からの点はつかない
   const dry = pickC({ skins: ['sk_dry'] });
   assert.equal(dry.length, DEFAULT_CARRIERS.length);
-  assert.ok(dry.slice(0, 5).some((x) => x.oil.id === 'k_tsubaki') && dry.slice(0, 5).some((x) => x.oil.id === 'k_almond'), dry.slice(0, 5).map((x) => x.oil.id).join());
+  const top = dry.filter((x) => x.score > 0).map((x) => x.oil.id);
+  for (const id of ['k_avocado', 'k_macadamia', 'k_rosehip', 'k_apricot', 'k_peach', 'k_wheatgerm', 'k_jojoba']) assert.ok(top.includes(id), id + ' / ' + top.join());
+  assert.ok(!top.includes('k_tsubaki') && !top.includes('k_almond'), '資料に乾燥肌とない油は上げない');
   assert.ok(dry[0].reasons[0].includes('乾燥しやすい'));
-  const oily = pickC({ skins: ['sk_oily'] }); assert.ok(['k_jojoba', 'k_mct', 'k_grape'].includes(oily[0].oil.id), oily[0].oil.id);
-  assert.ok(oily.find((x) => x.oil.id === 'k_grape').reasons.some((t) => t.includes('リノール酸')));
-  const pu = pickC({ purposes: ['こり・はりをほぐしたい'] }); assert.ok(pu[0].score > 0 && pu[0].reasons[0].includes('目的'));
+  const oily = pickC({ skins: ['sk_oily'] }); assert.deepEqual(oily.filter((x) => x.score > 0).map((x) => x.oil.id), ['k_jojoba'], 'べたつきは、資料で「どの肌にも」のホホバだけ');
+  // 資料にない油（アルガン・米ぬか・分留ココナッツ）は、精油と同じく点数に入れない
+  const pu = pickC({ purposes: ['こり・はりをほぐしたい'] }); assert.equal(pu.find((x) => x.oil.id === 'k_rice').score, 0);
+  const mine = pickCarriers({ carriers: [{ id: 'x', name: '自分の油', purposes: ['こり・はりをほぐしたい'] }], settings: DEFAULT_SETTINGS, skins: [], purposes: ['こり・はりをほぐしたい'] });
+  assert.ok(mine[0].score > 0 && mine[0].reasons[0].includes('目的'), '自分で足した油の目的は点になる');
   assert.ok(pickC({}).every((x) => x.score === 0), '何もえらんでいなければ、どれも候補に上げない');
 });
 test('キャリアオイルの候補：ナッツなどのアレルギーは消さずに、理由つきで外す', () => {
   const by = (o) => Object.fromEntries(pickC({ skins: ['sk_dry'], ...o }).map((x) => [x.oil.id, x]));
   const tag = by({ allergyTags: ['al_nut'] });
   assert.equal(Object.keys(tag).length, DEFAULT_CARRIERS.length); // 消していない
-  for (const id of ['k_almond', 'k_macadamia', 'k_apricot', 'k_argan']) assert.ok(tag[id].blocks.some((t) => t.includes('ナッツ')), id);
+  for (const id of ['k_almond', 'k_macadamia', 'k_apricot', 'k_argan', 'k_hazelnut', 'k_walnut']) assert.ok(tag[id].blocks.some((t) => t.includes('ナッツ')), id);
   assert.equal(tag.k_jojoba.blocks.length, 0); assert.equal(tag.k_tsubaki.blocks.length, 0);
   const text = by({ allergyText: 'アーモンドでかゆくなる' }); assert.ok(text.k_almond.blocks[0].includes('「アーモンド」')); assert.ok(text.k_macadamia.blocks.length > 0);
   assert.ok(by({ allergyText: 'ごま' }).k_sesame.blocks.length > 0); assert.equal(by({ allergyText: 'ごま' }).k_almond.blocks.length, 0);
   assert.ok(by({ avoidIds: ['k_jojoba'] }).k_jojoba.blocks[0].includes('避ける'));
+  assert.ok(by({ condIds: ['c_sun'] }).k_stjohns.blocks.length > 0, 'セントジョンズワート：このあと日に当たるなら外す（資料：光感作）');
+  assert.ok(by({ condIds: ['c_skin'] }).k_arnica.blocks.length > 0, 'アルニカ：敏感肌なら外す（資料：刺激がある）');
   assert.deepEqual(allergyHits(DEFAULT_SETTINGS.allergens, [], ''), {});
 });
 test('版2への移し替え：前の版のキャリアオイル（名前と手持ちだけ）に中身が入り、使う人の値は残る', () => {
@@ -145,7 +152,7 @@ test('版2への移し替え：前の版のキャリアオイル（名前と手�
   const d = migrateDump(old, MIGRATIONS, DATA_VERSION);
   assert.equal(d.dataVersion, DATA_VERSION);
   const c = Object.fromEntries(d.stores.carriers.map((x) => [x.id, x]));
-  assert.equal(c.k_jojoba.name, 'ホホバ（うちの呼び方）'); assert.equal(c.k_jojoba.owned, true); assert.equal(c.k_jojoba.fatty.wax, 97); assert.equal(c.k_jojoba.draft, true);
+  assert.equal(c.k_jojoba.name, 'ホホバ（うちの呼び方）'); assert.equal(c.k_jojoba.owned, true); assert.equal(c.k_jojoba.fatty.wax, null); assert.equal(c.k_jojoba.draft, true);
   assert.deepEqual(c.mine.fatty, {}); assert.equal(c.mine.note, 'メモ'); assert.deepEqual(c.mine.allergens, []);
   assert.ok(c.k_argan && c.k_argan.owned === false, '新しく足したオイルが入る'); assert.equal(d.stores.carriers.length, DEFAULT_CARRIERS.length + 1);
   assert.deepEqual(d.stores.details[0].allergyTags, []); assert.equal(d.stores.details[0].allergy, 'ナッツ');
@@ -350,16 +357,60 @@ test('予定の一覧：今日・今週・その先・過ぎた人。予定の�
 
 test('版7への移し替え：もう使っている端末には案内を出さない・施術する人の名前と反射区の入れ物（はじめは出さない）・直した値は戻らない', async () => {
   const v6 = { dataVersion: 6, stores: { meta: [{ key: 'settings', value: { salonName: 'みほんの店', areas: [{ id: 'a_body', name: '体', max: 2 }] } }, { key: 'nextNo', value: 3 }], visits: [{ id: 'v1', scope: { type: 'whole' } }] } };
-  const d = migrateDump(v6, MIGRATIONS, DATA_VERSION); const st = d.stores.meta[0].value;
+  const d = migrateDump(v6, MIGRATIONS, 7); const st = d.stores.meta[0].value;
   assert.equal(d.dataVersion, 7); assert.equal(st.onboard.done, true); assert.equal(st.staffName, ''); assert.equal(st.salonName, 'みほんの店'); assert.equal(st.areas[0].max, 2);
   assert.equal(st.reflex.show, false); assert.equal(st.reflex.checked, false); assert.ok(st.reflex.zones.length >= 8);
   assert.equal(d.stores.meta[1], v6.stores.meta[1]); assert.equal(d.stores.visits[0], v6.stores.visits[0], '来店はさわらない');
   st.staffName = '見本'; st.reflex.show = true; st.reflex.zones[0].name = 'あたま';
-  const again = migrateDump({ ...d, dataVersion: 6 }, MIGRATIONS, DATA_VERSION).stores.meta[0].value;
+  const again = migrateDump({ ...d, dataVersion: 6 }, MIGRATIONS, 7).stores.meta[0].value;
   assert.equal(again.staffName, '見本'); assert.equal(again.reflex.show, true); assert.equal(again.reflex.zones[0].name, 'あたま');
 });
 test('バックアップのファイル名：お店の名前が頭につく・使えない字は外す', async () => {
   const { backupName } = await import('../js/logic.js');
   assert.equal(backupName('', '2026-11-15'), 'カルテのバックアップ_2026-11-15.json');
   assert.equal(backupName(' みほん/サロン: A ', '2026-11-15'), 'みほん_サロン_A_カルテのバックアップ_2026-11-15.json');
+});
+
+test('版8への移し替え：来店に staffEdits の入れ物。だれが書いたか（intake）はさわらない（無い回は「記録なし」）', async () => {
+  const { intakeInfo } = await import('../js/logic.js');
+  const v7 = { dataVersion: 7, stores: { visits: [{ id: 'a', intake: null, guestFigures: { front: [{ m: 'm_pain', w: 6, p: [1, 2] }] } }, { id: 'b', intake: { by: 'guest', at: '2026-11-15T01:00:00Z' } }] } };
+  const d = migrateDump(v7, MIGRATIONS, DATA_VERSION);
+  assert.equal(d.dataVersion, DATA_VERSION);
+  assert.deepEqual(d.stores.visits[0].staffEdits, {}); assert.equal(d.stores.visits[0].intake, null, 'うその印をつけない');
+  assert.equal(d.stores.visits[0].guestFigures.front[0].by, undefined, '前の線に by を足さない');
+  assert.equal(intakeInfo(d.stores.visits[0]).kind, 'unknown'); assert.equal(intakeInfo(d.stores.visits[0]).text, 'だれが書いたかの記録なし');
+  assert.equal(intakeInfo(d.stores.visits[1]).text, 'お客さんが自分で書いた');
+});
+test('だれが書いたか：お客さんが書いた回に、施術する人が直したらん・足した×が出る／聞き取った回', async () => {
+  const { intakeInfo } = await import('../js/logic.js');
+  const g = intakeInfo({ intake: { by: 'guest' }, staffEdits: { symptoms: 'x', wish: 'y', bogus: 'z' }, guestFigures: { back: [{ m: 'm_notouch', by: 'staff', p: [] }, { m: 'm_pain', p: [] }] } });
+  assert.deepEqual(g.edits, ['つらいところ', 'お客さんから伝えたいこと']); assert.equal(g.xByStaff, 1);
+  assert.match(g.text, /施術者が書き足した：つらいところ・お客さんから伝えたいこと/); assert.match(g.text, /施術者が1つ足した/);
+  assert.equal(intakeInfo({ intake: { by: 'staff' } }).text, '施術者が聞き取って書いた');
+  assert.equal(intakeInfo(null).kind, 'unknown');
+});
+
+test('版9への移し替え：キャリアオイルと濃度の目安を資料に。使う人が直したらん・確かめたオイル・直した目安は残す', () => {
+  const v8 = { dataVersion: 8, stores: {
+    carriers: [
+      { id: 'k_grape', name: 'グレープシード', fatty: { lin: 70, ole: 18, pal: 7, ste: 4 }, traits: { feel: 1, oxid: 3, scent: 1 }, skins: [], purposes: [], allergens: [], cautions: [], note: '開けたら早めに使い切る。', owned: true, draft: true },
+      { id: 'k_almond', name: 'アーモンド', fatty: { ole: 68, lin: 22, pal: 6 }, traits: { feel: 2, oxid: 2, scent: 1 }, skins: ['sk_dry'], purposes: ['こり・はりをほぐしたい'], allergens: ['al_nut'], cautions: [], note: '自分のメモ', owned: false, draft: true },
+      { id: 'k_tsubaki', name: '椿', fatty: { ole: 85 }, traits: {}, skins: [], purposes: [], allergens: [], cautions: [], note: '', owned: true, draft: false },
+      { id: 'mine', name: '自分の油', fatty: {}, traits: {}, skins: [], purposes: [], allergens: [], cautions: [], note: '', owned: true, draft: false },
+    ],
+    meta: [{ key: 'settings', value: { areas: [{ id: 'a_body', name: '体', max: 1, draft: true }, { id: 'a_face', name: '顔', max: 1 }, { id: 'a_part', name: '手・足だけ', max: null }], fats: [{ id: 'ole', name: 'オレイン酸', uses: [] }] } }],
+  } };
+  const d = migrateDump(v8, MIGRATIONS, DATA_VERSION); const c = Object.fromEntries(d.stores.carriers.map((x) => [x.id, x]));
+  assert.deepEqual(c.k_grape.fatty, { lin: null }, '下書きのままのらんは資料に'); assert.equal(c.k_grape.owned, true); assert.equal(c.k_grape.name, 'グレープシード');
+  assert.equal(c.k_almond.note, '自分のメモ', '使う人が直したらんは残す'); assert.deepEqual(c.k_almond.fatty, { ole: null }); assert.deepEqual(c.k_almond.purposes, []);
+  assert.deepEqual(c.k_tsubaki.fatty, { ole: 85 }, '確かめたオイルはさわらない'); assert.equal(c.mine.name, '自分の油');
+  assert.ok(c.k_olive && c.k_stjohns, '資料にある新しい油が入る'); assert.equal(c.k_argan.ref, false, '資料にない油はしるし');
+  const st = d.stores.meta[0].value; const ar = Object.fromEntries(st.areas.map((a) => [a.id, a.max]));
+  assert.deepEqual(ar, { a_body: 5, a_face: 1, a_part: null, a_spot: 10 }, '下書きのままの「体 1％」は資料の5％に。直した「顔」はそのまま。手・足は空けたまま');
+  assert.ok(st.fats.some((f) => f.id === 'gla'));
+  assert.deepEqual(migrateDump(d, MIGRATIONS, DATA_VERSION).stores, d.stores, '2回かけても変わらない');
+});
+test('濃度の式：資料の例（1ml＝20滴・キャリアオイル10mlに2滴＝1％）と同じ', () => {
+  const c = blendCalc({ oils: [{ drops: 2 }], carriers: [{ ml: 10 }] }, DEFAULT_SETTINGS.dropMl);
+  assert.equal(Math.round(c.pct * 100) / 100, 1); assert.equal(DEFAULT_SETTINGS.dropMl, 0.05);
 });

@@ -180,6 +180,7 @@ export function pickCarriers({ carriers, skins, purposes, condIds, allergyTags, 
       if ((car.skins || []).includes(sid)) { score += 0.5; reasons.push({ w: 0.5, text: `「${skinName(sid)}」← このオイルの特徴として登録` }); }
     }
     for (const pu of purposes || []) if ((car.purposes || []).includes(pu)) { score += 0.5; reasons.push({ w: 0.45, text: `目的「${pu}」← このオイルの特徴として登録` }); }
+    if (car.ref === false) { score = 0; reasons.length = 0; } // 資料にない油は、精油と同じく候補の点数に入れない（気をつける点は見る）
     for (const a of car.allergens || []) if (hits[a]) blocks.push(hits[a]);
     for (const c of car.cautions || []) if (conds.has(c)) blocks.push(`「${condName(c)}」のときは気をつけるオイルとして登録`);
     if (avoid.has(car.id)) blocks.push('このお客さんの「避けるキャリアオイル」に入っている');
@@ -227,7 +228,7 @@ export function progressRows(visits, dropMl = 0.05) {
     return { id: v.id, date: v.date, nth: i + 1, status: v.status, scope: v.scope || { type: 'whole' }, syms,
       drop: done.length ? done.reduce((t, s) => t + (s.before - s.after), 0) : null,
       oils, carriers, pct: c.pct, areaId: b.areaId || '', menus: v.menus || [], scent: (v.after || {}).scent || '', note: (v.after || {}).note || '',
-      blendKey: oils.map((o) => o.oilId || o.name).sort().join('+') };
+      blendKey: oils.map((o) => o.oilId || o.name).sort().join('+'), who: intakeInfo(v).text };
   });
 }
 // 同じ精油の組み合わせ（滴数はちがってもよい）ごとに、回数と、つらさの下がり方の平均をまとめる。回数の多い順
@@ -271,4 +272,19 @@ export function schedule(people, appts, today = todayStr()) {
 export function backupName(salon, date) {
   const s = String(salon || '').replace(/[\\/:*?"<>|\s.]+/g, ' ').trim().replace(/ /g, '_').slice(0, 30);
   return `${s ? s + '_' : ''}カルテのバックアップ_${date}.json`;
+}
+
+// ---- 前半（問診・気になるところ）をだれが書いたか（0.9.0） ----
+// intake.by：'guest'＝お客さんが自分で書いて返した／'staff'＝施術する人が聞き取って書いた。
+// intake が無い回（0.8.0 までの記録・渡したけれど書き終わらなかった回）は「記録なし」として、うその印をつけない。
+// staffEdits：お客さんが書いて返したあとに、施術する人が直した問診のらん → 直した時刻
+export const EDIT_LABELS = { conds: '今日の状態', pregMonth: '妊娠の月数', symptoms: 'つらいところ', skins: '肌の状態', purposes: '今日の目的', famLikes: '好きな香りの系統', moods: '香りの好み・気分', life: 'くらしのようす', wish: 'お客さんから伝えたいこと' };
+export function intakeInfo(v) {
+  const by = v && v.intake && v.intake.by;
+  const edits = Object.keys((v && v.staffEdits) || {}).filter((k) => EDIT_LABELS[k]).map((k) => EDIT_LABELS[k]);
+  const xByStaff = Object.values((v && v.guestFigures) || {}).reduce((n, arr) => n + (arr || []).filter((s) => s && s.by === 'staff').length, 0);
+  if (by === 'guest') return { kind: 'guest', edits, xByStaff,
+    text: 'お客さんが自分で書いた' + (edits.length ? `（施術者が書き足した：${edits.join('・')}）` : '') + (xByStaff ? `（図の「触れないで（×）」を施術者が${xByStaff}つ足した）` : '') };
+  if (by === 'staff') return { kind: 'staff', edits, xByStaff, text: '施術者が聞き取って書いた' };
+  return { kind: 'unknown', edits, xByStaff, text: 'だれが書いたかの記録なし' };
 }

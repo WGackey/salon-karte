@@ -1,7 +1,7 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone, saveBadge } from '../ui.js';
 import { S, saveSettings, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
-import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchAll } from '../logic.js';
+import { jpDate, todayStr, addDays, intakeInfo, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchAll } from '../logic.js';
 import { figureEditor, hasLines } from '../figedit.js';
 import { notFound, blendText, noTouchFigures } from './customer.js';
 import { handoverSheet } from './guest.js';
@@ -42,6 +42,13 @@ export async function visitView(id, step) {
   let showAll = false; // 部分のときの問診は短い版。「ぜんぶの項目を出す」で、いつもの問診に
   const idx = STEPS.findIndex((s) => s[0] === step);
   const save = () => saveSoon(() => saveVisit(v));
+  // お客さんが自分で書いて返した回で、施術する人が問診を直したら、どのらんを・いつ、を残す（staffEdits）。お客さんが書いたままのらんと見分けるため
+  const guestWrote = () => !!(v.intake && v.intake.by === 'guest');
+  const editTags = {};
+  const hm = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  const stamp = (k) => { const t = (v.staffEdits || {})[k]; if (editTags[k]) editTags[k].textContent = t ? `✎ 施術者が書き足した（${hm(t)}）` : ''; };
+  const tag = (k) => { editTags[k] = h('span', { class: 'bystaff', 'data-k': k }); stamp(k); return editTags[k]; };
+  const touched = (k) => { if (!guestWrote()) return; v.staffEdits = { ...(v.staffEdits || {}), [k]: new Date().toISOString() }; stamp(k); };
   const eff = () => effectiveConds({ settings: S.settings, det, visit: v });
   const condIds = () => eff().ids;
   const body = h('div', { class: 'step' });
@@ -62,6 +69,9 @@ export async function visitView(id, step) {
     save();
   };
 
+  // この回の前半を、だれが書いたか（問診と気になるところの上に出す）
+  const whoBar = () => { const w = intakeInfo(v); return h('div', { class: 'whobar who-' + w.kind }, h('b', null, '書いた人：'), w.text,
+    w.kind === 'guest' ? h('span', { class: 'small muted' }, '施術する人が問診を直すと、そのらんに「施術者が書き足した」と残ります') : null); };
   const RENDER = {
     // ---------- 問診 ----------
     monshin() {
@@ -69,13 +79,13 @@ export async function visitView(id, step) {
       const symBox = h('div', { class: 'symlist' });
       // 妊娠中のときだけ「いま何か月？」を出す（精油の候補で、時期ごとの注意に使う）
       const pregBox = h('div');
-      const drawPreg = () => fill(pregBox, v.conds.includes('c_preg') ? group('妊娠の月数', chips([...Array(10)].map((_, i) => ({ id: i + 1, name: `${i + 1}か月` })), v.pregMonth || '', { multi: false, onChange: (m) => { v.pregMonth = m || null; save(); } }),
+      const drawPreg = () => fill(pregBox, v.conds.includes('c_preg') ? group(['妊娠の月数 ', tag('pregMonth')], chips([...Array(10)].map((_, i) => ({ id: i + 1, name: `${i + 1}か月` })), v.pregMonth || '', { multi: false, onChange: (m) => { v.pregMonth = m || null; touched('pregMonth'); save(); } }),
         '精油の候補で、時期ごとの注意（初期・中期まで など）に使います。えらばないと、どの時期にもあてはまるとして見ます') : null);
       drawPreg();
       const condHint = () => { const e = eff(); const autoNames = Object.keys(e.auto).filter((id) => !id.startsWith('c_preg_')).map((id) => `${condName(id)}（${e.auto[id]}）`);
         return [det.conds.length ? `いつもの状態：${det.conds.map(condName).join('・')}` : '', autoNames.length ? `生年月日から自動で：${autoNames.join('・')}` : ''].filter(Boolean).join('　') || null; };
       const drawSym = () => fill(symBox, ...iv.symptoms.map((s) => h('div', { class: 'symrow' },
-        h('div', { class: 'symname' }, symName(s.id)), levelPicker(s.level, (n) => { s.level = n; save(); }))));
+        h('div', { class: 'symname' }, symName(s.id)), levelPicker(s.level, (n) => { s.level = n; touched('symptoms'); save(); }))));
       drawSym();
       const part = isPart(v.scope), short = part && !showAll;
       // 部分のときは、その部位に関わる「つらいところ」だけ先に出す（えらんであるものは、いつも出す）
@@ -84,7 +94,7 @@ export async function visitView(id, step) {
       const drawSymChips = () => {
         const list = short && !moreSym ? S.settings.symptoms.filter((s) => rel.includes(s.id) || iv.symptoms.some((x) => x.id === s.id)) : S.settings.symptoms;
         fill(symChipBox, chips(list, iv.symptoms.map((s) => s.id), {
-          onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); save(); },
+          onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); touched('symptoms'); drawSym(); save(); },
         }), short && !moreSym && list.length < S.settings.symptoms.length ? btn(`ほかのつらいところも出す（あと ${S.settings.symptoms.length - list.length}）`, () => { moreSym = true; drawSymChips(); }, 'chip ghostchip moresym') : null);
       };
       drawSymChips();
@@ -99,18 +109,19 @@ export async function visitView(id, step) {
           if (changed) { const a = areaForScope(S.settings, v.scope); if (a) v.blend.areaId = a; showAll = false; }
           save(); if (changed) redraw();
         })),
+        whoBar(),
         v.copied && prev && !(v.intake && v.intake.by === 'guest') ? h('div', { class: 'notice ok' }, `前回（${jpDate(prev.date)}）の問診が入っています。変わったところだけ直してね。`) : null,
         card(h('div', { class: 'row' }, field('来店日', input(v, 'date', { type: 'date', onInput: () => { save(); } })), h('span', { class: 'muted' }, `${nth}回目`)),
-          group('今日の状態', chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; save(); drawPreg(); } }), condHint()), pregBox, checkBox),
-        card(h('h2', null, 'つらいところ'), h('p', { class: 'hint' }, short ? `${scopeText(S.settings, v.scope)}の施術に関わるものを先に出しています。あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます` : 'あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます'),
+          group(['今日の状態 ', tag('conds')], chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; touched('conds'); save(); drawPreg(); } }), condHint()), pregBox, checkBox),
+        card(h('h2', null, 'つらいところ ', tag('symptoms')), h('p', { class: 'hint' }, short ? `${scopeText(S.settings, v.scope)}の施術に関わるものを先に出しています。あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます` : 'あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます'),
           symChipBox, symBox),
-        card(group('肌の状態', chips(S.settings.skins, iv.skins || [], { onChange: (x) => { iv.skins = x; save(); } }),
+        card(group(['肌の状態 ', tag('skins')], chips(S.settings.skins, iv.skins || [], { onChange: (x) => { iv.skins = x; touched('skins'); save(); } }),
           'キャリアオイルの候補に使います。敏感肌・アレルギーは「お客さんの情報」でえらびます'),
-          short ? null : group('今日の目的', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; save(); } })),
-          group('好きな香りの系統', chips(S.settings.families, iv.famLikes || [], { onChange: (x) => { iv.famLikes = x; save(); } }), '精油の候補の画面で、はじめにこの系統でしぼります'),
-          short ? null : group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; save(); } })),
-          short ? null : field('くらしのようす（睡眠・食事・仕事など）', textarea(iv, 'life', { onInput: save })),
-          field('お客さんから伝えたいこと・気をつけてほしいこと', textarea(iv, 'wish', { onInput: save, rows: 2 })),
+          short ? null : group(['今日の目的 ', tag('purposes')], chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; touched('purposes'); save(); } })),
+          group(['好きな香りの系統 ', tag('famLikes')], chips(S.settings.families, iv.famLikes || [], { onChange: (x) => { iv.famLikes = x; touched('famLikes'); save(); } }), '精油の候補の画面で、はじめにこの系統でしぼります'),
+          short ? null : group(['香りの好み・気分 ', tag('moods')], chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; touched('moods'); save(); } })),
+          short ? null : field(['くらしのようす（睡眠・食事・仕事など） ', tag('life')], textarea(iv, 'life', { onInput: () => { touched('life'); save(); } })),
+          field(['お客さんから伝えたいこと・気をつけてほしいこと ', tag('wish')], textarea(iv, 'wish', { onInput: () => { touched('wish'); save(); }, rows: 2 })),
           field('今日のメモ（施術する人用）', textarea(iv, 'memo', { onInput: save, rows: 2 }))),
         part ? h('div', { class: 'notice shortnote' }, h('span', { class: 'grow' }, short ? '部分の施術なので、問診を短くしています（今日の目的・香りの気分・くらしのようす は出していません）。' : 'いつもの問診（ぜんぶの項目）を出しています。'),
           btn(short ? 'ぜんぶの項目を出す' : '短い問診にもどす', () => { showAll = !showAll; redraw(); }, 'chip')) : null,
@@ -118,15 +129,23 @@ export async function visitView(id, step) {
     },
     // ---------- 気になるところ（お客さんの図） ----------
     kininaru() {
-      return figureEditor({ figures: v.guestFigures, figs: figsOf(v.scope), layer: 'guest', marks: S.settings.marks, onSave: save, markLabel: 'どんなふうに気になる？（色）',
-        hints: ['お客さんに聞きながら、気になるところ・つらいところをなぞります。お客さんに渡したときは、お客さんが自分でなぞった図がここに出ます。',
-          'お客さんの線は「つぶつぶ」で出ます（施術する人の所見は、ぬった線）。「触れないで（×）」は、次の来店にも写ります。'] });
+      // お客さんが自分で書いて返した図は、施術する人は書き足せない（見るだけ）。「触れないで（×）」だけは安全のため足せる（「施術者」の札がつく）
+      if (guestWrote()) return [whoBar(),
+        figureEditor({ figures: v.guestFigures, figs: figsOf(v.scope), layer: 'guest', marks: S.settings.marks, onSave: save, markLabel: '足せるのは「触れないで（×）」だけ',
+          lock: { note: 'お客さんが自分で書いた図です。施術する人は書き足せません（「触れないで（×）」だけ足せます）。' }, openLabel: '🔍 押すと大きく見られます（×だけ足せます）',
+          hints: ['お客さんが自分で書いて返した図です（見るだけ）。変えたいときは「もう一度お客さんに渡す」。',
+            '施術する人が気づいたことは、次の「所見」の図に書いてね。「触れないで（×）」だけは、安全のため施術する人も足せます（「施術者」の札がつきます）。'] }),
+        h('div', { class: 'row center' }, btn('もう一度お客さんに渡す', () => handoverSheet(p, det, v)), h('a', { class: 'btn primary', href: `#/v/${id}/shoken` }, '所見の図に書く ›'))];
+      return [whoBar(), figureEditor({ figures: v.guestFigures, figs: figsOf(v.scope), layer: 'guest', marks: S.settings.marks, onSave: save, markLabel: 'どんなふうに気になる？（色）', by: v.intake && v.intake.by === 'staff' ? 'staff' : '',
+        hints: ['お客さんに聞きながら、気になるところ・つらいところをなぞります（この回は「施術者が聞き取って書いた」と残ります）。',
+          'お客さんの線は「つぶつぶ」で出ます（施術する人の所見は、ぬった線）。「触れないで（×）」は、次の来店にも写ります。'] })];
     },
     // ---------- 所見（施術する人の図） ----------
     shoken() {
       return figureEditor({ figures: v.figures, figs: figsOf(v.scope), layer: 'staff', marks: S.settings.marks, onSave: save,
         reflex: { get: () => (S.settings.reflex = S.settings.reflex || { show: false, zones: [] }), save: saveSettings },
         under: { figures: v.guestFigures, layer: 'guest', label: 'お客さんの図も重ねる' },
+        openLabel: '✎ 押すと画面いっぱいで書けます（所見）',
         hints: ['さわって・見て分かったことを、施術する人がなぞります（ぬった線）。' + (hasLines(v.guestFigures) ? 'お客さんの「気になるところ」は、つぶつぶの線で下に重ねて出しています（「お客さんの図も重ねる」で出す・かくす）。' : ''),
           '「ひとつ戻す」＝直前にしたこと（かいた・消した）を1つ取り消す。「消しゴム」＝前にかいた線でも、さわった線だけ消す。「触れないで（×）」は施術する人も足せて、次の来店にも写ります。'] });
     },
@@ -143,7 +162,8 @@ export async function visitView(id, step) {
           if (!on && kind === 'out' && !(await confirmDlg(`${it.name} は、次の理由で外してあります。\n\n・${r.blocks.join('\n・')}\n\nそれでも使いますか？（決めるのは施術する人です）`, '使う', true))) return;
           isOil ? toggleOil(it) : toggleCar(it); draw();
         }, on ? 'primary' : kind === 'out' ? 'ghost' : '');
-        const traits = isOil ? [] : traitText(it);
+        // キャリアオイルは、特徴と成分（割合が資料にないものは名前だけ）
+        const traits = isOil ? [] : [...traitText(it), ...Object.entries(it.fatty || {}).map(([fid, n]) => { const f = (S.settings.fats || []).find((x) => x.id === fid); return f ? f.name + (typeof n === 'number' ? ` 約${n}％` : '') : ''; }).filter(Boolean)];
         return h('div', { class: 'oil ' + kind + (on ? ' picked' : ''), style: { '--fam': f ? f.color : '#c9b98f' } },
           h('div', { class: 'grow' },
             h('div', { class: 'name' }, it.name, ' ', f && f.name ? h('span', { class: 'famtag' }, f.name) : null, it.ref === false ? badge('資料にない', 'amber') : it.draft ? badge('下書き', 'draft') : null),
@@ -152,7 +172,7 @@ export async function visitView(id, step) {
             (r.warns || []).length ? h('ul', { class: 'why warn' }, r.warns.map((t) => h('li', null, '⚠ ' + t))) : null,
             r.reasons.length ? h('ul', { class: 'why' }, r.reasons.slice(0, 3).map((t) => h('li', null, t))) : null,
             r.reasons.length > 3 ? h('details', { class: 'more' }, h('summary', null, `ほかの理由（${r.reasons.length - 3}）`), h('ul', { class: 'why' }, r.reasons.slice(3).map((t) => h('li', null, t)))) : null,
-            isOil && it.ref === false ? h('div', { class: 'muted small' }, 'はじめの資料にない精油なので、候補の点数には入れていません（気をつける点は見ています）。') : null,
+            it.ref === false ? h('div', { class: 'muted small' }, `はじめの資料にない${isOil ? '精油' : 'オイル'}なので、候補の点数には入れていません（気をつける点は見ています）。`) : null,
             it.note ? h('div', { class: 'muted small' }, it.note) : null),
           h('div', { class: 'oil-act' }, use, own));
       };
@@ -180,7 +200,7 @@ export async function visitView(id, step) {
         const isOil = tab === 'oil'; const al = allergyNames();
         fill(headBox,
           h('div', { class: 'tabs' }, [['oil', '精油'], ['car', 'キャリアオイル']].map(([id, name]) => h('button', { type: 'button', class: 'tab' + (tab === id ? ' on' : ''), onclick: () => { tab = id; drawHead(); draw(); } }, name))),
-          h('div', { class: 'notice draft' }, isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは「下書き」です。自分の資料で確かめて、設定から直してください。候補は目安で、最後に決めるのは施術する人です。'),
+          h('div', { class: 'notice draft' }, isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは、アロマテラピーを学んだときの資料をもとに入れたものです（下書き）。アレルギー体質・敏感肌・はじめて使う人は、腕の内側に1〜2滴ぬって赤くならないか確かめる（パッチテスト）と資料に。候補は目安で、最後に決めるのは施術する人です。'),
           card(h('div', { class: 'facts' },
             isOil ? h('div', null, h('b', null, 'つらいところ：'), iv.symptoms.map((s) => `${symName(s.id)}（${s.level}）`).join('、') || 'なし')
               : [h('div', null, h('b', null, '肌の状態：'), (iv.skins || []).map(skinName).filter(Boolean).join('・') || 'えらんでいません'),
@@ -269,7 +289,7 @@ export async function visitView(id, step) {
       refresh();
       return [
         h('div', { class: 'sticky' }, meter),
-        card(group('どこに使う？', areaBox, [isPart(v.scope) ? `今日は「${scopeText(S.settings, v.scope)}」の施術なので、部位に合わせた目安をえらんであります（設定 → 部位 で変えられます）。` : '', S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : ''].filter(Boolean).join('　') || null)),
+        card(group('どこに使う？', areaBox, [isPart(v.scope) ? `今日は「${scopeText(S.settings, v.scope)}」の施術なので、部位に合わせた目安をえらんであります（設定 → 部位 で変えられます）。` : '', S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : '', 'はじめての人・敏感肌の人は、目安よりうすめに（資料のメモ。数字は書いていない）。'].filter(Boolean).join('　') || null)),
         card(h('h2', null, 'キャリアオイル'), carBox, h('div', { class: 'row' }, btn('＋ キャリアオイルをえらぶ', addCarrier))),
         card(h('h2', null, '精油'), oilBox, h('div', { class: 'row' }, btn('＋ 精油を足す', addOil)),
           h('p', { class: 'hint' }, `濃度は「精油の量 ÷ キャリアオイルの量」で出しています（1滴＝${fmt(dropMl)}ml。設定で変えられます）。`)),
@@ -336,7 +356,7 @@ export async function visitView(id, step) {
   const inGuest = v.intake && v.intake.by === 'guest';
   const phaseBar = phase === 'guest'
     ? h('div', { class: 'phasebar guest' }, h('div', { class: 'grow' }, h('b', null, '前半｜お客さんから聞くこと'),
-        h('div', { class: 'small' }, inGuest ? `✓ お客さんが自分で書きました（${jpDate(v.intake.at.slice(0, 10), false)}）。目を通して、足りないところを聞いてね` : '聞きながら書くか、端末を渡してお客さんに書いてもらいます')),
+        h('div', { class: 'small' }, inGuest ? `✓ お客さんが自分で書きました（${jpDate(v.intake.at.slice(0, 10), false)}）。目を通して、足りないところを聞いてね` : v.intake && v.intake.by === 'staff' ? '施術する人が聞き取って書いています（問診と図に「施術者が聞き取って書いた」と残ります）。端末を渡すこともできます' : '聞きながら書くか、端末を渡してお客さんに書いてもらいます')),
       btn(inGuest ? 'もう一度お客さんに渡す' : 'お客さんに渡して書いてもらう', () => handoverSheet(p, det, v), inGuest ? '' : 'primary'))
     : h('div', { class: 'phasebar staff' }, h('div', { class: 'grow' }, h('b', null, '後半｜施術者の記録'), h('div', { class: 'small' }, 'ここからは施術する人が書きます（お客さんに渡す画面には出ません）')));
   const warn = effectiveConds({ settings: S.settings, det, visit: v }).ids.filter((c) => !c.startsWith('c_preg_')).map(condName).filter(Boolean);

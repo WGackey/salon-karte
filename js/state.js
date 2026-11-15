@@ -72,7 +72,7 @@ export async function visitsOf(customerId) {
   return vs.sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt) || b.createdAt - a.createdAt);
 }
 // 新しい来店。問診は前回の中身を写しておく（変わったところだけ直す）
-export async function newVisit(customerId) {
+export async function newVisit(customerId, { by = '' } = {}) {
   const prev = (await visitsOf(customerId))[0];
   const v = {
     id: db.uid(), customerId, date: todayStr(), status: 'draft',
@@ -83,7 +83,8 @@ export async function newVisit(customerId) {
     // 「触れないで（×）」の線だけは、それぞれ前回から写す
     guestFigures: { front: [], back: [], ...clone(prev ? noTouchOf(prev.guestFigures, S.settings.marks) : {}) },
     figures: { front: [], back: [], ...clone(prev ? noTouchOf(prev.figures, S.settings.marks) : {}) },
-    intake: null, // 前半（問診）をだれが書いたか：{ by:'guest'|'staff', at }
+    intake: by ? { by, at: new Date().toISOString() } : null, // 前半（問診・気になるところ）をだれが書いたか：{ by:'guest'|'staff', at }。お客さんに渡すときは、書き終えたときに 'guest'
+    staffEdits: {}, // お客さんが書いて返したあとに、施術する人が直した問診のらん → 時刻（0.9.0）
     blend: { areaId: S.settings.areas[0]?.id || '', oils: [], carriers: [], memo: '' },
     menus: [], treat: { seitai: '', aroma: '' },
     after: { levels: {}, scent: '', note: '' }, nextDate: '',

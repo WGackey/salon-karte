@@ -55,7 +55,13 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await shot('04-monshin');
 
   // --- からだの図：指でなぞる ---
-  await tap('次へ：気になるところ ›'); await p.waitForSelector('.zu.guest'); await tap('後半へ：所見 ›'); await p.waitForSelector('.zu.staff'); await p.waitForSelector('.bodypad');
+  await tap('次へ：気になるところ ›'); await p.waitForSelector('.zu.guest');
+  assert.ok((await p.locator('.whobar').textContent()).includes('施術者が聞き取って書いた'), '「今日の来店をはじめる」で始めた回は「施術者が聞き取って書いた」');
+  await tap('後半へ：所見 ›'); await p.waitForSelector('.zu.staff'); await p.waitForSelector('.zuprev .bodypad');
+  // 0.9.0：来店の流れの中は小さな図（見るだけ）。小さな図の上ではなぞれない → 押すと画面いっぱいで開いて書ける
+  assert.equal(await p.locator('.zuprev .bodypad.ro').count(), 2, '小さな図は見るだけ'); assert.equal(await p.locator('.toolbar:visible').count(), 0, '小さな図のときは道具を出さない');
+  assert.ok((await p.locator('.zuprev').textContent()).includes('画面いっぱいで書けます'), '押すと書けると分かる'); await shot('05-zu-prev');
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full .zu-main .bodypad');
   const box = await p.locator('.bodypad').nth(1).boundingBox(); const sy0 = await p.evaluate(() => scrollY);
   const cx = box.x + box.width / 2, top = box.y;
   await touchLine([[cx - 30, top + box.height * 0.2], [cx - 10, top + box.height * 0.21], [cx + 10, top + box.height * 0.2], [cx + 30, top + box.height * 0.21]]);
@@ -65,23 +71,22 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   assert.equal(await strokes(p), 2, '指でなぞった線が2本');
   assert.equal(await p.evaluate(() => scrollY), sy0, 'なぞっても画面が動かない');
   await shot('05-zu');
-  await tap('↩ ひとつ戻す'); assert.equal(await strokes(p), 1, 'ひとつ戻す');
+  await tap('↩ 戻す'); assert.equal(await strokes(p), 1, 'ひとつ戻す');
   await tap('消しゴム（線をえらぶ）'); await touchLine([[cx, top + box.height * 0.2], [cx + 2, top + box.height * 0.205]]);
   assert.equal(await strokes(p), 0, '消しゴムで消える');
-  await tap('↩ ひとつ戻す'); assert.equal(await strokes(p), 1, '消しゴムで消した線が「ひとつ戻す」で戻る');
-  await tap('↩ ひとつ戻す'); assert.equal(await strokes(p), 0, 'もう一度で、その線をかく前に戻る');
-  assert.ok(await p.getByText('↩ ひとつ戻す').isDisabled(), '戻すものがなくなったら押せない');
+  await tap('↩ 戻す'); assert.equal(await strokes(p), 1, '消しゴムで消した線が「ひとつ戻す」で戻る');
+  await tap('↩ 戻す'); assert.equal(await strokes(p), 0, 'もう一度で、その線をかく前に戻る');
+  assert.ok(await p.getByText('↩ 戻す').isDisabled(), '戻すものがなくなったら押せない');
   await tap('こっている'); await touchLine([[cx - 30, top + box.height * 0.2], [cx, top + box.height * 0.21], [cx + 30, top + box.height * 0.2]]);
   await tap('開く前に戻す'); await p.locator('.dialog').getByText('開く前に戻す').tap(); assert.equal(await strokes(p), 0, '開く前の図に戻る');
-  await tap('↩ ひとつ戻す'); assert.equal(await strokes(p), 1, '「開く前に戻す」も、ひとつ戻すで取り消せる');
-  assert.ok((await p.locator('.pennow').textContent()).includes('こっている'), 'いまえらんでいる症状が見える');
+  await tap('↩ 戻す'); assert.equal(await strokes(p), 1, '「開く前に戻す」も、ひとつ戻すで取り消せる');
   assert.equal(await p.locator('.markbtn.on').count(), 1); assert.equal(await p.locator('.widthbtn.on').count(), 1);
-  assert.ok((await p.locator('.savebadge').textContent()).includes('保存'), '自動で保存のしるしが出ている');
-  await tap('後ろだけ'); await shot('05b-zu-big'); assert.equal(await p.locator('.zu .bodypad').count(), 1);
-  await tap('⤢ 画面いっぱいでかく'); await p.waitForSelector('.zu.full'); await shot('05c-zu-full');
-  const fb = await p.locator('.zu .bodypad').boundingBox(); assert.ok(fb.y >= 0 && fb.y + fb.height <= 768 && fb.height > 600, `iPad の画面いっぱいで図がおさまる（${Math.round(fb.y)}〜${Math.round(fb.y + fb.height)}）`);
+  await p.locator('.fullview .chip', { hasText: '後ろ' }).tap(); await shot('05b-zu-big'); assert.equal(await p.locator('.zu .bodypad').count(), 1);
+  const fb = await p.locator('.zu .bodypad').boundingBox(); assert.ok(fb.y >= 0 && fb.y + fb.height <= 768 && fb.height > 560, `iPad の画面いっぱいで図がおさまる（${Math.round(fb.y)}〜${Math.round(fb.y + fb.height)}）`);
   const cl = await p.locator('.closefull').boundingBox(); assert.ok(cl.y < 80 && cl.x < 60 && cl.height >= 44 && cl.width >= 120, `画面いっぱいの上のほうに、大きな「もどる（とじる）」がある：${JSON.stringify(cl)}`);
-  await tap('‹ もどる（とじる）'); assert.equal(await p.locator('.zu.full').count(), 0); await tap('ならべる'); assert.equal(await strokes(p), 1, '見え方を変えても線は残る');
+  await tap('‹ もどる（とじる）'); assert.equal(await p.locator('.zu.full').count(), 0); assert.equal(await strokes(p), 1, 'とじると、小さな図にかいた線が出る');
+  assert.ok((await p.locator('.prevnote').textContent()).includes('1本'));
+  assert.ok((await p.locator('.savebadge').textContent()).includes('保存'), '自動で保存のしるしが出ている');
 
   // --- 精油の候補 ---
   await tap('次へ：オイル ›'); await p.waitForSelector('.oil');
@@ -107,15 +112,19 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   const cOut = await p.locator('.oil.out').allTextContents();
   assert.ok(cOut.some((t) => t.includes('スイートアーモンドオイル') && t.includes('ナッツ類')), 'ナッツのアレルギーにあたるオイルは理由つきで外す：' + cOut.join('|').slice(0, 200));
   assert.ok(cOut.some((t) => t.includes('マカデミアナッツオイル')), 'マカデミアも外す');
-  const tsubaki = p.locator('.oil', { hasText: '椿オイル' });
-  assert.ok((await tsubaki.textContent()).includes('「乾燥しやすい」← オレイン酸が多い'), '「なぜ出たか」が出る');
-  assert.equal(await p.locator('.oil.buy', { hasText: '椿オイル' }).count(), 1, '持っていないが合うものは「次に買う候補」');
-  await tsubaki.getByText('手持ちにする').tap(); await p.locator('.oil.hit', { hasText: '椿オイル' }).waitFor();
-  await p.locator('.oil.hit', { hasText: '椿オイル' }).getByText('使う', { exact: true }).tap();
-  assert.ok((await p.locator('.chosen').textContent()).includes('キャリアオイル：椿オイル'));
+  const tsubaki = p.locator('.oil', { hasText: 'アボカドオイル' });
+  assert.ok((await tsubaki.textContent()).includes('「乾燥しやすい」← このオイルの特徴として登録'), '「なぜ出たか」が出る');
+  assert.equal(await p.locator('.oil.buy', { hasText: 'アボカドオイル' }).count(), 1, '持っていないが合うものは「次に買う候補」');
+  await tsubaki.getByText('手持ちにする').tap(); await p.locator('.oil.hit', { hasText: 'アボカドオイル' }).waitFor();
+  await p.locator('.oil.hit', { hasText: 'アボカドオイル' }).getByText('使う', { exact: true }).tap();
+  assert.ok((await p.locator('.chosen').textContent()).includes('キャリアオイル：アボカドオイル'));
+  assert.ok((await p.locator('.oil', { hasText: 'セサミオイル' }).textContent()).includes('オレイン酸'), '成分の名前が出る（割合は資料にないので数字なし）');
   await shot('06b-carrier');
 
   // --- ブレンド ---
+  // 0.10.0：はじめの目安は資料の数字（体 5％・顔 3％・部分ぬり 10％・手足は空き）。ここからは使う人が「体 1％」に直した場合で試す（直した値で動く）
+  assert.deepEqual(await p.evaluate(async () => (await import('./js/state.js')).S.settings.areas.map((a) => [a.id, a.max])), [['a_body', 5], ['a_face', 3], ['a_part', null], ['a_spot', 10]]);
+  await p.evaluate(async () => { const st = await import('./js/state.js'); st.S.settings.areas[0].max = 1; delete st.S.settings.areas[0].draft; await st.saveSettings(); });
   await tap('次へ：ブレンド ›'); await p.waitForSelector('.meter');
   assert.equal((await p.locator('.meter .pct').textContent()).trim(), '0.3％', '30ml に 2滴で 0.3％');
   await tap('＋ キャリアオイルをえらぶ'); assert.ok(await p.getByText('⚠ スイートアーモンドオイル（持っていない）').count(), 'えらぶ一覧でも注意が出る'); await tap('とじる');
@@ -232,6 +241,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   // 触れないで（×）：かいた来店の次の来店にも写る・施術の前に見える
   const xv = await p.evaluate(async (id) => { const st = await import('./js/state.js'); const v = await st.newVisit(id); return v.id; }, cid);
   await p.goto(BASE + `#/v/${xv}/zu`); await p.waitForSelector('.zu.staff .bodypad'); // 前の版のアドレス（/zu）は「所見」に行く
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full .zu-main .bodypad');
   await tap('触れないで（×）'); const xb = await p.locator('.bodypad').nth(1).boundingBox();
   await touchLine([[xb.x + xb.width * 0.4, xb.y + xb.height * 0.5], [xb.x + xb.width * 0.45, xb.y + xb.height * 0.52]]);
   assert.equal(await p.locator('.zu .notouch .xmark').count(), 1, '× が出る'); await shot('22-notouch');
@@ -258,10 +268,10 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   const mig = await p.evaluate(async () => {
     const db = await import('./js/db.js'); const cs = Object.fromEntries((await db.all('carriers')).map((c) => [c.id, c]));
     const cn = Object.fromEntries((await db.getMeta('settings')).conds.map((c) => [c.id, c.name]));
-    return { ver: await db.getMeta('dataVersion'), sun: cn.c_sun, mens: cn.c_mens, jojoba: [cs.k_jojoba.name, cs.k_jojoba.fatty.wax, cs.k_jojoba.draft], tsubakiOwned: cs.k_tsubaki.owned, argan: !!cs.k_argan, n: Object.keys(cs).length,
+    return { ver: await db.getMeta('dataVersion'), sun: cn.c_sun, mens: cn.c_mens, jojoba: [cs.k_jojoba.name, cs.k_jojoba.fatty.wax, cs.k_jojoba.draft], tsubakiOwned: cs.k_avocado.owned, argan: !!cs.k_argan, n: Object.keys(cs).length,
       tags: (await db.all('details'))[0].allergyTags, skins: (await db.all('visits')).map((v) => v.interview.skins.length), syms: (await db.all('visits')).map((v) => v.interview.symptoms.length) };
   });
-  assert.deepEqual(mig, { ver: 7, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', 97, true], tsubakiOwned: true, argan: true, n: 12, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 9, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', null, true], tsubakiOwned: true, argan: true, n: 23, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
   await p.goto(BASE + '#/set/carriers'); await p.waitForSelector('text=ホホバ（自分で直した名前）');
   // --- 版3（0.4.0 のころ）の精油のデータから、版4（資料の30本）へ。手持ち・確かめた精油は残る・資料にない精油は「資料にない」で残る ---
   await p.evaluate(async () => {
@@ -285,7 +295,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     return { ver: await db.getMeta('dataVersion'), n: Object.keys(os).length, lav: [os.o_lavender.name, os.o_lavender.owned], ginger: [os.o_ginger.ref, os.o_ginger.owned, os.o_ginger.components.hyd], clary: [os.o_clary.name, os.o_clary.family, os.o_clary.components.est],
       cats: (await db.all('cats')).map((c) => c.id).sort().join(), fam: st.families.map((f) => f.name).join(), drive: st.conds.some((c) => c.id === 'c_drive'), acts: st.symptoms[0].acts.a_relax, iv: (await db.all('visits')).every((v) => Array.isArray(v.interview.famLikes)) };
   });
-  assert.deepEqual(mig4, { ver: 7, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
+  assert.deepEqual(mig4, { ver: 9, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
     cats: 'alc,ald,est,hyd,ket,oxi,phe', fam: '樹木系,花穂系,柑橘系', drive: true, acts: 2, iv: true }, '版3 → 版4 の移し替え：' + JSON.stringify(mig4));
   await p.goto(BASE + '#/set/oils'); await p.waitForSelector('text=ラベンダー・アングスティフォリア'); assert.ok(await p.getByText('資料にない').count(), '資料にない精油のしるし');
   // 移し替えたあとのカルテで、精油の候補の画面が開ける
@@ -302,19 +312,19 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
   const mig5 = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); const v = await db.get('visits', id);
     return { ver: await db.getMeta('dataVersion'), n: v.figures.front.length + v.figures.back.length, g: v.guestFigures, intake: v.intake, wish: v.interview.wish, hand: st.S.settings.handover, pin: st.hasPin(), all: (await db.all('visits')).every((x) => x.guestFigures && x.figures) }; }, v4.id);
-  assert.deepEqual(mig5, { ver: 7, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
+  assert.deepEqual(mig5, { ver: 9, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
   await p.goto(BASE + `#/v/${v4.id}/shoken`); await p.waitForSelector('.zu.staff .bodypad'); assert.equal(await p.locator('.zu .strokes.own.staff > *').count(), v4.n, '0.5.0 の図が、施術する人の「所見」の図として出る');
   await p.goto(BASE + `#/v/${v4.id}/kininaru`); await p.waitForSelector('.zu.guest .bodypad'); assert.equal(await p.locator('.zu .strokes.own > *').count(), 0, 'お客さんの図は空で始まる');
   await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
   // 移し替えのしくみそのもの（次の版を足すとき用）
   const mig3 = await p.evaluate(async () => {
     const db = await import('./js/db.js');
-    const r = await db.migrateDb([{ to: 8, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 8);
+    const r = await db.migrateDb([{ to: 10, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 10);
     const ok = (await db.all('visits')).every((x) => x._test === 'moved'); const ver = await db.getMeta('dataVersion');
-    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 7);
+    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 9);
     return { r, ok, ver };
   });
-  assert.deepEqual(mig3, { r: { from: 7, to: 8 }, ok: true, ver: 8 }, '版の移し替え');
+  assert.deepEqual(mig3, { r: { from: 9, to: 10 }, ok: true, ver: 10 }, '版の移し替え');
 
   // --- 見本 1,000人で速さを見る ---
   await p.goto(BASE + '#/set/sample'); await tap('見本を 1,000人 入れる'); await p.waitForSelector('text=入れました', { timeout: 120000 });
@@ -355,7 +365,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
 
   // --- 設定でキャリアオイルを直す → 候補が変わる（決め打ちではない） ---
   await p.evaluate(async () => { const db = await import('./js/db.js'); const d = (await db.all('details'))[0]; d.allergyTags = ['al_nut']; await db.put('details', d); }); // 移し替えの試しで外れたしるしを付け直す
-  await p.goto(BASE + '#/set/carrier/k_tsubaki'); await p.waitForSelector('text=成分ごとの割合');
+  await p.goto(BASE + '#/set/carrier/k_tsubaki'); await p.waitForSelector('text=成分と割合');
   await tap('ナッツ類（木の実）'); await tap('自分の資料で確かめた（「下書き」のしるしを外す）'); await tap('保存する'); await p.waitForSelector('text=キャリアオイルの一覧と手持ち');
   assert.equal(await p.locator('.row-link', { hasText: '椿オイル' }).getByText('確かめた').count(), 1, '「下書き」のしるしが外れる');
   await p.goto(BASE + `#/v/${vid}/seiyu`); await p.locator('.tab', { hasText: 'キャリアオイル' }).tap();
@@ -376,12 +386,14 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.locator('.signpad').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); const gs = await p.locator('.signpad').boundingBox();
   await touchLine([[gs.x + 60, gs.y + gs.height * 0.6], [gs.x + 140, gs.y + gs.height * 0.3], [gs.x + 240, gs.y + gs.height * 0.6]]); await gnext();
   await p.waitForSelector('text=今日、あてはまるものはありますか'); await tap('肩こり'); await p.locator('.symrow').nth(0).getByText('8', { exact: true }).tap(); await shot('34-guest-m1'); await gnext();
-  await p.waitForSelector('.zu.guest.simple .bodypad'); await p.locator('.zu .bodypad').first().scrollIntoViewIfNeeded(); await p.waitForTimeout(300);
+  await p.waitForSelector('.zu.guest.simple .zuprev'); assert.ok((await p.locator('.zuprev').textContent()).includes('ここを押して、図に書く'), 'お客さんにも、押すと書けると分かる');
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full .zu-main .bodypad'); await p.waitForTimeout(300);
   let gb = await p.locator('.zu .bodypad').first().boundingBox();
   await touchLine([[gb.x + gb.width * 0.4, gb.y + gb.height * 0.25], [gb.x + gb.width * 0.5, gb.y + gb.height * 0.26], [gb.x + gb.width * 0.6, gb.y + gb.height * 0.25]]);
   await p.locator('.markbtn', { hasText: '触れないで（×）' }).tap(); await p.locator('.zu .bodypad').first().scrollIntoViewIfNeeded(); await p.waitForTimeout(300); gb = await p.locator('.zu .bodypad').first().boundingBox();
   await touchLine([[gb.x + gb.width * 0.45, gb.y + gb.height * 0.5], [gb.x + gb.width * 0.5, gb.y + gb.height * 0.52]]);
   assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, 'お客さんが図をなぞれる（×も）'); assert.equal(await p.getByText('消しゴム', { exact: false }).count(), 0, 'お客さん用の図は道具を少なく'); await shot('35-guest-m2'); await noOthers('図');
+  await tap('‹ もどる（とじる）'); assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, 'とじると小さな図に出る');
   await gnext(); await tap('リラックスしたい'); await p.locator('.gcard textarea').fill('力は弱めでお願いします'); await shot('36-guest-m3');
   await gnext(); await p.waitForSelector('text=スタッフにお返しください'); await shot('37-guest-done');
   for (const hsh of ['#/', '#/set', '#/list']) { await p.evaluate((x) => { location.hash = x; }, hsh); await locked('書き終えたあと ' + hsh); }
@@ -394,16 +406,32 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   // 後半：所見の図に、お客さんの図が重なって見える（切りかえできる）。施術する人の線は別に残る
   await tap('次へ：気になるところ ›'); await p.waitForSelector('.zu.guest'); await tap('後半へ：所見 ›'); await p.waitForSelector('.zu.staff .bodypad'); assert.ok(await p.locator('.phasebar.staff').count(), '後半は「施術者の記録」の帯');
   assert.equal(await p.locator('.zu .strokes.under.guest > *').count(), 2, '所見の図に、お客さんの図が重なる');
-  await tap('⤢ 画面いっぱいでかく'); await p.waitForSelector('.zu.full'); assert.equal(await p.locator('.zu .strokes.under.guest > *').count(), 2, '画面いっぱいでも重なって見える'); await p.waitForTimeout(400); gb = await p.locator('.zu .bodypad').first().boundingBox(); await touchLine([[gb.x + gb.width * 0.4, gb.y + gb.height * 0.3], [gb.x + gb.width * 0.5, gb.y + gb.height * 0.31], [gb.x + gb.width * 0.6, gb.y + gb.height * 0.3]]);
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full'); assert.equal(await p.locator('.zu .strokes.under.guest > *').count(), 2, '画面いっぱいでも重なって見える'); await p.waitForTimeout(400); gb = await p.locator('.zu .bodypad').first().boundingBox(); await touchLine([[gb.x + gb.width * 0.4, gb.y + gb.height * 0.3], [gb.x + gb.width * 0.5, gb.y + gb.height * 0.31], [gb.x + gb.width * 0.6, gb.y + gb.height * 0.3]]);
   assert.equal(await p.locator('.zu .strokes.own.staff > *').count(), 1); await shot('39-shoken-overlay');
-  await tap('‹ もどる（とじる）'); await p.waitForTimeout(300);
   await tap('お客さんの図も重ねる'); assert.equal(await p.locator('.zu .strokes.under').count(), 0, '所見だけにできる'); await tap('お客さんの図も重ねる');
+  await tap('‹ もどる（とじる）'); await p.waitForTimeout(300);
   const two = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); await st.flush(); const v = await db.get('visits', id); return [v.guestFigures.front.length, v.figures.front.length]; }, got.vid);
   assert.deepEqual(two, [2, 1], '2つの図は別々に残る');
+  // お客さんが書いて返した回：気になるところの図は、施術する人は見るだけ（×だけ足せる・「施術者」の札）。問診は直せて、直したらんに印
+  await p.goto(BASE + `#/v/${got.vid}/kininaru`); await p.waitForSelector('.zuprev');
+  assert.ok((await p.locator('.whobar').textContent()).includes('お客さんが自分で書いた')); assert.ok(await p.getByText('所見の図に書く ›').count(), '所見に書くよう案内');
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full .zu-main .bodypad'); await p.waitForSelector('.locknote');
+  assert.deepEqual(await p.locator('.zu .markbtn').allTextContents(), ['触れないで（×）'], '足せるのは × だけ');
+  assert.equal(await p.getByText('ぜんぶ消す').count(), 0, 'お客さんの図をぜんぶ消せない');
+  await tap('消しゴム（線をえらぶ）'); { const r = await p.locator('.zu .bodypad').nth(0).boundingBox(); await touchLine([[r.x + r.width * 0.4, r.y + r.height * 0.25], [r.x + r.width * 0.5, r.y + r.height * 0.26], [r.x + r.width * 0.6, r.y + r.height * 0.25], [r.x + r.width * 0.47, r.y + r.height * 0.5], [r.x + r.width * 0.5, r.y + r.height * 0.52]]); }
+  assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, '消しゴムでもお客さんの線は消えない');
+  await tap('触れないで（×）'); { const r = await p.locator('.zu .bodypad').nth(1).boundingBox(); await touchLine([[r.x + r.width * 0.45, r.y + r.height * 0.6], [r.x + r.width * 0.5, r.y + r.height * 0.62]]); }
+  assert.equal(await p.locator('.zu .bytag').count(), 1, '施術する人が足した × に「施術者」の札'); await shot('38b-kininaru-lock');
+  await tap('‹ もどる（とじる）');
+  await p.goto(BASE + `#/v/${got.vid}/monshin`); await p.waitForSelector('.whobar'); assert.equal(await p.locator('.bystaff:not(:empty)').count(), 0);
+  await tap('乾燥しやすい'); assert.ok((await p.locator('.bystaff[data-k=skins]').textContent()).includes('施術者が書き足した'), '直したらんに印'); await shot('38c-monshin-edited');
+  const ed = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); await st.flush(); const v = await db.get('visits', id); return [Object.keys(v.staffEdits), v.guestFigures.back.map((x) => x.by || '')]; }, got.vid);
+  assert.deepEqual(ed, [['skins'], ['staff']], 'どのらんを直したか・だれが×を足したかが残る');
   await p.goto(BASE + `#/v/${got.vid}/after`); await p.waitForSelector('text=つらさの変化'); await tap('できた（カルテをとじる）'); await p.waitForSelector('.hist');
   assert.ok(await p.locator('.hist .slide .strokes.under.guest').count() && await p.locator('.hist .slide .strokes.own.staff').count(), 'これまでの記録：両方を重ねて出す'); await shot('40-history-both');
   await p.locator('.figsel .chip', { hasText: '施術者' }).tap(); assert.equal(await p.locator('.hist .slide .strokes.under').count(), 0); assert.equal(await p.locator('.hist .slide .strokes.own.staff > *').count(), 1, '施術者の図だけ');
-  await p.locator('.figsel .chip', { hasText: 'お客さん' }).tap(); assert.equal(await p.locator('.hist .slide .strokes.own.guest > *').count(), 2, 'お客さんの図だけ'); await shot('40b-history-guest');
+  await p.locator('.figsel .chip', { hasText: 'お客さん' }).tap(); assert.equal(await p.locator('.hist .slide .strokes.own.guest > *').count(), 3, 'お客さんの図だけ（施術する人が足した × も）');
+  assert.ok((await p.locator('.hist .slide').first().textContent()).includes('施術者が書き足した：肌の状態'), 'これまでの記録で、書いた人と直したらんが分かる'); await shot('40b-history-guest');
   assert.ok(await p.locator('.foot .btn.primary', { hasText: '今日の来店をはじめる' }).count() && await p.locator('.foot .handbtn:not(.primary)').count(), '2回目からは「聞きながら書く」が大きく、「お客さんに渡す」も選べる');
   const nx = await p.evaluate(async (id) => { const st = await import('./js/state.js'); const v = await st.newVisit(id); const r = [v.guestFigures.front.map((x) => x.m), v.figures.front.length]; await st.deleteVisit(v); return r; }, got.id);
   assert.deepEqual(nx, [['m_notouch'], 0], 'お客さんの × は、次の来店のお客さんの図に写る');
@@ -428,9 +456,8 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   const lv = await q.locator('.symrow .lv').first().boundingBox(); assert.ok(lv.width >= 44 && lv.height >= 44, `つらさのボタンが指で押せる大きさ（${lv.width}×${lv.height}）`);
   await ph.noOverflow('問診'); await ph.shot('04-monshin');
   await ph.tap('次へ：気になるところ ›'); await q.waitForSelector('.zu.guest'); await ph.noOverflow('気になるところ'); await ph.tap('後半へ：所見 ›'); await q.waitForSelector('.zu.staff .bodypad');
-  assert.equal(await q.locator('.zu .bodypad').count(), 1, '小さい画面では、図は1つずつ');
   await ph.noOverflow('からだの図'); await ph.shot('05-zu');
-  await ph.tap('⤢ 画面いっぱいでかく（なぞりやすい）'); await q.waitForSelector('.zu.full');
+  await q.locator('.zuprev').tap(); await q.waitForSelector('.zu.full'); assert.equal(await q.locator('.zu .bodypad').count(), 1, '小さい画面では、図は1つずつ');
   let bb = await q.locator('.zu .bodypad').boundingBox();
   assert.ok(bb.height > size.height * 0.55, `画面いっぱいで図が大きい（高さ ${Math.round(bb.height)} / ${size.height}）`);
   const qc = await q.locator('.closefull').boundingBox(); assert.ok(qc.y >= 0 && qc.y < 60 && qc.height >= 44 && qc.y + qc.height < bb.y + 2, `iPhone でも、図の上に「もどる（とじる）」がある：${JSON.stringify(qc)}`);
@@ -454,6 +481,9 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await ph.noOverflow('オイルの候補'); await ph.shot('06-carrier');
   await ph.tap('次へ：ブレンド ›'); await q.waitForSelector('.meter');
   await q.getByText('20ml', { exact: true }).tap();
+  assert.ok(await q.getByText('この量なら 20滴まで', { exact: false }).count(), '20ml・はじめの目安（資料：体 5％）なら 20滴まで');
+  await q.evaluate(async () => { const st = await import('./js/state.js'); await st.flush(); st.S.settings.areas[0].max = 1; delete st.S.settings.areas[0].draft; await st.saveSettings(); }); // ここからは使う人が「体 1％」に直した場合
+  await q.reload(); await q.waitForSelector('.meter');
   assert.equal((await q.locator('.meter .pct').textContent()).trim(), '0.3％', '20ml に 1滴で 0.25％');
   assert.ok(await q.getByText('この量なら 4滴まで', { exact: false }).count(), '20ml・目安1％なら 4滴まで');
   const plus2 = q.locator('.brow:not(.car)').first().getByText('＋'); for (let i = 0; i < 4; i++) await plus2.tap();
@@ -501,7 +531,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     await q.locator('details.fold').evaluateAll((els) => els.forEach((e) => { e.open = true; }));
     await ph.noOverflow('小さい iPhone・' + n); await ph.shot('se-' + n);
   }
-  await q.goto(BASE + `#/v/${vid2}/zu`); await q.waitForSelector('.bodypad'); await ph.tap('⤢ 画面いっぱいでかく（なぞりやすい）'); await q.waitForSelector('.zu.full'); await ph.shot('se-zu-full');
+  await q.goto(BASE + `#/v/${vid2}/zu`); await q.waitForSelector('.bodypad'); await q.locator('.zuprev').tap(); await q.waitForSelector('.zu.full'); await ph.shot('se-zu-full');
   bb = await q.locator('.zu .bodypad').boundingBox(); assert.ok(bb.height > 330 && bb.y >= 0 && bb.y + bb.height <= 667, `小さい iPhone でも図が画面におさまる（高さ ${Math.round(bb.height)}）`);
 
   await ph.tap('‹ もどる（とじる）');
@@ -512,7 +542,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     await q.waitForTimeout(150); await ph.noOverflow('小さい iPhone・お客さん用の画面 ' + k); await ph.shot('se-guest-' + k);
     if (await q.locator('.signpad').count()) { await q.locator('.signpad').scrollIntoViewIfNeeded(); await q.waitForTimeout(300); const r = await q.locator('.signpad').boundingBox(); await ph.touchLine([[r.x + 40, r.y + r.height * 0.6], [r.x + 120, r.y + r.height * 0.3], [r.x + 200, r.y + r.height * 0.6]]); }
     if (await q.locator('.zu.simple').count()) {
-      await ph.tap('⤢ 画面いっぱいでかく（なぞりやすい）'); await q.waitForSelector('.zu.full'); const r = await q.locator('.zu .bodypad').boundingBox(); const before = await q.locator('.zu .strokes.own > *').count();
+      await q.locator('.zuprev').tap(); await q.waitForSelector('.zu.full'); const r = await q.locator('.zu .bodypad').boundingBox(); const before = await q.locator('.zu .strokes.own > *').count();
       await ph.touchLine([[r.x + r.width * 0.45, r.y + r.height * 0.3], [r.x + r.width * 0.55, r.y + r.height * 0.31]]); assert.equal(await q.locator('.zu .strokes.own > *').count(), before + 1, 'お客さんも画面いっぱいでなぞれる');
       await ph.noOverflow('お客さん用の図・画面いっぱい'); await ph.shot('se-guest-full'); await ph.tap('‹ もどる（とじる）'); assert.equal(await q.locator('.zu.full').count(), 0);
     }

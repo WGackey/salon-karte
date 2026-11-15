@@ -73,7 +73,7 @@ export async function progressView(id) {
       r.drop != null && r.syms.length > 1 ? h('div', { class: 'ptotal' }, '合わせて ', h('span', { class: r.drop > 0 ? 'down' : r.drop < 0 ? 'up' : 'muted' }, sgn(r.drop))) : null),
     h('div', { class: 'pc blend' }, h('span', { class: 'plabel' }, 'ブレンド'), blendOf(r).length ? blendOf(r).map((t) => h('div', null, t)) : h('span', { class: 'muted' }, '—'), r.pct != null ? h('div', null, h('span', { class: 'muted small' }, '濃度 '), pctEl(r)) : null),
     h('div', { class: 'pc etc' }, h('span', { class: 'plabel' }, 'メニュー・施術後'), r.menus.length ? h('div', null, r.menus.map((m) => `${m.name}${m.minutes ? m.minutes + '分' : ''}`).join('・')) : null,
-      r.scent ? h('div', { class: 'small' }, `香り：${r.scent}`) : null, r.note ? h('div', { class: 'small muted pnote' }, r.note) : null, !r.menus.length && !r.scent && !r.note ? h('span', { class: 'muted' }, '—') : null),
+      r.scent ? h('div', { class: 'small' }, `香り：${r.scent}`) : null, r.note ? h('div', { class: 'small muted pnote' }, r.note) : null, h('div', { class: 'small muted pwho' }, '書いた人：' + r.who), !r.menus.length && !r.scent && !r.note ? h('span', { class: 'muted' }, '—') : null),
     h('span', { class: 'chev' }, '›'));
   const drawList = () => {
     const arr = sort === 'new' ? [...rows].reverse() : [...rows].filter((r) => r.drop != null).sort((a, b) => b.drop - a.drop || b.date.localeCompare(a.date));

@@ -3,6 +3,9 @@
 //   layer  ：'guest'＝お客さんの図（つぶつぶの線）／'staff'＝施術する人の図（ぬった線）
 //   under  ：重ねて見せるだけの、もう片方の図 { figures, layer, label }（なくてもよい）
 //   simple ：お客さんに渡すとき用。道具を少なく・ボタンを大きく
+//   by     ：新しくかいた線に「だれがかいたか」をつける（'staff'＝施術する人。お客さんの図に施術する人がかいたとき）
+//   lock   ：お客さんが自分で書いて返した図。施術する人は「触れないで（×）」だけ足せる・自分が足した×だけ消せる（{ note }）
+// 書くのは、いつも画面いっぱい（2026-11-15 がっき〜の決定）。来店の流れの中には小さな図（見るだけ）を置き、押すと画面いっぱいで開く
 import { h, fill, btn, chips, toast, confirmDlg, isPhone } from './ui.js';
 import { bodyPad, FIGURES } from './bodymap.js';
 import { hasReflex, reflexSvg, reflexZones } from './parts.js';
@@ -11,11 +14,14 @@ const WIDTHS = [[6, '細い'], [14, 'ふつう'], [26, '太い']];
 export const hasLines = (figs) => Object.values(figs || {}).some((a) => (a || []).length > 0);
 
 //   figs   ：出す図の並び（全身＝前・後ろ／部分＝手のひら・手の甲 など。parts.js の figsOf）
-export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under = null, marks, onSave, simple = false, markLabel = '症状（色）', hints = [], reflex = null }) {
+export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under = null, marks: allMarks, onSave, simple = false, markLabel = '症状（色）', hints = [], reflex = null, by = '', lock = null, openLabel = '' }) {
   // reflex：反射区（足の裏の区分け）を重ねるとき { get: () => settings.reflex, save }。足の裏の図があるときだけボタンが出る。はじめは出さない
   const rfOn = () => !!reflex && hasReflex(figs) && !!(reflex.get() || {}).show;
   const FIGURES_ = figs; const whole = figs.every((f) => !f.box); const many = figs.length > 2;
-  const tool = { mode: 'draw', mark: marks[0].id, width: 14 };
+  // lock のときは「触れないで（×）」のしるしだけ。図の色の名前・色は、ほかの線を出すために allMarks を使う
+  const marks = lock ? allMarks.filter((m) => m.x) : allMarks; const lockBy = lock ? 'staff' : by;
+  const tool = { mode: 'draw', mark: (marks[0] || allMarks[0]).id, width: 14, by: lockBy };
+  const canErase = lock ? (s) => s.by === 'staff' : null;
   const pads = {}; let view = figs.length < 2 || isPhone() ? figs[0].id : 'both'; let zone = 'all'; let full = false;
   let showUnder = !!under && figs.some((f) => ((under.figures || {})[f.id] || []).length > 0);
   const copy = () => JSON.parse(JSON.stringify(Object.fromEntries(FIGURES_.map((f) => [f.id, figures[f.id] || []]))));
@@ -25,10 +31,11 @@ export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under =
   const root = h('div', { class: 'zu ' + layer + (simple ? ' simple' : '') });
   const padBox = h('div', { class: 'pads' });
   const drawPads = () => {
+    if (!full) { fill(padBox); drawPrev(); return; } // 小さな図のあいだは、なぞれる図を作らない
     padBox.className = 'pads ' + (view === 'both' ? 'both' : 'one ' + view) + (many ? ' many' : '') + (whole ? '' : ' pt');
     fill(padBox, ...FIGURES_.filter((f) => view === 'both' || view === f.id).map((f) => {
       figures[f.id] = figures[f.id] || [];
-      pads[f.id] = bodyPad({ kind: f.id, strokes: figures[f.id], marks, layer, getTool: () => tool, overlaySvg: rfOn() ? reflexSvg(f.id, reflex.get()) : '',
+      pads[f.id] = bodyPad({ kind: f.id, strokes: figures[f.id], marks: allMarks, layer, canErase, getTool: () => tool, overlaySvg: rfOn() ? reflexSvg(f.id, reflex.get()) : '',
         under: showUnder ? [{ strokes: under.figures[f.id] || [], layer: under.layer }] : [],
         onChange: (act) => { hist.push({ ...act, fig: f.id }); sync(); onSave(); } });
       pads[f.id].setZone(view === 'both' ? 'all' : zone);
@@ -65,10 +72,10 @@ export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under =
   const replaceAll = (next) => { hist.push({ type: 'all', before: copy() }); for (const f of FIGURES_) figures[f.id] = next[f.id]; drawPads(); sync(); onSave(); };
   const clear = btn('ぜんぶ消す', async () => {
     if (!(await confirmDlg('図にかいた線をぜんぶ消します。（「ひとつ戻す」で元に戻せます）', '消す', true))) return;
-    replaceAll(Object.fromEntries(FIGURES_.map((f) => [f.id, []]))); }, 'chip nofull');
+    replaceAll(Object.fromEntries(FIGURES_.map((f) => [f.id, []]))); }, 'chip');
   const revert = btn('開く前に戻す', async () => {
     if (!(await confirmDlg('この画面を開いたあとにかいた・消した分をやめて、開く前の図に戻します。（「ひとつ戻す」で元に戻せます）', '開く前に戻す', true))) return;
-    replaceAll(JSON.parse(JSON.stringify(atOpen))); }, 'chip nofull');
+    replaceAll(JSON.parse(JSON.stringify(atOpen))); }, 'chip');
   const sync = () => {
     const er = tool.mode === 'erase'; const m = marks.find((x) => x.id === tool.mark) || marks[0];
     markBtns.forEach((b, i) => b.classList.toggle('on', !er && marks[i].id === tool.mark));
@@ -88,11 +95,25 @@ export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under =
       reflex && hasReflex(figs) ? chips([{ id: 'on', name: '反射区を重ねる' }], rfOn() ? ['on'] : [], { cls: 'rzsel', onChange: (x) => { reflex.get().show = x.length > 0; reflex.save(); drawPads(); } }) : null);
     fill(fullView, figs.length > 1 ? chips([...(isPhone() ? [] : [{ id: 'both', name: 'ならべる' }]), ...figs.map((f) => ({ id: f.id, name: f.name }))], view, { multi: false, cls: 'seg', onChange: setView }) : h('b', null, figs[0].name));
   };
-  const fullBtn = btn('⤢ 画面いっぱいでかく', () => setFull(true), 'chip fullbtn');
+  // 小さな図（見るだけ）。押すと画面いっぱいで開く。この上ではなぞれない
+  const prevPads = h('div', { class: 'prevpads' + (whole ? '' : ' pt') + (many ? ' many' : '') });
+  const prevNote = h('div', { class: 'prevnote' });
+  const prevBox = h('button', { type: 'button', class: 'zuprev', 'aria-label': (lock ? '図を大きく見る' : '図を画面いっぱいで開いて書く') }, prevPads,
+    h('span', { class: 'prevtag' }, openLabel || (lock ? '🔍 押すと大きく見られます（見るだけ）' : simple ? '✎ ここを押して、図に書く' : '✎ 押すと画面いっぱいで書けます')), prevNote);
+  prevBox.onclick = () => setFull(true);
+  const drawPrev = () => {
+    fill(prevPads, ...FIGURES_.map((f) => h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name),
+      bodyPad({ kind: f.id, strokes: figures[f.id] || [], marks: allMarks, layer, readOnly: true,
+        under: showUnder ? [{ strokes: (under.figures || {})[f.id] || [], layer: under.layer }] : [] }))));
+    const n = FIGURES_.reduce((a, f) => a + (figures[f.id] || []).length, 0);
+    prevNote.textContent = n ? `なぞった線：${n}本` : 'まだ何もかいていません';
+  };
   const setFull = (on) => {
     full = on; root.classList.toggle('full', on); document.documentElement.classList.toggle('noscroll', on);
     if (on && isPhone() && view === 'both') view = figs[0].id;
+    if (on) fill(prevPads); // 小さな図は、とじたときに描き直す（同じ線が2か所に出ないように）
     drawView(); drawPads();
+    if (on) sync();
     if (!on) root.scrollIntoView({ block: 'nearest' });
   };
   root.closeFull = () => { if (full) setFull(false); };
@@ -104,9 +125,10 @@ export function figureEditor({ figures, figs = FIGURES, layer = 'staff', under =
     h('div', { class: 'fullbar' }, btn('‹ もどる（とじる）', () => setFull(false), 'closefull'), fullView, undoFull),
     h('div', { class: 'toolbar' },
       h('div', { class: 'trow' }, label(markLabel), h('div', { class: 'chips' }, markBtns)),
-      h('div', { class: 'trow' }, label('ペンの太さ'), h('div', { class: 'chips widths' }, widthBtns), label('直す'), h('div', { class: 'chips fixes' }, undo, simple ? null : eraser, clear, simple ? null : revert)),
-      h('div', { class: 'trow' }, label('見え方'), h('div', { class: 'chips fullwrap' }, fullBtn), viewBox)),
-    h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), now, padBox, legend,
-      hints.map((t) => h('p', { class: 'hint center' }, t))));
+      lock ? h('div', { class: 'trow' }, h('p', { class: 'locknote' }, lock.note || '')) : null,
+      h('div', { class: 'trow' }, label('ペンの太さ'), h('div', { class: 'chips widths' }, widthBtns), label('直す'), h('div', { class: 'chips fixes' }, undo, simple ? null : eraser, lock ? null : clear, simple || lock ? null : revert)),
+      h('div', { class: 'trow' }, label('見え方'), viewBox)),
+    h('div', { class: 'zu-main' }, now, padBox, legend),
+    prevBox, h('div', { class: 'zuhints' }, hints.map((t) => h('p', { class: 'hint center' }, t))));
   return root;
 }

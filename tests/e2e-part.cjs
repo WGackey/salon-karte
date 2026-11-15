@@ -53,11 +53,12 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   // 気になるところ：手の図4つ
   await tap('次へ：気になるところ ›'); await p.waitForSelector('.zu.guest .bodypad.pt');
   assert.deepEqual(await p.locator('.zu .padname').allTextContents(), ['右手のひら', '左手のひら', '左手の甲', '右手の甲']);
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full .zu-main .bodypad');
   await drawOn('.zu .bodypad', 0); await p.locator('.markbtn', { hasText: '触れないで' }).tap(); await drawOn('.zu .bodypad', 2); await shot('03-kininaru-hand');
-  await tap('後半へ：所見 ›'); await p.waitForSelector('.zu.staff .bodypad.pt');
+  await tap('‹ もどる（とじる）'); await tap('後半へ：所見 ›'); await p.waitForSelector('.zu.staff .bodypad.pt');
   assert.equal(await p.locator('.zu .strokes.under.guest > *').count(), 2, 'お客さんの図が、所見の図に重なる');
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full'); await shot('05-full-hand');
   await drawOn('.zu .bodypad', 1); await shot('04-shoken-hand');
-  await p.locator('.fullbtn').tap(); await p.waitForSelector('.zu.full'); await shot('05-full-hand');
   await p.locator('.fullview .chip', { hasText: '左手の甲' }).tap(); assert.equal(await p.locator('.zu .bodypad').count(), 1); await drawOn('.zu .bodypad', 0); await shot('06-full-one');
   await tap('‹ もどる（とじる）');
   v = await visitOf(p); assert.equal(v.guestFigures.hand_palm_r.length, 1); assert.equal(v.guestFigures.hand_back_l.length, 1); assert.equal(v.figures.hand_palm_l.length, 1); assert.equal(v.figures.hand_back_l.length, 1); assert.equal(v.figures.front.length, 0);
@@ -78,7 +79,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   await tap('足の疲れ'); await tap('つぎへ ›'); await p.waitForSelector('.guestmode .bodypad.pt');
   assert.deepEqual(await p.locator('.guestmode .padname').allTextContents(), ['右足の裏', '左足の裏', '左足の甲', '右足の甲']);
   assert.equal(await p.locator('.guestmode .strokes .notouch').count(), 0, '手の × は、足の図には出ない');
-  await drawOn('.guestmode .bodypad', 0); await shot('13-guest-foot'); await tap('つぎへ ›'); await p.waitForSelector('text=伝えておきたいこと'); assert.equal(await p.getByText('今日の目的', { exact: true }).count(), 0); await shot('14-guest-m3');
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full .zu-main .bodypad'); await drawOn('.guestmode .bodypad', 0); await shot('13-guest-foot'); await tap('‹ もどる（とじる）'); await tap('つぎへ ›'); await p.waitForSelector('text=伝えておきたいこと'); assert.equal(await p.getByText('今日の目的', { exact: true }).count(), 0); await shot('14-guest-m3');
   await tap('これで書きおわる'); await p.waitForSelector('.gdone'); await tap('スタッフ：合言葉を入れてもどる'); await pad.pin(); await p.waitForSelector('.scopepick');
   v = await visitOf(p); assert.deepEqual(v.scope, { type: 'part', parts: ['foot'] }); assert.equal(v.guestFigures.foot_sole_r.length, 1); assert.equal(v.guestFigures.hand_back_l.length, 1, '手の × は、次の来店にも写っている（足の図には出ないだけ）');
   // 部位をいくつも：手＋足
@@ -99,7 +100,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
     await db.batch(['menus', 'visits', 'meta'], (os) => { ms.forEach((m) => os.menus.put(m)); vs.forEach((x) => os.visits.put(x)); os.meta.put({ key: 'settings', value: st }); os.meta.put({ key: 'dataVersion', value: 5 }); }); });
   await p.reload(); await p.waitForSelector('.home-top');
   const mig = await p.evaluate(async () => { const db = await import('./js/db.js'); const st = await db.getMeta('settings'); return { ver: await db.getMeta('dataVersion'), parts: st.parts.length, menus: (await db.all('menus')).map((m) => m.scope), n: (await db.all('visits')).length }; });
-  assert.deepEqual(mig, { ver: 7, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 9, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
   await p.goto(BASE + `#/v/${vid}/monshin`); await p.waitForSelector('.scopepick'); assert.ok(await p.locator('.scopesel .wholechip.on').count(), '0.6.0 のカルテは全身として開く');
 
   // ---------- ② 経過のページ ----------
@@ -155,8 +156,8 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   const ph = await kit(b, { viewport: { width: 390, height: 664 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }, 'ph-'); const q = ph.p;
   await q.goto(BASE); await ph.skipStart(); await ph.tap('＋ 新しいお客さん'); await q.getByPlaceholder('山田 花子').fill('見本 あしうら'); await ph.tap('保存する'); await q.waitForSelector('text=今日の来店をはじめる');
   await ph.tap('今日の来店をはじめる'); await q.waitForSelector('.scopepick'); await q.locator('.scopepick .chip', { hasText: 'フットトリートメント' }).tap(); await q.waitForSelector('.shortnote'); await ph.shot('01-monshin-foot'); await ph.noOverflow('iPhone 問診');
-  await ph.tap('次へ：気になるところ ›'); await q.waitForSelector('.zu.guest .bodypad.pt'); assert.equal(await q.locator('.zu .bodypad').count(), 1, 'iPhone は図を1つずつ'); await ph.shot('02-kininaru-foot'); await ph.noOverflow('iPhone 図');
-  await q.locator('.openfull').tap(); await q.waitForSelector('.zu.full'); await ph.drawOn('.zu .bodypad', 0); await ph.shot('03-full-foot');
+  await ph.tap('次へ：気になるところ ›'); await q.waitForSelector('.zu.guest .bodypad.pt'); await ph.shot('02-kininaru-foot'); await ph.noOverflow('iPhone 図');
+  await q.locator('.zuprev').tap(); await q.waitForSelector('.zu.full'); assert.equal(await q.locator('.zu .bodypad').count(), 1, 'iPhone は図を1つずつ'); await ph.drawOn('.zu .bodypad', 0); await ph.shot('03-full-foot');
   await q.locator('.fullview .chip', { hasText: '左足の甲' }).scrollIntoViewIfNeeded(); await q.locator('.fullview .chip', { hasText: '左足の甲' }).tap(); await ph.drawOn('.zu .bodypad', 0); await ph.shot('04-full-foot-top'); await ph.tap('‹ もどる（とじる）');
   await q.goto(q.url().replace(/\/[^/]+$/, '/after')); await ph.tap('できた（カルテをとじる）'); await q.waitForSelector('.hist'); await q.locator('.hist').scrollIntoViewIfNeeded(); await ph.shot('05-customer-foot'); await ph.noOverflow('iPhone お客さんのページ');
   await q.locator('.hist button.thumbs').first().tap(); await q.waitForSelector('.bigfigs'); await ph.shot('06-bigfigs'); await ph.noOverflow('iPhone 図を大きく');
