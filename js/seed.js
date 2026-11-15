@@ -1,44 +1,103 @@
 // はじめに入れておく中身。すべて「下書き」で、アプリの中で直せる。
-// 精油の成分の割合は、一般に知られているおおよその値。自信のないところは空けてある（null）。
-// 本や教科書の表を写したものではない。使う人が自分の資料で確かめて直す前提。
+// 精油のデータは、がっき〜の資料（自作のエクセル）で確かめた事実を、このアプリの形にまとめ直したもの。表や文章の写しではない。
+// 資料に割合がないところは空けてある（null）。キャリアオイルは前の下書きのまま。使う人がアプリの中で直せる。
 // 日に当たると肌に出やすい精油（柑橘の皮など）を外すための項目。言葉は がっき〜に確かめ中 → 変えるときはここと、db.js の移し替えに1つ足す
 export const SUN_NAME_OLD = ['このあと日に当たる'];
 export const SUN_NAME = 'このあと屋外で過ごす予定がある（外出・屋外作業など）';
+// 作用（働き）のまとまり。資料の作用の名前（terms）を、ふだんの言葉のまとまりに分けたもの。
+// 名前は「こんな働きがあると言われる」という分け方で、「効く」という意味ではない。アプリの中で直せる。
+export const DEFAULT_ACTIONS = [
+  ['a_calm', '気持ちを落ちつける', '鎮静・神経安定・抗不安・神経バランス回復・催眠性・副交感神経・血圧降下'],
+  ['a_lift', '元気づける', '強壮・強壮刺激・神経強壮・心臓強壮'],
+  ['a_relax', 'こわばりをゆるめる', '鎮痙攣・筋肉弛緩'],
+  ['a_ease', 'つらさをやわらげる', '鎮痛・局所鎮痛・麻酔'],
+  ['a_heat', 'ほてり・はれをしずめる', '抗炎症'],
+  ['a_cool', 'すっと冷やす', '冷却・血管収斂'],
+  ['a_warm', 'あたためる', '加温'],
+  ['a_flow', 'めぐりを助ける', '鬱滞除去・鬱血除去・静脈強壮・リンパ強壮・血流促進・血管拡張'],
+  ['a_water', '水分の流れを助ける', '腎臓機能促進・腎臓強壮・腎臓廃液促進・解毒'],
+  ['a_digest', 'おなかの動きを助ける', '蠕動運動促進・消化促進・胆汁分泌促進・肝臓強壮・発酵抑制'],
+  ['a_breath', '鼻・のどをすっきり', '去痰・抗カタル・鎮咳・粘液溶解'],
+  ['a_guard', 'まもる力を支える', '抗菌・抗ウイルス・免疫調整・免疫刺激'],
+  ['a_itch', 'むずむずをしずめる', '抗アレルギー・抗ヒスタミン・抗掻痒'],
+  ['a_skin', '肌をととのえる', '皮膚弾力回復・収斂・瘢痕形成・皮膚強壮・組織再生'],
+  ['a_female', '女性のリズムに関わる', 'エストロゲン様・ホルモン様・黄体ホルモン分泌促進・通経・子宮収縮'],
+  ['a_head', '頭をすっきり', '脳血流増加'],
+  ['a_bug', '虫よけ', '昆虫忌避・駆虫'],
+  ['a_other', 'そのほか', '血液凝固阻止・血腫抑制・止血・結石溶解・脂肪溶解'],
+].map(([id, name, terms]) => ({ id, name, terms, draft: true }));
+
+// つらいところ → 作用。数字は重み（2＝とても関係する、1＝少し関係する）。すべて下書き・アプリの中で直せる
+const SYM = [
+  ['s_kata', '肩こり', { a_relax: 2, a_flow: 1, a_ease: 1 }], ['s_kubi', '首のこり', { a_relax: 2, a_flow: 1, a_ease: 1 }],
+  ['s_koshi', '腰のつらさ', { a_relax: 2, a_ease: 2, a_flow: 1 }], ['s_senaka', '背中のはり', { a_relax: 2, a_flow: 1 }],
+  ['s_atama', '頭が重い', { a_head: 2, a_ease: 1, a_cool: 1, a_calm: 1 }], ['s_me', '目の疲れ', { a_head: 1, a_flow: 1, a_cool: 1 }],
+  ['s_mukumi', 'むくみ', { a_flow: 2, a_water: 2 }], ['s_hie', '冷え', { a_warm: 2, a_flow: 2 }],
+  ['s_tsukare', '疲れ・だるさ', { a_lift: 2, a_flow: 1 }], ['s_nemuri', '眠りが浅い', { a_calm: 2 }],
+  ['s_stress', 'ストレス・緊張', { a_calm: 2, a_relax: 1 }], ['s_kibun', '気分が沈みがち', { a_lift: 2, a_calm: 1 }],
+  ['s_kinniku', '筋肉のはり', { a_relax: 2, a_ease: 1, a_flow: 1 }], ['s_ashi', '足の疲れ', { a_flow: 2, a_water: 1, a_relax: 1 }],
+  ['s_ichou', 'おなかの調子', { a_digest: 2, a_relax: 1 }], ['s_gekkei', '月経まわりの不快感', { a_relax: 2, a_female: 1, a_flow: 1, a_calm: 1 }],
+  ['s_hada', '肌の乾燥', { a_skin: 2, a_itch: 1 }], ['s_hana', '鼻・のどがすっきりしない', { a_breath: 2, a_guard: 1, a_itch: 1 }],
+];
+export const DEFAULT_SYM_ACTS = Object.fromEntries(SYM.map(([id, , acts]) => [id, acts]));
+
+// 気をつける状態。when：visit＝来店ごと／person＝お客さんごと／auto＝自動でつく（妊娠の月数から）
+export const DEFAULT_CONDS = [
+  { id: 'c_preg', name: '妊娠中', when: 'visit' },
+  { id: 'c_preg_early', name: '妊娠初期（4か月まで）', when: 'auto' },
+  { id: 'c_preg_mid', name: '妊娠中期（5〜7か月）', when: 'auto' },
+  { id: 'c_preg_late', name: '妊娠後期（8か月から）', when: 'auto' },
+  { id: 'c_post', name: '出産してまもない', when: 'visit' }, { id: 'c_nurse', name: '授乳中', when: 'visit' },
+  { id: 'c_mens', name: '月経中', when: 'visit' }, { id: 'c_sun', name: SUN_NAME, when: 'visit' },
+  { id: 'c_drive', name: 'このあと運転する', when: 'visit' }, { id: 'c_drink', name: 'このあとお酒を飲む（飲んできた）', when: 'visit' },
+  { id: 'c_bp', name: '高血圧', when: 'person' }, { id: 'c_bpmed', name: '血圧の薬をのんでいる', when: 'person' },
+  { id: 'c_heart', name: '心臓の持病', when: 'person' },
+  { id: 'c_epi', name: 'てんかん', when: 'person' }, { id: 'c_asthma', name: 'ぜんそく', when: 'person' },
+  { id: 'c_skin', name: '敏感肌', when: 'person' }, { id: 'c_atopy', name: 'アトピー（肌のトラブル）', when: 'person' },
+  { id: 'c_dep', name: '気分の落ちこみが強い', when: 'person' },
+  { id: 'c_infant', name: '乳幼児', when: 'person' }, { id: 'c_child', name: '子ども', when: 'person' }, { id: 'c_old', name: '高齢', when: 'person' },
+];
+
+// 同意書と注意事項の下書き。法律の文書として正しいかは確かめていない。使う人が自分の店に合わせて直す（設定 → 同意書と注意事項）
+export const DEFAULT_CONSENT_TEXT = `施術を受ける前に、次のことをお読みください。
+
+・施術のあとは、いつもより少し多めに水分をとってください。
+・施術の当日は、お酒や激しい運動はひかえてください。
+・アロマトリートメントのあとは、しばらく時間をあけてから入浴してください。
+・施術のあと、だるさや眠気が出ることがあります。運転などは、ゆとりをもってください。
+・肌に赤み・かゆみなど、いつもとちがうことがあれば、すぐにお知らせください。
+・病院で治療中の方・薬をのんでいる方・妊娠中の方は、受ける前にお医者さんにご確認ください。
+・この施術は、病気の診断や治療をするものではありません。
+
+上のことを読み、説明を受けたうえで、施術を受けることに同意します。`;
+
 export const DEFAULT_SETTINGS = {
   salonName: '',
+  consent: { text: DEFAULT_CONSENT_TEXT, ver: 1, draft: true }, // ver＝文の版。文を直して保存すると1つ上がる
   dropMl: 0.05, // 1滴の量（ml）
   cautionPct: 10, // 気をつける成分が何％以上入っていたら外すか
+  unknownPct: 'block', // 気をつける成分が「入っている・割合は分からない」とき：block＝外す（安全側）／warn＝⚠をつけて候補に残す
+  ageRules: { infant: null, child: null, old: null }, // 生年月日から自動でつける：乳幼児（○歳まで）・子ども（○歳まで）・高齢（○歳から）。資料に数字がないので、はじめは未記入（自動でつけない）
   areas: [
     { id: 'a_body', name: '体', max: 1, draft: true },
     { id: 'a_face', name: '顔', max: 0.5, draft: true },
     { id: 'a_part', name: '手・足だけ', max: null },
   ],
   stateLimits: {}, // 状態ごとの目安（はじめは空。使う人が入れる）
-  symptoms: [
-    ['s_kata', '肩こり'], ['s_kubi', '首のこり'], ['s_koshi', '腰のつらさ'], ['s_senaka', '背中のはり'],
-    ['s_atama', '頭が重い'], ['s_me', '目の疲れ'], ['s_mukumi', 'むくみ'], ['s_hie', '冷え'],
-    ['s_tsukare', '疲れ・だるさ'], ['s_nemuri', '眠りが浅い'], ['s_stress', 'ストレス・緊張'], ['s_kibun', '気分が沈みがち'],
-    ['s_kinniku', '筋肉のはり'], ['s_ashi', '足の疲れ'], ['s_ichou', 'おなかの調子'], ['s_gekkei', '月経まわりの不快感'],
-    ['s_hada', '肌の乾燥'], ['s_hana', '鼻・のどがすっきりしない'],
-  ].map(([id, name]) => ({ id, name })),
-  conds: [
-    { id: 'c_preg', name: '妊娠中', when: 'visit' }, { id: 'c_nurse', name: '授乳中', when: 'visit' },
-    { id: 'c_mens', name: '月経中', when: 'visit' }, { id: 'c_sun', name: SUN_NAME, when: 'visit' },
-    { id: 'c_bp', name: '高血圧', when: 'person' }, { id: 'c_heart', name: '心臓の持病', when: 'person' },
-    { id: 'c_epi', name: 'てんかん', when: 'person' }, { id: 'c_asthma', name: 'ぜんそく', when: 'person' },
-    { id: 'c_skin', name: '敏感肌', when: 'person' }, { id: 'c_dep', name: '気分の落ちこみが強い', when: 'person' },
-    { id: 'c_old', name: '高齢', when: 'person' }, { id: 'c_child', name: '子ども', when: 'person' },
-  ],
+  symptoms: SYM.map(([id, name, acts]) => ({ id, name, acts: { ...acts } })),
+  actions: DEFAULT_ACTIONS,
+  conds: DEFAULT_CONDS,
+  // 香りの系統は、がっき〜の資料の3つ（樹木系・花穂系・柑橘系）を軸に。色は 樹＝緑・花＝ピンク・柑橘＝オレンジ
   families: [
-    { id: 'f_citrus', name: '柑橘', color: '#f2a03d' }, { id: 'f_flower', name: '花', color: '#e88fb0' },
-    { id: 'f_tree', name: '樹木', color: '#5a9a6b' }, { id: 'f_herb', name: 'ハーブ', color: '#8fbf5a' },
-    { id: 'f_spice', name: 'スパイス', color: '#b9643a' }, { id: 'f_resin', name: '樹脂', color: '#c9a04a' },
-    { id: 'f_exotic', name: 'エキゾチック', color: '#8d6cc0' },
+    { id: 'f_tree', name: '樹木系', color: '#5a9a6b' }, { id: 'f_flower', name: '花穂系', color: '#e88fb0' },
+    { id: 'f_citrus', name: '柑橘系', color: '#f2a03d' },
   ],
   marks: [
     { id: 'm_pain', name: '痛い', color: '#e0483e' }, { id: 'm_kori', name: 'こっている', color: '#3d74d9' },
     { id: 'm_hari', name: 'はっている', color: '#f08a24' }, { id: 'm_hie', name: '冷えている', color: '#35b3c9' },
     { id: 'm_mukumi', name: 'むくみ', color: '#3fa860' }, { id: 'm_other', name: 'そのほか', color: '#8d6cc0' },
+    // 触れてほしくないところ。図には × で出し、次の来店にも写す
+    { id: 'm_notouch', name: '触れないで（×）', color: '#2b2b2b', x: true },
   ],
   jobs: ['営業系', '事務系', '工業系', '主婦(夫)', '学生(運動)', '学生(文化)', 'そのほか'],
   purposes: ['こり・はりをほぐしたい', 'リラックスしたい', '疲れをとりたい', 'ぐっすり眠りたい', 'むくみをすっきり', '気分を変えたい'],
@@ -57,6 +116,8 @@ export const DEFAULT_SETTINGS = {
     { id: 'al_rice', name: '米', words: '米ぬか、こめ、お米' },
     { id: 'al_wheat', name: '小麦', words: '小麦' },
     { id: 'al_soy', name: '大豆', words: '大豆' },
+    { id: 'al_ragweed', name: 'ブタクサ', words: 'ブタクサ' },
+    { id: 'al_grass', name: 'イネ科の植物', words: 'イネ科' },
   ],
   // キャリアオイルの成分（脂肪酸など）。uses＝こんな肌の状態で選ばれることが多い。すべて下書き
   fats: [
@@ -71,56 +132,95 @@ export const DEFAULT_SETTINGS = {
   ].map((f) => ({ ...f, draft: true })),
 };
 
-// 成分の分類。uses＝こんな場面で選ばれることが多い（症状）、cautions＝気をつける状態
+// 成分の分類（大分類）と、その中の成分（小分類）。がっき〜の資料「アロマ表」の分け方。
+//   subs     ：成分（小分類）と、資料でその成分にあるとされる作用
+//   cautions ：あてはまるお客さんには、その分類が入っている精油を外す（理由つき）
+//   warns    ：外さずに ⚠ をつける
+//   tip      ：だれに使うときも出す注意
+const sub = (id, name, actions) => ({ id, name, actions });
 export const DEFAULT_CATS = [
-  { id: 'mth', name: 'モノテルペン炭化水素類', uses: ['s_mukumi', 's_tsukare', 's_kibun', 's_ashi'], cautions: [], note: '古くなると肌への刺激が出やすいと言われる。' },
-  { id: 'sth', name: 'セスキテルペン炭化水素類', uses: ['s_stress', 's_kinniku'], cautions: [], note: '' },
-  { id: 'alc', name: 'モノテルペンアルコール類', uses: ['s_tsukare', 's_hada', 's_kibun'], cautions: [], note: '比較的おだやかと言われる。' },
-  { id: 'sqa', name: 'セスキテルペンアルコール類', uses: ['s_mukumi', 's_ashi', 's_stress'], cautions: [], note: '' },
-  { id: 'ald', name: 'アルデヒド類', uses: ['s_stress', 's_nemuri', 's_kinniku'], cautions: ['c_skin'], note: '肌への刺激に気をつける。' },
-  { id: 'ket', name: 'ケトン類', uses: ['s_hana', 's_kinniku'], cautions: ['c_preg', 'c_nurse', 'c_child', 'c_epi'], note: '' },
-  { id: 'phe', name: 'フェノール類', uses: ['s_hie', 's_tsukare'], cautions: ['c_skin', 'c_child', 'c_preg'], note: '肌への刺激が強いと言われる。うすめに・短い期間で。' },
-  { id: 'est', name: 'エステル類', uses: ['s_stress', 's_nemuri', 's_kata', 's_kubi', 's_senaka', 's_koshi', 's_kinniku', 's_gekkei'], cautions: [], note: '' },
-  { id: 'oxi', name: 'オキサイド類', uses: ['s_hana', 's_atama'], cautions: ['c_child', 'c_asthma'], note: '' },
-  { id: 'eth', name: 'フェノールメチルエーテル類', uses: ['s_kinniku', 's_ichou', 's_gekkei'], cautions: ['c_preg', 'c_child'], note: '' },
-  { id: 'lac', name: 'ラクトン・クマリン類', uses: [], cautions: [], note: '柑橘の皮の精油に少し入る。日に当たる前は気をつける（精油ごとに登録）。' },
+  { id: 'hyd', name: '炭化水素類', cautions: [], warns: [], tip: '', note: '', subs: [
+    sub('sb_mth', 'モノテルペン炭化水素類', ['a_flow']), sub('sb_pinene', 'α-ピネン', ['a_head']),
+    sub('sb_limonene', 'リモネン', ['a_digest', 'a_water']), sub('sb_sth', 'セスキテルペン炭化水素類', ['a_lift', 'a_relax', 'a_heat']),
+    sub('sb_copaene', 'α-コパエン', ['a_female']), sub('sb_chamazulene', 'カマズレン', ['a_itch'])] },
+  { id: 'alc', name: 'アルコール類', cautions: [], warns: [], tip: '', note: '', subs: [
+    sub('sb_mta', 'モノテルペンアルコール類', ['a_guard', 'a_lift', 'a_bug']), sub('sb_cedrol', 'セドロール', ['a_flow']),
+    sub('sb_linalool', 'リナロール', ['a_calm']), sub('sb_menthol', 'メントール', ['a_cool', 'a_ease', 'a_digest']),
+    sub('sb_geraniol', 'ゲラニオール', ['a_skin']), sub('sb_sqa', 'セスキテルペンアルコール類', ['a_female', 'a_flow', 'a_lift']),
+    sub('sb_santalol', 'α・β-サンタロール', ['a_calm', 'a_lift', 'a_flow']), sub('sb_nerolidol', 'ネロリドール', ['a_female']),
+    sub('sb_dta', 'ジテルペンアルコール類', ['a_female', 'a_lift']), sub('sb_sclareol', 'スクラレオール', ['a_female'])] },
+  { id: 'ald', name: 'アルデヒド類', cautions: [], warns: [], tip: '', note: '', subs: [
+    sub('sb_tald', 'テルペン系アルデヒド類', ['a_heat', 'a_ease', 'a_calm', 'a_digest', 'a_guard', 'a_other']),
+    sub('sb_arald', '芳香族アルデヒド類', ['a_guard', 'a_bug', 'a_lift', 'a_digest'])] },
+  { id: 'ket', name: 'ケトン類', cautions: ['c_infant', 'c_preg', 'c_epi', 'c_bpmed'], warns: [], tip: '', note: '資料：乳児・妊娠・てんかん・血圧の薬 は使わない。', subs: [
+    sub('sb_ket', 'ケトン類', ['a_breath', 'a_digest', 'a_skin', 'a_other']), sub('sb_menthone', 'メントン', ['a_digest']),
+    sub('sb_camphor', 'カンファー', ['a_relax', 'a_bug']), sub('sb_dione', 'β-ジオン', ['a_other'])] },
+  { id: 'phe', name: 'フェノール類', cautions: [], warns: ['c_skin'], tip: '肌を傷めることがある。かならずうすめて使う', note: '', subs: [
+    sub('sb_phe', 'フェノール類', ['a_bug', 'a_guard', 'a_lift', 'a_warm']), sub('sb_pme', 'フェノールメチルエーテル類', ['a_relax']),
+    sub('sb_eugenol', 'オイゲノール', ['a_relax', 'a_ease']), sub('sb_thymol', 'チモール', ['a_ease'])] },
+  { id: 'est', name: 'エステル類', cautions: [], warns: [], tip: '', note: '資料：心のストレスのときによく選ばれる。', subs: [
+    sub('sb_est', 'エステル類', ['a_relax', 'a_calm', 'a_ease', 'a_heat'])] },
+  { id: 'oxi', name: 'オキシド類', cautions: [], warns: [], tip: '', note: '資料：かぜの季節によく選ばれる。', subs: [
+    sub('sb_oxi', 'オキシド類', ['a_breath', 'a_guard', 'a_bug']), sub('sb_cineole', '1,8-シネオール', ['a_guard', 'a_heat'])] },
 ].map((c) => ({ ...c, draft: true }));
 
-const O = (id, name, family, components, uses, cautions, note = '') => ({ id, name, family, components, uses, cautions, note, owned: false, draft: true });
+// 精油。がっき〜の資料（アロマDB・アロマ表）の30本。名前も資料の呼び方。
+//   components：成分の分類ごとの割合（％）。資料に割合がないものは null（入っている・割合は分からない）、'tr'＝微量
+//   subs      ：アロマ表でその成分のところにのっている
+//   actions   ：アロマDBの「効能」のらん（作用のまとまりに分けたもの）
+//   uses      ：資料の「OK」と使いどころのうち、つらいところの言葉にあてはまるもの
+//   okConds   ：資料の「OK」のうち、お客さんの状態にあてはまるもの（妊産婦・乳幼児・高齢者）
+//   cautions  ：資料の「NG」→ あてはまるお客さんには外す。warns＝外さずに ⚠
+//   allergens ：資料の「NG」の植物アレルギー。plant＝資料の「種類」（科。いまは見せるだけ）
+// 資料にない数字・注意は足さない（空き＝未記入）。資料が正本
+const PREG = ['c_preg', 'c_post']; // 資料の「妊産婦」＝妊娠中と、出産してまもない人
+const BP = ['c_bp', 'c_bpmed'];
+const O = (id, name, family, plant, components, subs, actions, uses, x = {}) => ({
+  id, name, family, plant, components, subs, actions, uses,
+  okConds: [], cautions: [], warns: [], allergens: [], note: '', ...x, owned: false, draft: true,
+});
 export const DEFAULT_OILS = [
-  O('o_lavender', 'ラベンダー（真正）', 'f_flower', { est: 40, alc: 40, mth: 5 }, ['s_nemuri', 's_kata'], []),
-  O('o_teatree', 'ティートリー', 'f_tree', { alc: 45, mth: 40, oxi: 5 }, ['s_hana'], []),
-  O('o_peppermint', 'ペパーミント', 'f_herb', { alc: 45, ket: 25, oxi: 5, est: 5 }, ['s_atama', 's_ichou'], ['c_preg', 'c_nurse', 'c_child', 'c_epi'], 'すっとした強い香り。少なめから。'),
-  O('o_eucalyptus', 'ユーカリ・グロブルス', 'f_tree', { oxi: 75, mth: 20 }, ['s_hana'], ['c_child']),
-  O('o_rosemary', 'ローズマリー・シネオール', 'f_herb', { oxi: 45, mth: 25, ket: 10, alc: 5 }, ['s_kata', 's_atama', 's_kinniku'], ['c_preg', 'c_bp', 'c_epi', 'c_child']),
-  O('o_lemon', 'レモン', 'f_citrus', { mth: 90, ald: 2 }, ['s_kibun', 's_atama'], ['c_sun'], '皮をしぼった精油は、ぬったあと日に当てない。'),
-  O('o_orange', 'オレンジ・スイート', 'f_citrus', { mth: 95 }, ['s_nemuri', 's_ichou'], []),
-  O('o_grapefruit', 'グレープフルーツ', 'f_citrus', { mth: 95 }, ['s_mukumi'], ['c_sun'], '皮をしぼった精油は、ぬったあと日に当てない。'),
-  O('o_bergamot', 'ベルガモット', 'f_citrus', { mth: 45, est: 30, alc: 15 }, ['s_kibun', 's_stress'], ['c_sun'], '日に当たる前は特に気をつける（ベルガプテンを除いたものは別）。'),
-  O('o_yuzu', 'ゆず', 'f_citrus', { mth: 90 }, ['s_hie'], [], '日に当たる前の注意は、作り方（しぼる・蒸す）で違う。資料で確かめる。'),
-  O('o_ylang', 'イランイラン', 'f_exotic', { sth: 40, est: 20, alc: 15, eth: 10 }, ['s_stress'], [], '香りが強い。少なめから。'),
-  O('o_geranium', 'ゼラニウム', 'f_flower', { alc: 60, est: 20 }, ['s_gekkei', 's_mukumi'], [], '妊娠中のあつかいは資料によって違う。'),
-  O('o_chamomile', 'カモミール・ローマン', 'f_flower', { est: 75 }, ['s_nemuri'], []),
-  O('o_clary', 'クラリセージ', 'f_herb', { est: 65, alc: 20 }, ['s_gekkei'], ['c_preg'], 'お酒の前後・運転の前は避けると言われる。'),
-  O('o_frankincense', 'フランキンセンス', 'f_resin', { mth: 75, alc: 5 }, ['s_stress', 's_hada'], []),
-  O('o_sandalwood', 'サンダルウッド', 'f_exotic', { sqa: 80 }, ['s_stress'], []),
-  O('o_cedar', 'シダーウッド・アトラス', 'f_tree', { sth: 60, ket: 15 }, [], ['c_preg']),
-  O('o_cypress', 'サイプレス', 'f_tree', { mth: 70, sqa: 5 }, ['s_mukumi', 's_ashi'], ['c_preg']),
-  O('o_juniper', 'ジュニパーベリー', 'f_tree', { mth: 80, alc: 5 }, ['s_mukumi'], ['c_preg'], '腎臓に持病のある人は避けると言われる。'),
-  O('o_lemongrass', 'レモングラス', 'f_herb', { ald: 75 }, ['s_kinniku', 's_ashi'], []),
-  O('o_marjoram', 'スイートマージョラム', 'f_herb', { alc: 50, mth: 40 }, ['s_hie', 's_kata', 's_kinniku'], ['c_preg']),
-  O('o_neroli', 'ネロリ', 'f_flower', { alc: 40, mth: 35, est: 10 }, ['s_kibun', 's_stress'], []),
-  O('o_rose', 'ローズ・オットー', 'f_flower', { alc: 65 }, ['s_kibun', 's_stress'], ['c_preg']),
-  O('o_jasmine', 'ジャスミン', 'f_flower', {}, ['s_kibun'], ['c_preg'], '成分の割合は空けてある。資料で確かめて入れる。'),
-  O('o_patchouli', 'パチュリ', 'f_exotic', { sth: 50, sqa: 35 }, ['s_stress'], []),
-  O('o_vetiver', 'ベチバー', 'f_exotic', {}, ['s_nemuri'], [], '成分の割合は空けてある。資料で確かめて入れる。'),
-  O('o_ginger', 'ジンジャー', 'f_spice', { sth: 60, mth: 20 }, ['s_hie', 's_ichou'], ['c_skin']),
-  O('o_pepper', 'ブラックペッパー', 'f_spice', { mth: 55, sth: 30 }, ['s_hie', 's_kinniku'], ['c_skin']),
-  O('o_hinoki', 'ひのき', 'f_tree', {}, ['s_stress'], [], '成分の割合は空けてある（木・葉で違う）。資料で確かめて入れる。'),
-  O('o_petitgrain', 'プチグレン', 'f_tree', { est: 55, alc: 30 }, ['s_stress', 's_nemuri'], []),
-  O('o_palmarosa', 'パルマローザ', 'f_herb', { alc: 80 }, ['s_hada'], []),
-  O('o_clove', 'クローブ', 'f_spice', { phe: 80 }, ['s_hie'], [], '肌への刺激が強い。体に使うならごくうすく。'),
+  O('o_teatree', 'ティートゥリー', 'f_tree', 'フトモモ科', { hyd: 45, alc: 45, oxi: 5 }, ['sb_mth', 'sb_mta', 'sb_cineole'], ['a_flow', 'a_calm', 'a_guard'], ['s_hana'], { note: '資料の使いどころ：かぜの季節・口のケア。' }),
+  O('o_lavender', 'ラベンダー・アングスティフォリア', 'f_flower', 'シソ科', { est: null, alc: null, hyd: null }, ['sb_sth', 'sb_linalool', 'sb_est'], ['a_ease', 'a_calm', 'a_heat'], [], { okConds: [...PREG, 'c_infant', 'c_old'] }),
+  O('o_peppermint', 'ペパーミント', 'f_tree', 'シソ科', { alc: 40, ket: 30, oxi: 10 }, ['sb_menthol', 'sb_menthone', 'sb_cineole'], ['a_cool', 'a_ease', 'a_digest', 'a_guard', 'a_heat'], ['s_ichou', 's_hana'],
+    { cautions: [...PREG, 'c_infant', 'c_epi', ...BP], note: '資料の使いどころ：むかむかするとき・鼻やのど。アルコール類は「40％強」、オキシド類は「10％弱」と資料に。' }),
+  O('o_euc_radiata', 'ユーカリ・ラディアタ', 'f_tree', 'フトモモ科', { oxi: 80, hyd: null, alc: null }, ['sb_limonene', 'sb_mta', 'sb_cineole'], ['a_guard', 'a_heat', 'a_breath', 'a_digest'], ['s_hana'], { note: '資料の使いどころ：鼻の下・耳のまわり・胸・背中にぬる。' }),
+  O('o_geranium', 'ゼラニウム・エジプト', 'f_tree', 'フウロソウ科', { alc: null, est: null, ket: null }, ['sb_linalool', 'sb_ket', 'sb_est'], ['a_bug', 'a_skin', 'a_heat', 'a_other'], ['s_hada'], { okConds: [...PREG], note: '資料の使いどころ：虫よけ・虫にさされたとき・しわ・肉割れ・傷あと（妊娠線など）。' }),
+  O('o_ravensara', 'ラベンサラ', 'f_tree', 'クスノキ科', { oxi: null, hyd: null, alc: null }, ['sb_limonene', 'sb_mta', 'sb_cineole'], ['a_guard', 'a_heat', 'a_calm'], ['s_hana', 's_nemuri', 's_tsukare'], { okConds: ['c_infant'], note: '資料の使いどころ：かぜの季節・眠れないとき・心やからだの疲れ。' }),
+  O('o_helichrysum', 'ヘリクリサム', 'f_tree', 'キク科', { hyd: null, est: null, ket: null }, ['sb_mth', 'sb_sth', 'sb_dione', 'sb_est'], ['a_other'], [], { cautions: [...PREG, 'c_infant', 'c_epi', ...BP], note: '資料の使いどころ：ぶつけたとき・あざ。ケトン類は「大」と資料に（割合はなし）。' }),
+  O('o_rosemary', 'ローズマリー・シネオール', 'f_flower', 'シソ科', { oxi: null, hyd: null, ket: null }, ['sb_pinene', 'sb_camphor', 'sb_cineole'], ['a_relax', 'a_bug', 'a_heat', 'a_guard', 'a_head'], ['s_kinniku', 's_kata'], { cautions: [...PREG, 'c_infant', 'c_epi', ...BP], note: '資料の使いどころ：筋肉のつかれ・肩こり。' }),
+  O('o_orange', 'オレンジ・スウィート', 'f_citrus', 'ミカン科', { hyd: 95, alc: 'tr' }, ['sb_limonene', 'sb_mta'], ['a_digest', 'a_water'], ['s_ichou'], { cautions: ['c_sun'], note: '資料の使いどころ：おなかの調子・部屋の香りづけ。アルコール類は「微量」と資料に。' }),
+  O('o_ylang', 'イランイラン', 'f_flower', 'バンレイシ科', { alc: null, est: null, phe: null }, ['sb_linalool', 'sb_pme', 'sb_est'], ['a_calm', 'a_relax', 'a_heat'], ['s_stress', 's_kibun', 's_hada'], { warns: ['c_skin'], note: '敏感肌は、うすめれば使える と資料に。' }),
+  O('o_chamomile_g', 'カモミール・ジャーマン', 'f_flower', 'キク科', { oxi: 50, hyd: null, alc: null }, ['sb_chamazulene', 'sb_sqa', 'sb_oxi'], ['a_heat', 'a_itch', 'a_relax', 'a_female'], [],
+    { cautions: ['c_preg_early'], warns: ['c_atopy'], allergens: ['al_ragweed'], note: 'うすめても働きが強い と資料に。アトピーは NG のらんに「注意」、OK のらんにも入っている。' }),
+  O('o_chamomile', 'カモミール・ローマン', 'f_flower', 'キク科', { est: 70, ket: null, hyd: null }, ['sb_limonene', 'sb_ket', 'sb_est'], ['a_relax', 'a_calm', 'a_heat', 'a_female'], ['s_stress', 's_nemuri'], { cautions: ['c_preg_early'] }),
+  O('o_cypress', 'サイプレス', 'f_flower', 'ヒノキ科', { hyd: 80, alc: null }, ['sb_limonene', 'sb_sth', 'sb_sqa'], ['a_flow', 'a_breath', 'a_head', 'a_female'], ['s_mukumi', 's_hana'], { cautions: ['c_preg_early'] }),
+  O('o_sandalwood', 'サンダルウッド', 'f_tree', 'ビャクダン科', { alc: null }, ['sb_santalol'], ['a_calm', 'a_lift', 'a_flow', 'a_female', 'a_breath', 'a_digest'], [], { cautions: ['c_dep'], note: '気分の落ちこみが強いときは使わない（資料のNG）。' }),
+  O('o_neroli', 'ネロリ', 'f_flower', 'ミカン科', { alc: 70, est: 10, hyd: null }, ['sb_limonene', 'sb_linalool', 'sb_est'], ['a_calm', 'a_lift', 'a_ease', 'a_guard', 'a_skin'], ['s_stress', 's_kibun', 's_gekkei', 's_hada']),
+  O('o_palmarosa', 'パルマローザ', 'f_tree', 'イネ科', { alc: 80, est: null }, ['sb_geraniol', 'sb_est'], ['a_skin', 'a_female'], [],
+    { cautions: ['c_preg_early', 'c_preg_mid'], allergens: ['al_grass'], note: '資料の OK のらんに「妊娠（出産時）」もある。NG の「妊婦（中期まで）」と合わせて確かめてね。' }),
+  O('o_frankincense', 'フランキンセンス', 'f_tree', 'カンラン科', { hyd: null }, ['sb_pinene', 'sb_sth'], ['a_head', 'a_flow', 'a_calm', 'a_lift'], []),
+  O('o_lemon', 'レモン', 'f_citrus', 'ミカン科', { hyd: null, ald: null }, ['sb_limonene', 'sb_tald'], ['a_digest', 'a_water', 'a_flow'], ['s_ichou', 's_mukumi', 's_hada'], { cautions: ['c_sun'], note: 'アルデヒド類は「アロマ表」にあり（「データベース」のシートにはない）。' }),
+  O('o_rose', 'ローズ', 'f_flower', '', { alc: null, hyd: null, est: null, oxi: null, ket: null, phe: null }, ['sb_geraniol', 'sb_ket', 'sb_eugenol', 'sb_est', 'sb_oxi'], ['a_skin', 'a_guard', 'a_female'], ['s_hada', 's_gekkei', 's_stress', 's_nemuri'],
+    { cautions: ['c_preg_early'], note: '資料の「種類」のらんが「花穂系」になっていた（科の名前がない）ので、科は空けてある。' }),
+  O('o_rosewood', 'ローズウッド', 'f_tree', 'クスノキ科', { alc: 90 }, ['sb_linalool'], ['a_calm', 'a_guard', 'a_itch', 'a_breath', 'a_heat'], ['s_hada', 's_tsukare', 's_hana'], { note: 'アルコール類の割合は、アロマ表の「リナロール 90％」から。' }),
+  O('o_celery', 'セロリ', '', '', { hyd: null, alc: null }, [], ['a_digest', 'a_water'], [], { note: '資料の「種類」のらんが「タイプC」。アロマ表にも出てこないので、香りの系統と科は空けてある。' }),
+  O('o_clary', 'クラリセージ', 'f_tree', 'シソ科', { est: 80, alc: 20 }, ['sb_linalool', 'sb_dta', 'sb_est'], ['a_calm', 'a_ease', 'a_heat', 'a_female'], ['s_nemuri', 's_gekkei'], { cautions: ['c_drive', 'c_drink'] }),
+  O('o_juniper', 'ジュニパー', 'f_tree', 'ヒノキ科', { hyd: null }, ['sb_mth', 'sb_sth'], ['a_flow', 'a_heat', 'a_digest', 'a_water'], ['s_koshi', 's_kata'], { cautions: ['c_preg'] }),
+  O('o_cedar', 'シダー', 'f_tree', 'ヒノキ科', { hyd: null, alc: null }, ['sb_sth', 'sb_cedrol'], ['a_flow', 'a_female'], ['s_mukumi'], { cautions: [...PREG] }),
+  O('o_myrrh', 'ミルラ', 'f_tree', 'カンラン科', { hyd: null }, ['sb_copaene'], ['a_relax', 'a_heat', 'a_female', 'a_lift'], ['s_ichou', 's_kibun', 's_gekkei'], { cautions: ['c_preg'] }),
+  O('o_euc_citriodora', 'ユーカリ・レモン', 'f_tree', 'フトモモ科', { ald: 80, alc: null }, ['sb_mta', 'sb_tald'], ['a_ease', 'a_bug'], ['s_kata']),
+  O('o_patchouli', 'パチュリー', 'f_flower', 'シソ科', { hyd: null, alc: null }, ['sb_sth', 'sb_sqa'], ['a_flow', 'a_skin'], []),
+  O('o_marjoram', 'マジョラム', 'f_flower', 'シソ科', { hyd: null, alc: null }, ['sb_mth', 'sb_mta'], ['a_calm', 'a_digest', 'a_flow'], ['s_stress'], { cautions: [...PREG] }),
+  O('o_lemongrass', 'レモングラス', 'f_tree', 'イネ科', { ald: 80, hyd: null, alc: null }, ['sb_limonene', 'sb_mta', 'sb_tald'], ['a_itch', 'a_flow', 'a_heat', 'a_ease', 'a_calm'], ['s_kata', 's_hie']),
+  O('o_mandarin', 'マンダリン', 'f_citrus', 'ミカン科', { hyd: 90, est: null, alc: null }, ['sb_limonene', 'sb_linalool', 'sb_est'], ['a_digest', 'a_water', 'a_calm'], ['s_nemuri', 's_tsukare', 's_ichou'], { cautions: ['c_sun'], note: 'アルコール類は「アロマ表」（リナロール）にあり。' }),
 ];
+// 前の下書きにあって、がっき〜の資料にない精油。消さずに「資料にない」として残す（候補の点数には入れない）。
+// 版4への移し替えで使う。新しく入れる端末には入れない。
+export const OLD_ONLY_OILS = {
+  o_eucalyptus: 'f_tree', o_grapefruit: 'f_citrus', o_bergamot: 'f_citrus', o_yuzu: 'f_citrus', o_jasmine: 'f_flower',
+  o_vetiver: '', o_ginger: '', o_pepper: '', o_hinoki: 'f_tree', o_petitgrain: '', o_clove: '',
+};
 
 // キャリアオイル。精油と同じ作り：成分（脂肪酸など）のおおよその割合・特徴・向いている肌の状態・目的・アレルギーのしるし。
 // 一般に知られているおおよその値の下書き。産地や作り方で変わる。自信のないところは空けてある（null・書いていない）。

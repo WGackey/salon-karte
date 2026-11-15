@@ -1,10 +1,10 @@
 // ネットなしで動かすための係（サービスワーカー）。
 // アプリのファイルをまとめて端末（iPad・iPhone）に置き、次からはそこから出す。お客さんのデータには触らない。
 // ★ ファイルを直したら VERSION を上げる（js/version.js と同じ数字に）。
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 const CACHE = 'salon-karte-' + VERSION;
 const FILES = ['./', './index.html', './manifest.webmanifest', './css/app.css', './icons/icon-180.png', './icons/icon-512.png',
-  './js/app.js', './js/db.js', './js/logic.js', './js/seed.js', './js/state.js', './js/ui.js', './js/bodymap.js', './js/backup.js', './js/sample.js', './js/version.js',
+  './js/app.js', './js/db.js', './js/logic.js', './js/seed.js', './js/state.js', './js/ui.js', './js/bodymap.js', './js/signpad.js', './js/backup.js', './js/sample.js', './js/version.js',
   './js/views/home.js', './js/views/customer.js', './js/views/visit.js', './js/views/settings.js'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))));

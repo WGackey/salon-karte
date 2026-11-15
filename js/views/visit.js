@@ -1,9 +1,9 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone, saveBadge } from '../ui.js';
 import { S, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
-import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits } from '../logic.js';
+import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchOf } from '../logic.js';
 import { bodyPad, FIGURES } from '../bodymap.js';
-import { notFound, blendText } from './customer.js';
+import { notFound, blendText, noTouchFigures } from './customer.js';
 
 const STEPS = [['monshin', '問診'], ['zu', 'からだの図'], ['seiyu', 'オイル'], ['blend', 'ブレンド'], ['sejutsu', '施術'], ['after', '施術後']];
 const fam = (id) => S.settings.families.find((f) => f.id === id) || { name: '', color: '#bbb' };
@@ -33,10 +33,11 @@ export async function visitView(id, step) {
   if (!STEPS.some((s) => s[0] === step)) step = 'monshin';
   const idx = STEPS.findIndex((s) => s[0] === step);
   const save = () => saveSoon(() => saveVisit(v));
-  const condIds = () => [...new Set([...det.conds, ...v.conds])];
+  const eff = () => effectiveConds({ settings: S.settings, det, visit: v });
+  const condIds = () => eff().ids;
   const body = h('div', { class: 'step' });
   const redraw = () => fill(body, ...[].concat(RENDER[step]()));
-  const picks = () => pickOils({ oils: S.oils, cats: S.cats, symptoms: v.interview.symptoms, condIds: condIds(), avoidOilIds: det.avoidOilIds, allergyText: det.allergy, settings: S.settings });
+  const picks = () => { const e = eff(); return pickOils({ oils: S.oils, cats: S.cats, symptoms: v.interview.symptoms, condIds: e.ids, autoConds: e.auto, avoidOilIds: det.avoidOilIds, allergyTags: det.allergyTags, allergyText: det.allergy, settings: S.settings }); };
   const carPicks = () => pickCarriers({ carriers: S.carriers, skins: v.interview.skins || [], purposes: v.interview.purposes, condIds: condIds(), allergyTags: det.allergyTags, allergyText: det.allergy, avoidIds: det.avoidCarrierIds, settings: S.settings });
   const allergyNames = () => { const hit = allergyHits(S.settings.allergens, det.allergyTags, det.allergy); return S.settings.allergens.filter((a) => hit[a.id]).map((a) => a.name); };
   const hasOil = (oid) => v.blend.oils.some((o) => o.oilId === oid);
@@ -57,14 +58,20 @@ export async function visitView(id, step) {
     monshin() {
       const iv = v.interview; const visitConds = S.settings.conds.filter((c) => c.when === 'visit');
       const symBox = h('div', { class: 'symlist' });
+      // 妊娠中のときだけ「いま何か月？」を出す（精油の候補で、時期ごとの注意に使う）
+      const pregBox = h('div');
+      const drawPreg = () => fill(pregBox, v.conds.includes('c_preg') ? group('妊娠の月数', chips([...Array(10)].map((_, i) => ({ id: i + 1, name: `${i + 1}か月` })), v.pregMonth || '', { multi: false, onChange: (m) => { v.pregMonth = m || null; save(); } }),
+        '精油の候補で、時期ごとの注意（初期・中期まで など）に使います。えらばないと、どの時期にもあてはまるとして見ます') : null);
+      drawPreg();
+      const condHint = () => { const e = eff(); const autoNames = Object.keys(e.auto).filter((id) => !id.startsWith('c_preg_')).map((id) => `${condName(id)}（${e.auto[id]}）`);
+        return [det.conds.length ? `いつもの状態：${det.conds.map(condName).join('・')}` : '', autoNames.length ? `生年月日から自動で：${autoNames.join('・')}` : ''].filter(Boolean).join('　') || null; };
       const drawSym = () => fill(symBox, ...iv.symptoms.map((s) => h('div', { class: 'symrow' },
         h('div', { class: 'symname' }, symName(s.id)), levelPicker(s.level, (n) => { s.level = n; save(); }))));
       drawSym();
       return [
         v.copied && prev ? h('div', { class: 'notice ok' }, `前回（${jpDate(prev.date)}）の問診が入っています。変わったところだけ直してね。`) : null,
         card(h('div', { class: 'row' }, field('来店日', input(v, 'date', { type: 'date', onInput: () => { save(); } })), h('span', { class: 'muted' }, `${nth}回目`)),
-          group('今日の状態', chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; save(); } }),
-            det.conds.length ? `いつもの状態：${det.conds.map(condName).join('・')}` : null)),
+          group('今日の状態', chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; save(); drawPreg(); } }), condHint()), pregBox),
         card(h('h2', null, 'つらいところ'), h('p', { class: 'hint' }, 'あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます'),
           chips(S.settings.symptoms, iv.symptoms.map((s) => s.id), {
             onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); save(); },
@@ -72,6 +79,7 @@ export async function visitView(id, step) {
         card(group('肌の状態', chips(S.settings.skins, iv.skins || [], { onChange: (x) => { iv.skins = x; save(); } }),
           'キャリアオイルの候補に使います。敏感肌・アレルギーは「お客さんの情報」でえらびます'),
           group('今日の目的', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; save(); } })),
+          group('好きな香りの系統', chips(S.settings.families, iv.famLikes || [], { onChange: (x) => { iv.famLikes = x; save(); } }), '精油の候補の画面で、はじめにこの系統でしぼります'),
           group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; save(); } })),
           field('くらしのようす（睡眠・食事・仕事など）', textarea(iv, 'life', { onInput: save })),
           field('今日のメモ', textarea(iv, 'memo', { onInput: save, rows: 2 }))),
@@ -146,13 +154,13 @@ export async function visitView(id, step) {
           h('div', { class: 'trow' }, label('ペンの太さ'), h('div', { class: 'chips widths' }, widthBtns), label('直す'), h('div', { class: 'chips' }, undo, eraser, clear, revert)),
           h('div', { class: 'trow' }, label('見え方'), h('div', { class: 'chips' }, fullBtn), viewBox)),
         h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), now, padBox,
-          h('p', { class: 'hint center' }, '「症状（色）」と「ペンの太さ」をえらんで、つらいところをなぞってね。指でもペンでもかけます。かいた線は自動で保存されます。'),
+          h('p', { class: 'hint center' }, '「症状（色）」と「ペンの太さ」をえらんで、つらいところをなぞってね。指でもペンでもかけます。かいた線は自動で保存されます。「触れないで（×）」は、次の来店にも写ります。'),
           h('p', { class: 'hint center' }, '「ひとつ戻す」＝直前にしたこと（かいた・消した）を1つ取り消す。「消しゴム」＝前にかいた線でも、さわった線だけ消す。')));
       return root;
     },
     // ---------- オイルの候補（精油・キャリアオイル） ----------
     seiyu() {
-      let tab = 'oil', famSel = [], ownedOnly = false;
+      let tab = 'oil', famSel = [...(v.interview.famLikes || [])].filter((id) => S.settings.families.some((f) => f.id === id)), ownedOnly = false;
       const listBox = h('div'); const headBox = h('div', { class: 'step' });
       // 精油とキャリアオイルで同じ形のカードを使う。kind：hit 候補／buy 次に買う／out 外した／rest そのほか
       const itemCard = (r, kind) => {
@@ -166,10 +174,13 @@ export async function visitView(id, step) {
         const traits = isOil ? [] : traitText(it);
         return h('div', { class: 'oil ' + kind + (on ? ' picked' : ''), style: { '--fam': f ? f.color : '#c9b98f' } },
           h('div', { class: 'grow' },
-            h('div', { class: 'name' }, it.name, ' ', f ? h('span', { class: 'famtag' }, f.name) : null, it.draft ? badge('下書き', 'draft') : null),
+            h('div', { class: 'name' }, it.name, ' ', f && f.name ? h('span', { class: 'famtag' }, f.name) : null, it.ref === false ? badge('資料にない', 'amber') : it.draft ? badge('下書き', 'draft') : null),
             traits.length ? h('div', { class: 'traits' }, traits.map((t) => h('span', { class: 'trait' }, t))) : null,
             r.blocks.length ? h('ul', { class: 'why out' }, r.blocks.map((t) => h('li', null, '外した理由：' + t))) : null,
+            (r.warns || []).length ? h('ul', { class: 'why warn' }, r.warns.map((t) => h('li', null, '⚠ ' + t))) : null,
             r.reasons.length ? h('ul', { class: 'why' }, r.reasons.slice(0, 3).map((t) => h('li', null, t))) : null,
+            r.reasons.length > 3 ? h('details', { class: 'more' }, h('summary', null, `ほかの理由（${r.reasons.length - 3}）`), h('ul', { class: 'why' }, r.reasons.slice(3).map((t) => h('li', null, t)))) : null,
+            isOil && it.ref === false ? h('div', { class: 'muted small' }, 'はじめの資料にない精油なので、候補の点数には入れていません（気をつける点は見ています）。') : null,
             it.note ? h('div', { class: 'muted small' }, it.note) : null),
           h('div', { class: 'oil-act' }, use, own));
       };
@@ -192,17 +203,18 @@ export async function visitView(id, step) {
         chosen.textContent = [v.blend.oils.length ? `精油：${v.blend.oils.map((o) => o.name).join('、')}` : '精油はまだ', v.blend.carriers.length ? `キャリアオイル：${v.blend.carriers.map((o) => o.name).join('、')}` : 'キャリアオイルはまだ'].join('　／　');
       };
       const chosen = h('div', { class: 'chosen' });
-      const conds = condIds(); const iv = v.interview;
+      const e0 = eff(); const conds = e0.ids; const effAuto = e0.auto; const iv = v.interview;
       const drawHead = () => {
         const isOil = tab === 'oil'; const al = allergyNames();
         fill(headBox,
           h('div', { class: 'tabs' }, [['oil', '精油'], ['car', 'キャリアオイル']].map(([id, name]) => h('button', { type: 'button', class: 'tab' + (tab === id ? ' on' : ''), onclick: () => { tab = id; drawHead(); draw(); } }, name))),
-          h('div', { class: 'notice draft' }, `${isOil ? '精油' : 'キャリアオイル'}のデータは「下書き」です。自分の資料で確かめて、設定から直してください。候補は目安で、最後に決めるのは施術する人です。`),
+          h('div', { class: 'notice draft' }, isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは「下書き」です。自分の資料で確かめて、設定から直してください。候補は目安で、最後に決めるのは施術する人です。'),
           card(h('div', { class: 'facts' },
             isOil ? h('div', null, h('b', null, 'つらいところ：'), iv.symptoms.map((s) => `${symName(s.id)}（${s.level}）`).join('、') || 'なし')
               : [h('div', null, h('b', null, '肌の状態：'), (iv.skins || []).map(skinName).filter(Boolean).join('・') || 'えらんでいません'),
                 h('div', null, h('b', null, '今日の目的：'), iv.purposes.join('・') || 'えらんでいません')],
-            h('div', null, h('b', null, '気をつける状態：'), conds.map(condName).join('・') || 'なし'),
+            h('div', null, h('b', null, '気をつける状態：'), conds.filter((c) => !(c.startsWith('c_preg_') && effAuto[c])).map((c) => condName(c) + (effAuto[c] ? `（自動：${effAuto[c]}）` : '')).join('・') || 'なし'),
+            isOil && conds.includes('c_preg') && !v.pregMonth ? h('div', { class: 'small warntext' }, '妊娠の月数が入っていないので、初期〜後期のどの時期の注意も見ています（問診で月数をえらぶと、時期に合わせます）') : null,
             !isOil || det.allergy ? h('div', null, h('b', null, 'アレルギー：'), [...al, det.allergy].filter(Boolean).join('／') || 'なし') : null,
             isOil && iv.moods.length ? h('div', null, h('b', null, '香りの好み：'), iv.moods.join('・')) : null),
           isOil ? group('香りの系統でしぼる', chips(S.settings.families, famSel, { onChange: (x) => { famSel = x; draw(); } })) : null,
@@ -215,7 +227,8 @@ export async function visitView(id, step) {
     blend() {
       const b = v.blend; const dropMl = S.settings.dropMl || 0.05;
       const meter = h('div', { class: 'meter' }); const oilBox = h('div'); const carBox = h('div');
-      const blockOf = Object.fromEntries(picks().filter((r) => r.blocks.length).map((r) => [r.oil.id, r.blocks]));
+      const pk = picks(); const blockOf = Object.fromEntries(pk.filter((r) => r.blocks.length).map((r) => [r.oil.id, r.blocks]));
+      const warnOf = Object.fromEntries(pk.filter((r) => r.warns.length).map((r) => [r.oil.id, r.warns]));
       const carBlockOf = Object.fromEntries(carPicks().filter((r) => r.blocks.length).map((r) => [r.oil.id, r.blocks]));
       const drawMeter = () => {
         const c = blendCalc(b, dropMl); const lim = limitFor(S.settings, b.areaId, condIds()); const lv = limitLevel(c.pct, lim.max);
@@ -236,7 +249,7 @@ export async function visitView(id, step) {
       const drawOils = () => fill(oilBox, ...b.oils.map((o) => {
         const oil = S.oils.find((x) => x.id === o.oilId);
         return h('div', { class: 'brow', style: { '--fam': fam(oil && oil.family).color } },
-          h('div', { class: 'grow' }, h('div', { class: 'name' }, o.name), blockOf[o.oilId] ? h('div', { class: 'small warntext' }, '⚠ ' + blockOf[o.oilId].join('／')) : null),
+          h('div', { class: 'grow' }, h('div', { class: 'name' }, o.name), blockOf[o.oilId] ? h('div', { class: 'small warntext' }, '⚠ ' + blockOf[o.oilId].join('／')) : null, warnOf[o.oilId] ? h('div', { class: 'small muted' }, '⚠ ' + warnOf[o.oilId].join('／')) : null),
           stepper(o, 'drops', 1, 0, '滴'),
           btn('×', () => { b.oils = b.oils.filter((x) => x !== o); drawOils(); drawMeter(); save(); }, 'ghost round'));
       }), b.oils.length ? null : h('p', { class: 'muted' }, 'まだ精油がありません。「オイル」の画面でえらぶか、下のボタンで足してね。'));
@@ -304,7 +317,9 @@ export async function visitView(id, step) {
         }, 'chip' + (on ? ' on' : ''));
       }), ...v.menus.filter((x) => !S.menus.some((m) => m.id === x.id)).map((x) => btn(`${x.name}（前のメニュー）×`, () => { v.menus = v.menus.filter((y) => y !== x); draw(); save(); }, 'chip on')));
       draw();
+      const nt = noTouchOf(v.figures, S.settings.marks);
       return [
+        Object.keys(nt).length ? h('div', { class: 'warnbox' }, h('strong', null, '✕ 触れないでほしいところがあります'), noTouchFigures(nt)) : null,
         card(h('h2', null, '施術メニュー'), box, h('p', { class: 'hint' }, 'いくつでもえらべます。メニューは 設定 → 施術メニュー で作れます。')),
         card(field('整体でしたこと', textarea(v.treat, 'seitai', { onInput: save, rows: 4, placeholder: '例：首〜肩まわりをゆるめた。右の腰がかたい' })),
           field('アロマでしたこと', textarea(v.treat, 'aroma', { onInput: save, rows: 4, placeholder: '例：背中と脚を中心に。圧は弱め' })),
@@ -338,7 +353,8 @@ export async function visitView(id, step) {
     toast('カルテをとじました（保存済み）'); go(`#/c/${p.id}`);
   };
   const nav = h('nav', { class: 'steps' }, STEPS.map(([k, name], i) => h('a', { class: 'stepbtn' + (k === step ? ' on' : ''), href: `#/v/${id}/${k}` }, h('span', { class: 'num' }, String(i + 1)), name)));
-  const warn = [...det.conds, ...v.conds].map(condName).filter(Boolean);
+  const warn = effectiveConds({ settings: S.settings, det, visit: v }).ids.filter((c) => !c.startsWith('c_preg_')).map(condName).filter(Boolean);
+  if (Object.keys(noTouchOf(v.figures, S.settings.marks)).length) warn.push('触れないでほしいところあり');
   const hasAllergy = !!det.allergy || (det.allergyTags || []).length > 0; const hasWarn = warn.length > 0 || hasAllergy;
   return page({
     cls: 'visit' + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ）' : ''}`, badgeEl: saveBadge(), back: `#/c/${p.id}`,
