@@ -12,7 +12,7 @@ const ROUTES = [
   [/^\/v\/([^/]+)\/([^/]+)$/, visitView],
   [/^\/set$/, st.settingsView], [/^\/set\/oils$/, st.oilsView], [/^\/set\/oil\/([^/]+)$/, st.oilEditView],
   [/^\/set\/carriers$/, st.carriersView], [/^\/set\/carrier\/([^/]+)$/, st.carrierEditView], [/^\/set\/fats$/, st.fatsView], [/^\/set\/menus$/, st.menusView], [/^\/set\/limits$/, st.limitsView],
-  [/^\/set\/cats$/, st.catsView], [/^\/set\/lists$/, st.listsView], [/^\/set\/salon$/, st.salonView],
+  [/^\/set\/cats$/, st.catsView], [/^\/set\/rules$/, st.rulesView], [/^\/set\/actions$/, st.actionsView], [/^\/set\/symacts$/, st.symActsView], [/^\/set\/lists$/, st.listsView], [/^\/set\/salon$/, st.salonView],
   [/^\/set\/backup$/, st.backupView], [/^\/set\/sample$/, st.sampleView], [/^\/set\/about$/, st.aboutView],
 ];
 const root = document.getElementById('app');

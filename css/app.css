@@ -157,7 +157,7 @@ html.noscroll, html.noscroll body { overflow: hidden; }
 .oil.picked { border-color: var(--accent); border-left-color: var(--fam); box-shadow: 0 0 0 2px var(--accent-soft); }
 .oil.out { background: #faf5f3; } .oil.buy, .oil.rest { background: #fbf9f5; }
 .famtag { font-size: .8rem; font-weight: 500; color: var(--muted); margin-right: 6px; }
-.why { margin: 4px 0 0; padding-left: 1.1em; font-size: .9rem; color: #4d6a5b; } .why.out { color: var(--red); }
+.why { margin: 4px 0 0; padding-left: 1.1em; font-size: .9rem; color: #4d6a5b; } .why.out { color: var(--red); } .why.warn { color: #9a5b00; } details.more summary { font-size: .85rem; color: #6b7b72; cursor: pointer; }
 .oil-act { display: flex; flex-direction: column; gap: 6px; align-items: stretch; flex: none; width: 128px; } .oil-act .btn { min-height: 48px; padding: 0 8px; }
 .chosen { position: sticky; bottom: 84px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 14px; padding: 10px 14px; font-weight: 600; }
 
@@ -228,3 +228,4 @@ html.noscroll, html.noscroll body { overflow: hidden; }
   .zu.full .padname { display: none; } .zu.full .tlabel { flex: none; align-self: center; margin: 0; } .zu.full .pennow { display: none; }
   .sheet-body { padding: 8px 14px 16px; } .dialog { padding: 18px; }
 }
+.comprow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-bottom: 1px solid #eee; } .comprow .chips { flex-wrap: nowrap; } .subrow { padding: 8px 0; border-bottom: 1px solid #eee; }

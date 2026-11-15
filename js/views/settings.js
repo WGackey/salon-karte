@@ -20,7 +20,10 @@ export function settingsView() {
         link('#/set/oils', '精油の一覧と手持ち', `${S.oils.length}本（手持ち ${own}本）`),
         link('#/set/carriers', 'キャリアオイルの一覧と手持ち', `${S.carriers.length}種類（手持ち ${S.carriers.filter((o) => o.owned).length}種類）`),
         link('#/set/limits', '濃度の目安・1滴の量', '部位ごと・お客さんの状態ごとの上限'),
-        link('#/set/cats', '精油の成分の分類（向いている場面・気をつける状態）', '精油の候補を出すもとになる表'),
+        link('#/set/symacts', 'つらいところと作用のつながり（重み）', '候補の1段目：つらいところ → 作用。重みに差をつけられる'),
+        link('#/set/actions', '作用（働き）の一覧', `${(S.settings.actions || []).length}個。資料の作用の名前をまとめたもの`),
+        link('#/set/cats', '精油の成分の分類と成分（作用・気をつける状態）', '候補の2段目：作用 → 成分。分類ごとの注意'),
+        link('#/set/rules', '外す決まり（割合・年齢）', `気をつける成分が ${S.settings.cautionPct ?? 10}％以上・割合が分からないとき・年齢`),
         link('#/set/fats', 'キャリアオイルの成分（向いている肌の状態）', 'キャリアオイルの候補を出すもとになる表'))),
       card(h('h2', null, 'カルテ'), h('div', { class: 'list' },
         link('#/set/menus', '施術メニュー', `${S.menus.length}個`),
@@ -41,36 +44,62 @@ export function oilsView() {
     const sw = h('button', { type: 'button', class: 'mini big' + (o.owned ? ' on' : ''), 'aria-pressed': String(!!o.owned) }, o.owned ? '✓ 手持ち' : '持っていない');
     sw.onclick = async () => { o.owned = !o.owned; await saveMaster('oils', o); draw(); };
     return h('div', { class: 'row-link', style: { '--fam': fam(o.family).color } },
-      h('a', { class: 'grow famline', href: `#/set/oil/${o.id}` }, h('div', { class: 'name' }, o.name, ' ', o.draft ? badge('下書き', 'draft') : badge('確かめた', 'ok')), h('div', { class: 'muted' }, fam(o.family).name)), sw);
+      h('a', { class: 'grow famline', href: `#/set/oil/${o.id}` }, h('div', { class: 'name' }, o.name, ' ', o.ref === false ? badge('資料にない', 'amber') : o.draft ? badge('下書き', 'draft') : badge('確かめた', 'ok')), h('div', { class: 'muted' }, [fam(o.family).name || '系統なし', o.plant].filter(Boolean).join('・'))), sw);
   }));
   draw();
   return page({ title: '精油の一覧と手持ち', back: '#/set', actions: h('a', { class: 'btn', href: '#/set/oil/new' }, '＋ 足す'),
-    body: [DRAFT_NOTE(), h('p', { class: 'hint' }, '持っている精油の右のボタンを押すと「手持ち」になります（すぐ保存されます）。名前を押すと中身を直せます。'), list] });
+    body: [h('div', { class: 'notice draft' }, '精油のデータは、がっき〜の資料（アロマDB・アロマ表）の30本から入れたものです（「下書き」のしるしつき）。確かめたら、中身の画面で「確かめた」にしるしをつけてください。「資料にない」は前の下書きにあった精油で、候補の点数には入れていません。'),
+      h('p', { class: 'hint' }, '持っている精油の右のボタンを押すと「手持ち」になります（すぐ保存されます）。名前を押すと中身を直せます。'), list] });
 }
 export function oilEditView(id) {
-  const isNew = id === 'new';
-  const o = isNew ? { id: db.uid(), name: '', family: S.settings.families[0].id, components: {}, uses: [], cautions: [], note: '', owned: true, draft: false } : JSON.parse(JSON.stringify(S.oils.find((x) => x.id === id) || null));
+  const isNew = id === 'new'; const st = S.settings;
+  const o = isNew ? { id: db.uid(), name: '', family: '', plant: '', components: {}, subs: [], actions: [], uses: [], okConds: [], cautions: [], warns: [], allergens: [], note: '', owned: true, draft: false } : JSON.parse(JSON.stringify(S.oils.find((x) => x.id === id) || null));
   if (!o) return notFound();
+  o.components = o.components || {}; for (const k of ['subs', 'actions', 'uses', 'okConds', 'cautions', 'warns', 'allergens']) o[k] = o[k] || [];
+  const has = (k) => Object.prototype.hasOwnProperty.call(o.components, k);
   const total = h('span', { class: 'muted' });
-  const sum = () => { const t = S.cats.reduce((s, c) => s + (Number(o.components[c.id]) || 0), 0); total.textContent = `合計 ${t}％${t > 100 ? '（100をこえています）' : ''}`; };
+  const sum = () => { const t = S.cats.reduce((s2, c) => s2 + (typeof o.components[c.id] === 'number' ? o.components[c.id] : 0), 0); total.textContent = `わかっている割合の合計 ${t}％${t > 100 ? '（100をこえています）' : ''}`; };
+  // 成分の分類1つぶん：なし／入っている（割合を入れる・空けておける）／微量
+  const compRow = (c) => {
+    const box = h('div', { class: 'comprow' });
+    const draw = () => {
+      const state = !has(c.id) ? 'none' : o.components[c.id] === 'tr' ? 'tr' : 'yes';
+      const num = h('input', { type: 'number', inputmode: 'decimal', class: 'input num', placeholder: '空き', value: typeof o.components[c.id] === 'number' ? o.components[c.id] : '', disabled: state !== 'yes' });
+      num.oninput = () => { o.components[c.id] = num.value === '' ? null : Number(num.value); sum(); };
+      fill(box, h('div', { class: 'grow' }, c.name),
+        chips([{ id: 'none', name: 'なし' }, { id: 'yes', name: '入っている' }, { id: 'tr', name: '微量' }], state, { multi: false, onChange: (x) => {
+          if (!x || x === 'none') delete o.components[c.id]; else if (x === 'tr') o.components[c.id] = 'tr'; else if (!has(c.id) || o.components[c.id] === 'tr') o.components[c.id] = null;
+          draw(); sum(); } }),
+        h('span', { class: 'row tight' }, num, '％'));
+    };
+    draw(); return box;
+  };
   sum();
   const save = async () => {
     if (!o.name.trim()) { toast('名前を入れてね'); return; }
-    for (const k of Object.keys(o.components)) if (o.components[k] == null || o.components[k] === '') delete o.components[k];
     await saveMaster('oils', o); toast('保存しました'); go('#/set/oils');
   };
   const confirmBox = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !o.draft, onchange: (e) => { o.draft = !e.target.checked; } }), '自分の資料で確かめた（「下書き」のしるしを外す）');
+  const refBox = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: o.ref !== false, onchange: (e) => { if (e.target.checked) delete o.ref; else o.ref = false; } }), '候補の点数に入れる（はずすと「資料にない」になり、気をつける点だけ見ます）');
+  const condItems = st.conds;
   return page({
     title: isNew ? '精油を足す' : o.name, back: '#/set/oils', body: [
       o.draft ? DRAFT_NOTE() : null,
-      card(field('名前', input(o, 'name')), group('香りの系統', chips(S.settings.families, o.family, { multi: false, onChange: (v) => { if (v) o.family = v; } })),
+      card(field('名前', input(o, 'name')), group('香りの系統', chips(st.families, o.family || '', { multi: false, onChange: (v) => { o.family = v || ''; } }), 'もう一度押すと外れます（系統なし）'),
+        field('植物の科（資料の「種類」）', input(o, 'plant', { placeholder: '例：シソ科' }), '植物アレルギー（キク科・イネ科など）の判定に使います'),
         h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: o.owned, onchange: (e) => { o.owned = e.target.checked; } }), '手持ち（持っている）')),
-      card(h('h2', null, '成分の分類ごとの割合（％）'), h('p', { class: 'hint' }, 'おおよその値でかまいません。分からないところは空けたままに。'),
-        h('div', { class: 'grid2' }, S.cats.map((c) => field(c.name, numIn(o.components, c.id, { onInput: sum })))), total),
-      card(group('この精油ならではの「向いている場面」', chips(S.settings.symptoms, o.uses, { onChange: (v) => { o.uses = v; } })),
-        group('気をつける状態（あてはまるお客さんには候補から外して知らせる）', chips(S.settings.conds, o.cautions, { onChange: (v) => { o.cautions = v; } })),
+      card(h('h2', null, '成分の分類と割合'), h('p', { class: 'hint' }, '資料に割合がないときは「入っている」にして、数字は空けたままに（もっともらしく埋めない）。'),
+        S.cats.map(compRow), total),
+      card(h('h2', null, '入っている成分（アロマ表）'), h('p', { class: 'hint' }, 'えらんだ成分の作用が、候補の「なぜ出たか」になります。'),
+        S.cats.filter((c) => (c.subs || []).length).map((c) => group(c.name, chips(c.subs, o.subs, { onChange: (v) => { o.subs = [...o.subs.filter((x) => !c.subs.some((sb) => sb.id === x)), ...v]; } })))),
+      card(group('この精油の作用（アロマDBの「効能」）', chips(st.actions || [], o.actions, { onChange: (v) => { o.actions = v; } })),
+        group('向いている場面（資料の「OK」・使いどころ）', chips(st.symptoms, o.uses, { onChange: (v) => { o.uses = v; } })),
+        group('向いている状態（資料の「OK」）', chips(condItems, o.okConds, { onChange: (v) => { o.okConds = v; } }), '候補の「なぜ出たか」に出します。外す判定には使いません')),
+      card(group('使わない状態（資料の「NG」）', chips(condItems, o.cautions, { onChange: (v) => { o.cautions = v; } }), 'あてはまるお客さんには、候補から外して理由を見せます'),
+        group('気をつける状態（外さずに ⚠ をつける）', chips(condItems, o.warns, { onChange: (v) => { o.warns = v; } }), '例：「敏感肌（うすめればよい）」「アトピー（注意）」'),
+        group('植物アレルギー（資料の「NG」）', chips(st.allergens, o.allergens, { onChange: (v) => { o.allergens = v; } })),
         field('メモ・注意', textarea(o, 'note'))),
-      card(confirmBox),
+      card(confirmBox, refBox),
       isNew ? null : h('div', { class: 'row end' }, btn('この精油を消す', async () => { if (await confirmDlg(`「${o.name}」を一覧から消します。これまでのカルテの記録は残ります。`, '消す', true)) { await deleteMaster('oils', o.id); go('#/set/oils'); } }, 'danger ghost')),
     ], footer: btn('保存する', save, 'primary big wide'),
   });
@@ -185,25 +214,83 @@ export function limitsView() {
   });
 }
 
-// ---- 成分の分類 ----
+// ---- 成分の分類（大分類）と成分（小分類） ----
 export function catsView() {
-  const st = S.settings;
+  const st = S.settings; const acts = st.actions || [];
   return page({
-    title: '成分の分類', back: '#/set', body: [
+    title: '成分の分類と成分', back: '#/set', body: [
       DRAFT_NOTE(), AUTO_NOTE(),
-      h('p', { class: 'hint' }, '「向いている場面」にえらんだ症状が問診にあると、その成分が多い精油が候補に上がります。「気をつける状態」にあてはまるお客さんには、その成分が多い精油を外して理由を見せます。'),
-      card(h('div', { class: 'row tight' }, '気をつける成分が', numIn(st, 'cautionPct', { onInput: () => saveSettings() }), '％以上入っている精油を外す')),
+      h('p', { class: 'hint' }, '資料「アロマ表」の分け方です。成分ごとに「作用」をえらびます（候補の「作用 ← 成分」になります）。「使わない状態」にあてはまるお客さんには、その分類が入っている精油を外して理由を見せます。外す割合の決まりは 設定 → 外す決まり。'),
       S.cats.map((c) => {
+        c.subs = c.subs || []; c.cautions = c.cautions || []; c.warns = c.warns || [];
         const save = () => saveMaster('cats', c);
+        const subBox = h('div');
+        const drawSubs = () => fill(subBox, ...c.subs.map((sb) => h('div', { class: 'subrow' },
+          h('div', { class: 'row' }, input(sb, 'name', { onInput: save, cls: 'grow' }),
+            btn('×', async () => { if (await confirmDlg(`成分「${sb.name}」を消します。精油ごとの「入っている成分」からも使われなくなります。`, '消す', true)) { c.subs = c.subs.filter((x) => x !== sb); save(); drawSubs(); } }, 'ghost round')),
+          chips(acts, sb.actions || [], { onChange: (v) => { sb.actions = v; save(); } }))),
+        h('div', { class: 'row' }, btn('＋ 成分を足す', () => { c.subs.push({ id: db.uid(), name: '', actions: [] }); save(); drawSubs(); })));
+        drawSubs();
         return h('details', { class: 'card fold' }, h('summary', null, c.name, ' ', c.draft ? badge('下書き', 'draft') : badge('確かめた', 'ok')),
           field('名前', input(c, 'name', { onInput: save })),
-          group('向いている場面', chips(st.symptoms, c.uses, { onChange: (v) => { c.uses = v; save(); } })),
-          group('気をつける状態', chips(st.conds, c.cautions, { onChange: (v) => { c.cautions = v; save(); } })),
+          group('使わない状態（外す）', chips(st.conds, c.cautions, { onChange: (v) => { c.cautions = v; save(); } })),
+          group('気をつける状態（外さずに ⚠）', chips(st.conds, c.warns, { onChange: (v) => { c.warns = v; save(); } })),
+          field('だれに使うときも出す注意', input(c, 'tip', { onInput: save, placeholder: '例：かならずうすめて使う' })),
           field('メモ', textarea(c, 'note', { onInput: save, rows: 2 })),
+          h('h3', null, '成分（小分類）と作用'), subBox,
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !c.draft, onchange: (e) => { c.draft = !e.target.checked; save(); } }), '自分の資料で確かめた'));
       }),
     ],
   });
+}
+// ---- 外す決まり（割合・年齢） ----
+export function rulesView() {
+  const st = S.settings; const save = () => saveSettings();
+  st.ageRules = st.ageRules || { infant: 6, child: 15, old: 65 };
+  const ar = st.ageRules;
+  return page({
+    title: '外す決まり', back: '#/set', body: [
+      AUTO_NOTE(),
+      card(h('h2', null, '成分の割合'), h('div', { class: 'row tight' }, '気をつける成分が', numIn(st, 'cautionPct', { onInput: save }), '％以上入っている精油を外す'),
+        group('割合が分からないとき（資料に「入っている」とだけある）', chips([{ id: 'block', name: '外す（安全側）' }, { id: 'warn', name: '外さずに ⚠ をつける' }], st.unknownPct || 'block', { multi: false, onChange: (v) => { st.unknownPct = v || 'block'; save(); } }),
+          'はじめは「外す」。資料に割合がない精油が多いので、⚠ にすると候補に残るものが増えます'),
+        h('p', { class: 'hint' }, '「微量」と書いた成分では外しません。')),
+      card(h('h2', null, '年齢で自動でつける状態'), h('p', { class: 'hint' }, 'お客さんの生年月日から、その日の年齢でつけます。空けると自動でつけません。数字は下書きです。'),
+        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '乳幼児'), h('span', { class: 'row tight' }, numIn(ar, 'infant', { onInput: () => { delete ar.draft; save(); }, placeholder: '空き' }), '歳まで')),
+        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '子ども'), h('span', { class: 'row tight' }, numIn(ar, 'child', { onInput: () => { delete ar.draft; save(); }, placeholder: '空き' }), '歳まで')),
+        h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '高齢'), h('span', { class: 'row tight' }, numIn(ar, 'old', { onInput: () => { delete ar.draft; save(); }, placeholder: '空き' }), '歳から')),
+        ar.draft ? badge('下書き', 'draft') : null),
+    ],
+  });
+}
+// ---- 作用（働き）の一覧 ----
+export function actionsView() {
+  const st = S.settings; st.actions = st.actions || []; const save = () => saveSettings();
+  const box = h('div');
+  const draw = () => fill(box, ...st.actions.map((a) => h('div', { class: 'card' },
+    h('div', { class: 'row' }, input(a, 'name', { onInput: save, cls: 'grow', placeholder: '作用の名前（ふだんの言葉で）' }),
+      btn('×', async () => { if (await confirmDlg(`作用「${a.name}」を消します。成分・精油・つらいところとのつながりも使われなくなります。`, '消す', true)) { st.actions = st.actions.filter((x) => x !== a); save(); draw(); } }, 'ghost round')),
+    field('資料での呼び方', input(a, 'terms', { onInput: save, placeholder: '例：鎮静・神経安定' })))),
+  h('div', { class: 'row' }, btn('＋ 作用を足す', () => { st.actions.push({ id: db.uid(), name: '', terms: '' }); save(); draw(); })));
+  draw();
+  return page({ title: '作用（働き）の一覧', back: '#/set', body: [AUTO_NOTE(),
+    h('p', { class: 'hint' }, '資料にある作用の名前を、ふだんの言葉のまとまりに分けたものです。「こんな働きがあると言われる」という分け方で、「効く」という意味ではありません。お客さんに見せる言葉にも使います。'), box] });
+}
+// ---- つらいところ → 作用 の重み ----
+export function symActsView() {
+  const st = S.settings; const acts = st.actions || []; const save = () => saveSettings();
+  const W = [{ id: '0', name: 'なし' }, { id: '1', name: '少し' }, { id: '2', name: 'とても' }];
+  return page({ title: 'つらいところと作用', back: '#/set', body: [AUTO_NOTE(),
+    h('div', { class: 'notice draft' }, 'はじめの重みは下書きです。「とても」は「少し」の2倍の点になります。触ってみて、候補の並びがしっくりこなければ直してね。'),
+    st.symptoms.map((sy) => {
+      sy.acts = sy.acts || {};
+      const sumEl = h('span', { class: 'muted small' });
+      const upd = () => { sumEl.textContent = acts.filter((a) => sy.acts[a.id] > 0).map((a) => `${a.name}${sy.acts[a.id] >= 2 ? '◎' : '○'}`).join('・') || 'まだつながっていません'; };
+      upd();
+      return h('details', { class: 'card fold' }, h('summary', null, sy.name || '（名前なし）', ' ', sumEl),
+        acts.map((a) => h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, a.name),
+          chips(W, String(sy.acts[a.id] || 0), { multi: false, onChange: (v) => { if (Number(v) > 0) sy.acts[a.id] = Number(v); else delete sy.acts[a.id]; save(); upd(); } }))));
+    })] });
 }
 
 // ---- えらぶ言葉 ----
@@ -228,12 +315,12 @@ export function listsView() {
   return page({
     title: 'えらぶ言葉を直す', back: '#/set', body: [
       AUTO_NOTE(),
-      named('symptoms', 'つらいところ（症状）', '足した症状は、設定 → 成分の分類 や 精油 で「向いている場面」にえらぶと、候補に使われます。', () => ({ id: db.uid(), name: '' })),
+      named('symptoms', 'つらいところ（症状）', '足した症状は、設定 → つらいところと作用のつながり で作用をえらぶと、候補に使われます。', () => ({ id: db.uid(), name: '' })),
       named('skins', '肌の状態', '問診でえらぶ言葉。足したものは、設定 → キャリアオイルの成分 や キャリアオイル で「向いている肌の状態」にえらぶと、候補に使われます。', () => ({ id: db.uid(), name: '' })),
       named('allergens', 'アレルギーのしるし', '右のらんは「アレルギーの欄にこの言葉が書いてあったら、あてはまるとみなす」言葉です（「、」で区切る）。', () => ({ id: db.uid(), name: '', words: '' })),
-      named('conds', '気をつける状態', '名前だけ直せます。', null),
+      named('conds', '気をつける状態', '名前だけ直せます。「妊娠初期・中期・後期」は、問診の妊娠の月数から自動でつきます。', null),
       named('marks', 'からだの図のしるし（色ごとの意味）', '名前だけ直せます。', null),
-      named('families', '香りの系統', '名前だけ直せます。', null),
+      named('families', '香りの系統', '名前だけ直せます。資料の3つ（樹木系・花穂系・柑橘系）。色は 樹＝緑・花＝ピンク・柑橘＝オレンジ。', null),
       plain('purposes', '今日の目的'), plain('moods', '香りの好み・気分'), plain('scents', '香りの感想'), plain('jobs', 'お仕事'),
     ],
   });
@@ -327,8 +414,8 @@ export async function aboutView() {
         h('li', null, 'Safari で開いたときと、ホーム画面のアイコンから開いたときでは、データの置き場がちがいます。いつもホーム画面のアイコンから開いてください。'),
         h('li', null, 'iPad と iPhone の両方で使えますが、データは端末ごとに別々です。移すときは 設定 → バックアップ の「iPad と iPhone のあいだで移す」を見てね。'))),
       card(h('h2', null, '精油のデータについて'), h('ul', { class: 'plain' },
-        h('li', null, 'はじめから入っている精油・キャリアオイル・成分・気をつける状態・濃度の目安は「下書き」です。自分の資料で確かめてから使ってください。'),
-        h('li', null, '候補は「こんな場面で選ばれることが多い」という目安です。病気を治したり診断したりするものではありません。'),
+        h('li', null, '精油・成分の分類・作用・気をつける状態は、がっき〜の資料から入れたものです。キャリアオイル・濃度の目安・つらいところと作用の重みは「下書き」です。自分の資料で確かめてから使ってください。'),
+        h('li', null, '候補は「こんな場面で選ばれることが多い」という目安です。作用は「こんな働きがあると言われる」という分け方で、病気を治したり診断したりするものではありません。'),
         h('li', null, '最後に決めるのは施術する人です。'))),
     ],
   });

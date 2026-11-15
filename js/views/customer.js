@@ -1,7 +1,7 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg } from '../ui.js';
 import { S, blankCustomer, saveCustomer, deleteCustomer, person, visitsOf, newVisit, saveVisit } from '../state.js';
 import * as db from '../db.js';
-import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel } from '../logic.js';
+import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, effectiveConds } from '../logic.js';
 const allergenName = (id) => (S.settings.allergens.find((c) => c.id === id) || {}).name || '';
 import { bodyPad, FIGURES } from '../bodymap.js';
 
@@ -63,7 +63,7 @@ export async function customerFormView(id) {
         group('お仕事', chips(S.settings.jobs, det.job, { multi: false, onChange: (v) => { det.job = v; } })),
         field('はじめて来た日', input(det, 'firstVisit', { type: 'date' }))),
       card(h('h2', null, '気をつけること'),
-        group('からだの状態', chips(personConds, det.conds, { onChange: (v) => { det.conds = v; } }), '精油の候補と濃度の目安に使います。妊娠中・月経中は、来店ごとの問診でえらびます'),
+        group('からだの状態', chips(personConds, det.conds, { onChange: (v) => { det.conds = v; } }), '精油の候補と濃度の目安に使います。妊娠中・月経中・運転などは、来店ごとの問診でえらびます。生年月日があれば、乳幼児・子ども・高齢は自動でつきます'),
         field('これまでの病気・けが', textarea(det, 'history')),
         group('アレルギー（あてはまるものを押す）', chips(S.settings.allergens, det.allergyTags || [], { onChange: (v) => { det.allergyTags = v; } }), 'あてはまる原料のキャリアオイルは、候補から外して知らせます'),
         field('アレルギー（そのほか・くわしく）', textarea(det, 'allergy', { placeholder: '例：ナッツ、ラベンダー' }), '精油やオイルの原料の名前が書いてあると、候補から外して知らせます'),
@@ -88,7 +88,7 @@ function history(visits, det, copyFrom) {
   const dropMl = S.settings.dropMl || 0.05;
   const slideOf = (v, k) => {
     const nth = n - k; const c = blendCalc(v.blend, dropMl);
-    const lim = limitFor(S.settings, v.blend.areaId, [...new Set([...(det.conds || []), ...(v.conds || [])])]); const lv = limitLevel(c.pct, lim.max);
+    const lim = limitFor(S.settings, v.blend.areaId, effectiveConds({ settings: S.settings, det, visit: v, today: v.date }).ids); const lv = limitLevel(c.pct, lim.max);
     const oils = (v.blend.oils || []).filter((x) => x.drops > 0), cars = (v.blend.carriers || []).filter((x) => x.ml > 0);
     const conds = (v.conds || []).map(condName).filter(Boolean);
     const row = (label, ...kids) => h('div', { class: 'hrow' }, h('div', { class: 'hlabel' }, label), h('div', { class: 'hval' }, kids.some((x) => x != null && x !== '' && !(Array.isArray(x) && !x.length)) ? kids : h('span', { class: 'muted' }, '—')));
