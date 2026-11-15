@@ -136,7 +136,7 @@ export async function customerView(id) {
   const t0 = performance.now(); const visits = await visitsOf(id); S.lastOpenMs = performance.now() - t0;
   const last = visits.find((v) => v.status === 'done') || visits[0];
   const age = ageOf(det.birth); const tags = (det.allergyTags || []).map(allergenName).filter(Boolean);
-  const warns = [...det.conds.map(condName), ...(last ? last.conds.filter((c) => c !== 'c_sun' && c !== 'c_mens').map((c) => condName(c) + '（前回）') : [])].filter(Boolean);
+  const warns = [...det.conds.map(condName), ...(last ? last.conds.filter((c) => !['c_sun', 'c_mens', 'c_drive', 'c_drink'].includes(c)).map((c) => condName(c) + '（前回）') : [])].filter(Boolean);
 
   const start = async () => {
     const draft = visits.find((v) => v.status === 'draft' && v.date === todayStr());
