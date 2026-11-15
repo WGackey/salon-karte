@@ -1,7 +1,7 @@
 // アプリ全体で使う「いまの中身」と、保存の決まりごと。
 import * as db from './db.js';
 import { DEFAULT_SETTINGS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_CARRIERS, DEFAULT_MENUS } from './seed.js';
-import { todayStr } from './logic.js';
+import { todayStr, noTouchOf } from './logic.js';
 
 export const S = { settings: null, people: [], oils: [], cats: [], carriers: [], menus: [], blends: [], newer: false };
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -46,7 +46,7 @@ export async function deleteMaster(store, id) { await db.del(store, id); S[store
 export function blankCustomer() {
   return {
     slim: { id: db.uid(), no: 0, name: '', kana: '', nextDate: '', lastVisit: '', visitCount: 0 },
-    det: { gender: '', birth: '', zip: '', address: '', tel: '', email: '', job: '', firstVisit: todayStr(), history: '', conds: [], allergy: '', allergyTags: [], avoidOilIds: [], avoidCarrierIds: [], experience: '', memo: '' },
+    det: { life: {}, consents: [], gender: '', birth: '', zip: '', address: '', tel: '', email: '', job: '', firstVisit: todayStr(), history: '', conds: [], allergy: '', allergyTags: [], avoidOilIds: [], avoidCarrierIds: [], experience: '', memo: '' },
   };
 }
 export async function saveCustomer(slim, det) {
@@ -77,7 +77,8 @@ export async function newVisit(customerId) {
     scope: { type: 'whole' }, // 第2段で「部分（手・足など）」を足すための入れ物
     conds: prev ? prev.conds.filter((c) => !['c_sun', 'c_drive', 'c_drink'].includes(c)) : [], // その日だけのもの（屋外・運転・お酒）は写さない。妊娠の月数も写さない
     interview: prev ? { ...clone(prev.interview), memo: '' } : { life: '', purposes: [], moods: [], symptoms: [], skins: [], memo: '' },
-    figures: { front: [], back: [] }, // 図の名前 → なぞった線。第2段で手・足の図を足せる
+    // 図の名前 → なぞった線。第2段で手・足の図を足せる。「触れないで（×）」の線は前回から写す
+    figures: { front: [], back: [], ...JSON.parse(JSON.stringify(prev ? noTouchOf(prev.figures, S.settings.marks) : {})) },
     blend: { areaId: S.settings.areas[0]?.id || '', oils: [], carriers: [], memo: '' },
     menus: [], treat: { seitai: '', aroma: '' },
     after: { levels: {}, scent: '', note: '' }, nextDate: '',

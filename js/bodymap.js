@@ -35,7 +35,18 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
   // 小さい画面用：上半身・下半身だけを大きく出す（線の位置は図の座標のままなので、ずれない）
   svg.setZone = (z) => svg.setAttribute('viewBox', ZONES[z] || ZONES.all);
   const color = (m) => (marks.find((x) => x.id === m) || { color: '#888' }).color;
-  const drawOne = (s) => { const p = el('path', { d: pathOf(s.p), stroke: color(s.m), 'stroke-width': s.w }); layer.append(p); return p; };
+  const isX = (m) => !!(marks.find((x) => x.id === m) || {}).x;
+  // 「触れないで」のしるしは、なぞった線を点線にして、まん中に大きな × を出す
+  const xMark = (s, g) => {
+    const xs = s.p.filter((_, i) => i % 2 === 0), ys = s.p.filter((_, i) => i % 2 === 1);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2, r = 14;
+    g.append(el('path', { d: `M${cx - r} ${cy - r}L${cx + r} ${cy + r}M${cx + r} ${cy - r}L${cx - r} ${cy + r}`, stroke: color(s.m), 'stroke-width': 6, class: 'xmark' }));
+  };
+  const drawOne = (s) => {
+    if (!isX(s.m)) { const p = el('path', { d: pathOf(s.p), stroke: color(s.m), 'stroke-width': s.w }); layer.append(p); return p; }
+    const g = el('g', { class: 'notouch' }); const p = el('path', { d: pathOf(s.p), stroke: color(s.m), 'stroke-width': Math.min(s.w, 8), 'stroke-dasharray': '6 6' });
+    g.append(p); xMark(s, g); layer.append(g); return p;
+  };
   const redraw = () => { layer.replaceChildren(); strokes.forEach(drawOne); };
   redraw();
   if (readOnly) return svg;
@@ -70,7 +81,7 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
   const end = (e) => {
     if (e.pointerType === 'pen') penDown = false;
     if (e.pointerId !== activeId) return; activeId = null;
-    if (cur && cur !== 'erase') { strokes.push(cur); onChange({ type: 'add', stroke: cur }); }
+    if (cur && cur !== 'erase') { strokes.push(cur); if (isX(cur.m)) redraw(); onChange({ type: 'add', stroke: cur }); }
     cur = null; curEl = null;
   };
   svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);

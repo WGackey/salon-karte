@@ -15,9 +15,10 @@ async function kit(b, opt, prefix) {
   const shot = async (name) => { if (OUT) { fs.mkdirSync(OUT, { recursive: true }); await p.screenshot({ path: path.join(OUT, prefix + name + '.png') }); } };
   const tap = (text, o = {}) => p.getByText(text, { exact: o.exact ?? true }).first().tap();
   const cdp = await ctx.newCDPSession(p);
-  const touchLine = async (pts) => { // 指でなぞる
+  const touchLine = async (pts, { hold = false } = {}) => { // 指でなぞる
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: pts[0][0], y: pts[0][1] }] });
     for (const [x, y] of pts.slice(1)) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+    if (hold) await p.waitForTimeout(120); // 指を止めてから離す（サインなど。すばやく払ったと見なされると、次の1回押しがブラウザに食われる）
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await p.waitForTimeout(350); // 人の手の速さに合わせる（すぐ次を押すと、ブラウザが「2回押し」と見なして押したことにならない）
   };
@@ -191,6 +192,44 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes path').count();
   assert.equal(await p.locator('.symrow').count(), 3, 'めくった先の回の問診が今日に写る'); assert.deepEqual(await pad.counts(), { c: 1, v: 2, b: 1 }, '今日のカルテがあれば、そこに写す（増やさない）');
   await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
 
+  // --- 生活の様子・同意書のサイン・触れないで（×） ---
+  const cid = await p.evaluate(async () => { const db = await import('./js/db.js'); return (await db.all('customers')).find((c) => c.name === '試験 みほ').id; });
+  await p.goto(BASE + `#/c/${cid}/edit`); await p.waitForSelector('.page');
+  await p.locator('.edit-row', { hasText: '睡眠' }).locator('input').fill('7'); await tap('便秘ぎみ');
+  await tap('保存する'); await p.waitForSelector('text=睡眠 7時間くらい');
+  assert.ok(await p.getByText('お通じ 便秘ぎみ', { exact: false }).count(), '生活の様子がお客さんのページに出る');
+  assert.ok(await p.getByText('まだ同意をもらっていません').count());
+  await tap('同意書にサインしてもらう'); await p.waitForSelector('.signmode');
+  const signBody = await p.locator('body').textContent();
+  assert.ok(!signBody.includes('来店の記録') && !signBody.includes('もどる'), 'サインの画面には、ほかの情報やメニューを出さない');
+  assert.ok(await p.getByText('同意して、サインを残す').isDisabled(), 'サインするまで押せない');
+  await p.locator('.signpad').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); const sb = await p.locator('.signpad').boundingBox();
+  await touchLine([[sb.x + 60, sb.y + sb.height * 0.6], [sb.x + 120, sb.y + sb.height * 0.3], [sb.x + 200, sb.y + sb.height * 0.65], [sb.x + 280, sb.y + sb.height * 0.35]], { hold: true });
+  await shot('21-sign');
+  await p.getByText('同意して、サインを残す').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); await tap('同意して、サインを残す'); await p.waitForSelector('text=ありがとうございました');
+  await p.waitForTimeout(400); await tap('（お店の人）カルテにもどる'); await p.waitForSelector('text=同意・サインあり（文の版 1）', { exact: false });
+  await tap('同意した文とサインを見る'); assert.equal(await p.locator('.sheet .signpad path').count(), 1, 'サインの線が残っている'); await shot('21b-consent-view'); await p.locator('.sheet').getByText('とじる').tap();
+  await p.goto(BASE + '#/set/consent'); await p.waitForSelector('textarea');
+  await p.locator('textarea').fill('自分の店の注意事項（テスト）'); await tap('この文で保存する（版が上がります）'); await p.locator('.dialog').getByText('保存する', { exact: true }).tap(); await p.waitForSelector('.page');
+  await p.goto(BASE + `#/c/${cid}`); await p.waitForSelector('text=いまの文は版 2', { exact: false });
+  const cons = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const d = await db.get('details', id); return d.consents.map((c) => [c.ver, c.text.slice(0, 6), c.sign.length]); }, cid);
+  assert.deepEqual(cons, [[1, '施術を受ける', 1]], '同意したときの文と版が残る');
+  // 触れないで（×）：かいた来店の次の来店にも写る・施術の前に見える
+  const xv = await p.evaluate(async (id) => { const st = await import('./js/state.js'); const v = await st.newVisit(id); return v.id; }, cid);
+  await p.goto(BASE + `#/v/${xv}/zu`); await p.waitForSelector('.bodypad');
+  await tap('触れないで（×）'); const xb = await p.locator('.bodypad').nth(1).boundingBox();
+  await touchLine([[xb.x + xb.width * 0.4, xb.y + xb.height * 0.5], [xb.x + xb.width * 0.45, xb.y + xb.height * 0.52]]);
+  assert.equal(await p.locator('.zu .notouch .xmark').count(), 1, '× が出る'); await shot('22-notouch');
+  await p.goto(BASE + `#/v/${xv}/sejutsu`); await p.waitForSelector('text=触れないでほしいところがあります');
+  assert.ok((await p.locator('.visit-warn').textContent()).includes('触れないで'), '来店の画面の上の帯にも出る');
+  const xv2 = await p.evaluate(async (id) => { const st = await import('./js/state.js'); const v = await st.newVisit(id); return { n: (v.figures.back || []).length, m: (v.figures.back || [])[0]?.m, front: (v.figures.front || []).length }; }, cid);
+  assert.deepEqual(xv2, { n: 1, m: 'm_notouch', front: 0 }, '次の来店に「触れないで」だけが写る');
+  await p.goto(BASE + `#/c/${cid}`); await p.waitForSelector('text=触れないでほしいところがあります');
+  // 試した来店は消しておく（このあとのテストの数を変えないため）
+  await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); const vs = await db.byIndex('visits', 'customerId', id);
+    for (const v of vs.sort((a, b) => b.createdAt - a.createdAt).slice(0, 2)) await st.deleteVisit(v); const s = st.S.settings; s.consent = { ...s.consent, text: (await import('./js/seed.js')).DEFAULT_CONSENT_TEXT }; await st.saveSettings(); }, cid);
+  await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
+
   // --- 版の移し替え（端末の中のデータ）：前の版（版1）の形にもどしてから開き直す → 版2 に直る ---
   await p.evaluate(async () => {
     const db = await import('./js/db.js');
@@ -359,7 +398,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes path').count();
   assert.deepEqual(await ph.counts(), { c: 1, v: 2, b: 1 }, 'iPad → iPhone に移せる');
   await q.getByLabel('お客さんをさがす').fill('しけん'); await q.locator('.list .row-link', { hasText: '試験 みほ' }).tap(); await q.waitForSelector('text=来店の記録');
   assert.equal(await q.locator('.thumbs .strokes path').count(), 1, '図の線もいっしょに移る'); await ph.shot('12-moved');
-  const tb = await q.locator('.hist .track').boundingBox(); // 指で横にめくる
+  await q.locator('.hist .track').scrollIntoViewIfNeeded(); await q.waitForTimeout(300); const tb = await q.locator('.hist .track').boundingBox(); // 指で横にめくる
   await ph.touchLine([[tb.x + tb.width * 0.85, tb.y + 200], [tb.x + tb.width * 0.6, tb.y + 202], [tb.x + tb.width * 0.35, tb.y + 204], [tb.x + tb.width * 0.15, tb.y + 205]]);
   await q.waitForFunction(() => document.querySelector('.hpos').textContent.startsWith('2／全2回'), null, { timeout: 5000 }); await q.waitForTimeout(400);
   await ph.noOverflow('これまでの記録'); await ph.shot('12b-history-swiped');

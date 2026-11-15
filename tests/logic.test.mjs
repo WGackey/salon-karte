@@ -1,7 +1,7 @@
 // 計算の部品のテスト。動かし方： node --test tests/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ageOf, addDays, daysBetween, blendCalc, maxDrops, limitFor, limitLevel, pickOils, pickCarriers, allergyHits, searchPeople, effectiveConds } from '../js/logic.js';
+import { ageOf, addDays, daysBetween, blendCalc, maxDrops, limitFor, limitLevel, pickOils, pickCarriers, allergyHits, searchPeople, effectiveConds, noTouchOf, consentState } from '../js/logic.js';
 import { migrateDump, MIGRATIONS, DATA_VERSION } from '../js/db.js';
 import { DEFAULT_SETTINGS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_CARRIERS, OLD_ONLY_OILS } from '../js/seed.js';
 
@@ -173,6 +173,17 @@ test('はじめのデータ：キャリアオイルは知らない成分・肌�
   }
   for (const f of st.fats) for (const u of f.uses) assert.ok(sk.has(u), f.name);
 });
+test('触れないで（×）：その線だけ取り出す（次の来店に写す）', () => {
+  const marks = DEFAULT_SETTINGS.marks; assert.ok(marks.some((m) => m.id === 'm_notouch' && m.x));
+  const f = { front: [{ m: 'm_pain', w: 6, p: [1, 2] }, { m: 'm_notouch', w: 14, p: [3, 4] }], back: [{ m: 'm_kori', w: 6, p: [5, 6] }] };
+  assert.deepEqual(noTouchOf(f, marks), { front: [{ m: 'm_notouch', w: 14, p: [3, 4] }] }); assert.deepEqual(noTouchOf({}, marks), {});
+});
+test('同意：いちばん新しい同意と、文を直したあとかどうか', () => {
+  assert.deepEqual(consentState([], { ver: 1 }), { last: null, stale: false });
+  const cs = [{ at: '2026-11-01T10:00:00Z', ver: 1 }, { at: '2026-11-15T10:00:00Z', ver: 2 }];
+  assert.equal(consentState(cs, { ver: 2 }).last.ver, 2); assert.equal(consentState(cs, { ver: 2 }).stale, false); assert.equal(consentState(cs, { ver: 3 }).stale, true);
+  assert.ok(DEFAULT_SETTINGS.consent.draft && DEFAULT_SETTINGS.consent.text.includes('同意'));
+});
 test('さがす：ひらがな・カタカナ・番号', () => {
   const ps = [{ name: '春野 あおい', kana: 'はるの あおい', no: 12 }, { name: '森下 太郎', kana: 'もりした たろう', no: 3 }];
   assert.equal(searchPeople(ps, 'ハルノ').length, 1); assert.equal(searchPeople(ps, '森下').length, 1); assert.equal(searchPeople(ps, 'たろう')[0].no, 3); assert.equal(searchPeople(ps, '').length, 2);
@@ -241,6 +252,7 @@ test('版4への移し替え：精油を資料の30本に。手持ちは残す�
   assert.ok(st.allergens.some((a) => a.id === 'al_ragweed')); assert.equal(st.allergens.length, DEFAULT_SETTINGS.allergens.length);
   assert.ok(st.symptoms[0].acts.a_relax === 2); assert.deepEqual(st.symptoms[1].acts, {});
   assert.equal(st.actions.length, DEFAULT_SETTINGS.actions.length); assert.equal(st.unknownPct, 'block');
+  assert.ok(st.marks.some((m) => m.id === 'm_notouch' && m.x), '「触れないで（×）」のしるしが足される');
   assert.deepEqual(d.stores.visits[0].interview.famLikes, []); assert.equal(d.stores.visits[0].pregMonth, null); assert.equal(d.stores.visits[0].blend.oils[0].name, 'ラベンダー（真正）', '前の記録の名前はそのまま');
   const again = migrateDump({ ...d, dataVersion: 3 }, MIGRATIONS, DATA_VERSION);
   assert.deepEqual(again.stores.oils.map((x) => x.id).sort(), d.stores.oils.map((x) => x.id).sort(), '2回かけても増えない');

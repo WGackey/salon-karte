@@ -27,6 +27,7 @@ export function settingsView() {
         link('#/set/rules', '外す決まり（割合・年齢）', `気をつける成分が ${S.settings.cautionPct ?? 10}％以上・割合が分からないとき・年齢`),
         link('#/set/fats', 'キャリアオイルの成分（向いている肌の状態）', 'キャリアオイルの候補を出すもとになる表'))),
       card(h('h2', null, 'カルテ'), h('div', { class: 'list' },
+        link('#/set/consent', '同意書と注意事項', `お客さんにサインしてもらう文（いまの文は版 ${(S.settings.consent || {}).ver || 1}）`),
         link('#/set/menus', '施術メニュー', `${S.menus.length}個`),
         link('#/set/lists', 'えらぶ言葉を直す', '症状・肌の状態・アレルギー・目的・香りの好み・お仕事 など'),
         link('#/set/salon', 'お店の名前', S.settings.salonName || '（まだ入っていません）'))),
@@ -242,6 +243,23 @@ export function catsView() {
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !c.draft, onchange: (e) => { c.draft = !e.target.checked; save(); } }), '自分の資料で確かめた'));
       }),
     ],
+  });
+}
+// ---- 同意書と注意事項 ----
+export function consentView() {
+  const st = S.settings; st.consent = st.consent || { text: '', ver: 1, draft: true };
+  const o = { text: st.consent.text };
+  const save = async () => {
+    if (o.text.trim() === st.consent.text.trim()) { toast('文は変わっていません'); return; }
+    if (!(await confirmDlg(`文を保存すると、版が ${st.consent.ver} → ${st.consent.ver + 1} になります。前に同意した人の記録は、そのときの文のまま残ります。`, '保存する'))) return;
+    st.consent = { text: o.text.trim(), ver: st.consent.ver + 1, draft: false, updatedAt: todayStr() }; await saveSettings(); toast('保存しました'); go('#/set');
+  };
+  return page({
+    title: '同意書と注意事項', back: '#/set', body: [
+      st.consent.draft ? h('div', { class: 'notice draft' }, 'はじめの文は「下書き」です。法律の文書として正しいかは確かめていません。自分の店に合わせて直してください（専門家に見てもらうと安心です）。') : null,
+      card(h('p', { class: 'hint' }, `お客さんのページの「同意書にサインしてもらう」で、この文を見せて、指かペンでサインしてもらいます。いまの文は 版 ${st.consent.ver}${st.consent.updatedAt ? `（${jpDate(st.consent.updatedAt)} に直した）` : ''}。`),
+        textarea(o, 'text', { rows: 16 })),
+    ], footer: btn('この文で保存する（版が上がります）', save, 'primary big wide'),
   });
 }
 // ---- 外す決まり（割合・年齢） ----

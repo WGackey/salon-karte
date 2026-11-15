@@ -1,9 +1,9 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone, saveBadge } from '../ui.js';
 import { S, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
-import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds } from '../logic.js';
+import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchOf } from '../logic.js';
 import { bodyPad, FIGURES } from '../bodymap.js';
-import { notFound, blendText } from './customer.js';
+import { notFound, blendText, noTouchFigures } from './customer.js';
 
 const STEPS = [['monshin', '問診'], ['zu', 'からだの図'], ['seiyu', 'オイル'], ['blend', 'ブレンド'], ['sejutsu', '施術'], ['after', '施術後']];
 const fam = (id) => S.settings.families.find((f) => f.id === id) || { name: '', color: '#bbb' };
@@ -154,7 +154,7 @@ export async function visitView(id, step) {
           h('div', { class: 'trow' }, label('ペンの太さ'), h('div', { class: 'chips widths' }, widthBtns), label('直す'), h('div', { class: 'chips' }, undo, eraser, clear, revert)),
           h('div', { class: 'trow' }, label('見え方'), h('div', { class: 'chips' }, fullBtn), viewBox)),
         h('div', { class: 'zu-main' }, btn('⤢ 画面いっぱいでかく（なぞりやすい）', () => setFull(true), 'primary wide openfull'), now, padBox,
-          h('p', { class: 'hint center' }, '「症状（色）」と「ペンの太さ」をえらんで、つらいところをなぞってね。指でもペンでもかけます。かいた線は自動で保存されます。'),
+          h('p', { class: 'hint center' }, '「症状（色）」と「ペンの太さ」をえらんで、つらいところをなぞってね。指でもペンでもかけます。かいた線は自動で保存されます。「触れないで（×）」は、次の来店にも写ります。'),
           h('p', { class: 'hint center' }, '「ひとつ戻す」＝直前にしたこと（かいた・消した）を1つ取り消す。「消しゴム」＝前にかいた線でも、さわった線だけ消す。')));
       return root;
     },
@@ -317,7 +317,9 @@ export async function visitView(id, step) {
         }, 'chip' + (on ? ' on' : ''));
       }), ...v.menus.filter((x) => !S.menus.some((m) => m.id === x.id)).map((x) => btn(`${x.name}（前のメニュー）×`, () => { v.menus = v.menus.filter((y) => y !== x); draw(); save(); }, 'chip on')));
       draw();
+      const nt = noTouchOf(v.figures, S.settings.marks);
       return [
+        Object.keys(nt).length ? h('div', { class: 'warnbox' }, h('strong', null, '✕ 触れないでほしいところがあります'), noTouchFigures(nt)) : null,
         card(h('h2', null, '施術メニュー'), box, h('p', { class: 'hint' }, 'いくつでもえらべます。メニューは 設定 → 施術メニュー で作れます。')),
         card(field('整体でしたこと', textarea(v.treat, 'seitai', { onInput: save, rows: 4, placeholder: '例：首〜肩まわりをゆるめた。右の腰がかたい' })),
           field('アロマでしたこと', textarea(v.treat, 'aroma', { onInput: save, rows: 4, placeholder: '例：背中と脚を中心に。圧は弱め' })),
@@ -352,6 +354,7 @@ export async function visitView(id, step) {
   };
   const nav = h('nav', { class: 'steps' }, STEPS.map(([k, name], i) => h('a', { class: 'stepbtn' + (k === step ? ' on' : ''), href: `#/v/${id}/${k}` }, h('span', { class: 'num' }, String(i + 1)), name)));
   const warn = effectiveConds({ settings: S.settings, det, visit: v }).ids.filter((c) => !c.startsWith('c_preg_')).map(condName).filter(Boolean);
+  if (Object.keys(noTouchOf(v.figures, S.settings.marks)).length) warn.push('触れないでほしいところあり');
   const hasAllergy = !!det.allergy || (det.allergyTags || []).length > 0; const hasWarn = warn.length > 0 || hasAllergy;
   return page({
     cls: 'visit' + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ）' : ''}`, badgeEl: saveBadge(), back: `#/c/${p.id}`,

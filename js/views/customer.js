@@ -1,7 +1,8 @@
-import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg } from '../ui.js';
+import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet } from '../ui.js';
+import { signPad } from '../signpad.js';
 import { S, blankCustomer, saveCustomer, deleteCustomer, person, visitsOf, newVisit, saveVisit } from '../state.js';
 import * as db from '../db.js';
-import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, effectiveConds } from '../logic.js';
+import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, effectiveConds, noTouchOf, consentState } from '../logic.js';
 const allergenName = (id) => (S.settings.allergens.find((c) => c.id === id) || {}).name || '';
 import { bodyPad, FIGURES } from '../bodymap.js';
 
@@ -17,6 +18,27 @@ export function visitSummary(v) {
     const a = v.after.levels[s.id]; return `${symName(s.id)} ${s.level}${a != null ? '→' + a : ''}`;
   }).join('、');
   return [sy, v.menus.map((m) => `${m.name}${m.minutes ? m.minutes + '分' : ''}`).join('・'), blendText(v.blend)].filter(Boolean);
+}
+
+// 生活の様子。初回に聞いて、変わったときに直す（毎回の問診には出さない）
+const LIFE = [
+  { id: 'sleep', name: '睡眠', unit: '時間くらい', num: true },
+  { id: 'meal', name: '食事', opts: ['規則的', '不規則'] }, { id: 'meals', name: '食事の回数', unit: '回／日', num: true },
+  { id: 'bowel', name: 'お通じ', opts: ['快便', '便秘ぎみ', 'ゆるめ'] },
+  { id: 'exercise', name: '運動', unit: '回／週', num: true },
+  { id: 'smoke', name: 'たばこ', unit: '本／日', num: true }, { id: 'alcohol', name: 'お酒', unit: '回／週', num: true },
+  { id: 'sweets', name: 'お菓子', opts: ['多い', '少ない'] },
+];
+export function lifeText(life = {}) {
+  return LIFE.filter((f) => life[f.id] != null && life[f.id] !== '').map((f) => `${f.name} ${life[f.id]}${f.num ? f.unit : ''}`).join('・');
+}
+function lifeCard(det) {
+  det.life = det.life || {};
+  return card(h('h2', null, '生活の様子'), h('p', { class: 'hint' }, 'はじめに聞いて、あとは変わったときに直します（毎回の問診には出ません）。分からないところは空けたままで。'),
+    LIFE.map((f) => f.num
+      ? h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, f.name), h('span', { class: 'row tight' }, input(det.life, f.id, { type: 'number', inputmode: 'decimal', cls: 'num', onInput: () => { det.life.updated = todayStr(); } }), f.unit))
+      : group(f.name, chips(f.opts, det.life[f.id] || '', { multi: false, onChange: (v) => { det.life[f.id] = v; det.life.updated = todayStr(); } }))),
+    field('そのほか（生活の様子）', textarea(det.life, 'memo', { rows: 2, onInput: () => { det.life.updated = todayStr(); } })));
 }
 
 // 生年月日は 年・月・日 を別々にえらぶ（iPad の日付えらびは昔の年まで回すのが大変なので）
@@ -69,6 +91,7 @@ export async function customerFormView(id) {
         field('アレルギー（そのほか・くわしく）', textarea(det, 'allergy', { placeholder: '例：ナッツ、ラベンダー' }), '精油やオイルの原料の名前が書いてあると、候補から外して知らせます'),
         avoidWrap, avoidCarWrap,
         field('ほかで受けた施術', textarea(det, 'experience'))),
+      lifeCard(det),
       card(h('h2', null, '連絡先'),
         h('div', { class: 'grid2' }, field('電話', input(det, 'tel', { type: 'tel' })), field('メール', input(det, 'email', { type: 'email' })),
           field('郵便番号', input(det, 'zip', { inputmode: 'numeric' })), field('住所', input(det, 'address')))),
@@ -128,6 +151,49 @@ function history(visits, det, copyFrom) {
     track, n > 1 ? h('p', { class: 'hint center' }, '横にめくる（スワイプする）と、前の回にさかのぼれます。') : null);
 }
 
+// 「触れないで」の線だけを、小さな図で見せる
+export function noTouchFigures(noTouch) {
+  return h('div', { class: 'thumbs notouchfig' }, FIGURES.filter((f) => noTouch[f.id]).map((f) => h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name),
+    bodyPad({ kind: f.id, strokes: noTouch[f.id], marks: S.settings.marks, readOnly: true }))));
+}
+// 同意書：いちばん新しい同意と、サインをもらうボタン
+function consentCard(p, cs) {
+  const cur = S.settings.consent || { ver: 1 };
+  const show = () => sheet(`${jpDate(cs.last.at.slice(0, 10))} の同意（文の版 ${cs.last.ver}）`, h('div', null,
+    h('p', { class: 'pre consenttext' }, cs.last.text), h('div', { class: 'signbox' }, signPad({ strokes: cs.last.sign || [], readOnly: true }))));
+  return card(h('h2', null, '同意書'),
+    cs.last ? h('p', null, `${jpDate(cs.last.at.slice(0, 10))} に同意・サインあり（文の版 ${cs.last.ver}）`, cs.stale ? h('span', { class: 'warntext' }, `　いまの文は版 ${cur.ver}。直したあとの文には、まだ同意をもらっていません`) : null)
+      : h('p', { class: 'muted' }, 'まだ同意をもらっていません'),
+    h('div', { class: 'row' }, btn(cs.last ? 'もう一度サインしてもらう' : '同意書にサインしてもらう', () => go(`#/sign/${p.id}`), cs.last && !cs.stale ? '' : 'primary'),
+      cs.last ? btn('同意した文とサインを見る', show, 'ghost') : null));
+}
+
+// サインの画面（お客さんに端末をわたす）。ほかのお客さんの情報・メニューは出さない
+export async function signView(id) {
+  const p = person(id); if (!p) return notFound();
+  const det = (await db.get('details', id)) || blankCustomer().det;
+  const c = S.settings.consent || { text: '', ver: 1 }; const strokes = [];
+  const okBtn = btn('同意して、サインを残す', async () => {
+    if (!strokes.length) return;
+    det.consents = [...(det.consents || []), { at: new Date().toISOString(), ver: c.ver || 1, text: c.text, sign: strokes }];
+    await saveCustomer(p, det);
+    fill(root, h('div', { class: 'signdone' }, h('h1', null, 'ありがとうございました'), h('p', null, '端末を、お店の人にもどしてください。'),
+      btn('（お店の人）カルテにもどる', () => go(`#/c/${id}`), 'primary big')));
+  }, 'primary big wide');
+  const sync = () => { okBtn.disabled = strokes.length === 0; };
+  const pad = signPad({ strokes, onChange: sync });
+  const root = h('div', { class: 'signmode' },
+    h('h1', null, S.settings.salonName ? `${S.settings.salonName}　施術を受ける前に` : '施術を受ける前に'),
+    h('p', { class: 'pre consenttext' }, c.text),
+    h('p', { class: 'signname' }, `${p.name} 様`), h('p', { class: 'hint' }, '下のわくに、指かペンでサインしてください。'),
+    h('div', { class: 'signbox' }, pad),
+    h('div', { class: 'row' }, btn('書き直す', () => { strokes.length = 0; pad.redraw(); sync(); }, 'ghost'),
+      btn('やめる（お店の人にもどす）', async () => { if (await confirmDlg('サインをやめて、カルテにもどります。', 'やめる')) go(`#/c/${id}`); }, 'ghost')),
+    okBtn);
+  sync();
+  return root;
+}
+
 export const notFound = () => page({ title: '見つかりません', back: '#/', body: h('p', { class: 'muted pad' }, 'このページは見つかりませんでした。') });
 
 export async function customerView(id) {
@@ -137,6 +203,9 @@ export async function customerView(id) {
   const last = visits.find((v) => v.status === 'done') || visits[0];
   const age = ageOf(det.birth); const tags = (det.allergyTags || []).map(allergenName).filter(Boolean);
   const warns = [...det.conds.map(condName), ...(last ? last.conds.filter((c) => !['c_sun', 'c_mens', 'c_drive', 'c_drink'].includes(c)).map((c) => condName(c) + '（前回）') : [])].filter(Boolean);
+  const noTouch = visits[0] ? noTouchOf(visits[0].figures, S.settings.marks) : {};
+  const hasNoTouch = Object.keys(noTouch).length > 0;
+  const cs = consentState(det.consents, S.settings.consent); const life = lifeText(det.life);
 
   const start = async () => {
     const draft = visits.find((v) => v.status === 'draft' && v.date === todayStr());
@@ -158,13 +227,17 @@ export async function customerView(id) {
     title: p.name, sub: [p.kana, `No.${p.no}`, det.gender, age != null ? `${age}歳` : '', det.job].filter(Boolean).join('・'),
     back: '#/', actions: h('a', { class: 'btn ghost', href: `#/c/${id}/edit` }, '情報を直す'),
     body: [
-      (warns.length || det.allergy || tags.length || det.history) ? h('div', { class: 'warnbox' },
+      (warns.length || det.allergy || tags.length || det.history || hasNoTouch) ? h('div', { class: 'warnbox' },
         h('strong', null, '⚠ 気をつけること'),
         warns.length ? h('div', { class: 'chips' }, warns.map((w) => badge(w, 'warn'))) : null,
         det.allergy || tags.length ? h('p', null, h('b', null, 'アレルギー：'), [...tags, det.allergy].filter(Boolean).join('／')) : null,
-        det.history ? h('p', null, h('b', null, 'これまでの病気・けが：'), det.history) : null) : null,
+        det.history ? h('p', null, h('b', null, 'これまでの病気・けが：'), det.history) : null,
+        hasNoTouch ? h('div', null, h('p', null, h('b', null, '✕ 触れないでほしいところがあります')), noTouchFigures(noTouch)) : null) : null,
+      consentCard(p, cs),
       visits.length ? history(visits, det, copyFrom) : null,
       det.memo ? card(h('h2', null, 'メモ'), h('p', { class: 'pre' }, det.memo)) : null,
+      card(h('h2', null, '生活の様子'), h('p', null, life || h('span', { class: 'muted' }, 'まだ聞いていません（「情報を直す」で入れられます）')),
+        life && det.life.updated ? h('p', { class: 'muted small' }, `${jpDate(det.life.updated)} に直した`) : null),
       card(h('h2', null, '次回の予定日'), h('div', { class: 'row' }, nextIn,
         btn('1週間後', () => setNext(addDays(todayStr(), 7))), btn('2週間後', () => setNext(addDays(todayStr(), 14))), btn('1か月後', () => setNext(addDays(todayStr(), 28))),
         p.nextDate ? btn('消す', () => setNext(''), 'ghost') : null)),

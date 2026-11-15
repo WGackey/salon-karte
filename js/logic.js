@@ -188,6 +188,18 @@ export function pickCarriers({ carriers, skins, purposes, condIds, allergyTags, 
   }).sort((a, b) => b.score - a.score || a.oil.name.localeCompare(b.oil.name, 'ja'));
 }
 
+// 「触れないで」のしるし（× つきのしるし）の線だけを、図ごとに取り出す（次の来店に写す・施術の前に見せる）
+export function noTouchOf(figures, marks) {
+  const xs = new Set((marks || []).filter((m) => m.x).map((m) => m.id)); const out = {};
+  for (const [k, arr] of Object.entries(figures || {})) { const f = (arr || []).filter((s) => xs.has(s.m)); if (f.length) out[k] = f; }
+  return out;
+}
+// 同意の記録のうち、いちばん新しいもの。stale＝いまの文より前の版に同意したもの
+export function consentState(consents, consent) {
+  const last = [...(consents || [])].sort((a, b) => (b.at || '').localeCompare(a.at || ''))[0] || null;
+  return { last, stale: !!last && (last.ver || 0) < ((consent && consent.ver) || 1) };
+}
+
 // お客さんを探す（名前・ふりがな・カルテ番号）
 const norm = (s) => (s || '').toLowerCase().replace(/[\s　]/g, '').replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
 export function searchPeople(people, q) {
