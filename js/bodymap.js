@@ -29,12 +29,12 @@ const pathOf = (p) => { let d = `M${p[0]} ${p[1]}`; if (p.length === 2) d += `l0
 // kind: 図の番号（'front' | 'back' | 'hand_palm_r' …）。strokes をその場で書きかえる。getTool() → {mode:'draw'|'erase', mark, width}
 // layer：だれの図か。'staff'＝施術する人の所見（ぬった線）／'guest'＝お客さんの気になるところ（つぶつぶの線）
 // under：下に重ねて見せるだけの図 [{ strokes, layer }]（なぞれない）
-export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = false, layer = 'staff', under = [], overlays = [] }) {
+export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = false, layer = 'staff', under = [], overlaySvg = '' }) {
   const def = FIGS[kind] || FIGS.front; const part = !!def.box; // part＝部位の図（手・足など）
   const svg = el('svg', { viewBox: part ? def.box.join(' ') : ZONES.all, class: 'bodypad' + (part ? ' pt' : '') + (readOnly ? ' ro' : ''), role: 'img', 'aria-label': `からだの図（${def.name}）` });
   if (part) {
     // 重ねる層（反射区など・第3段）は、図のすぐ上・なぞった線の下に入る
-    svg.innerHTML = def.svg + (def.overlays || []).filter((o) => (overlays || []).includes(o.id)).map((o) => `<g class="fig-overlay">${o.svg}</g>`).join('');
+    svg.innerHTML = def.svg + (overlaySvg ? `<g class="fig-overlay">${overlaySvg}</g>` : '');
     svg.setZone = () => {};
   } else {
     const left = kind === 'front' ? '右' : '左', right = kind === 'front' ? '左' : '右';

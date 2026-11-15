@@ -58,12 +58,33 @@ if (require.main === module) (async () => {
     await p.evaluate(async () => { const s = await import('./js/state.js'); await s.leaveGuest(); location.hash = '#/'; }); await p.waitForSelector('.home-top');
     // --- 0.7.0（版6）のデータから上げる：案内は出さない・名前の入れ物が足される ---
     await p.evaluate(async () => { const db = await import('./js/db.js'); const st = await db.getMeta('settings'); delete st.onboard; delete st.staffName; delete st.reflex; await db.setMeta('settings', st); await db.setMeta('dataVersion', 6);
-      const cs = await db.all('customers'); const ds = await db.all('details'); await db.batch(['customers', 'details'], (os) => { cs.forEach((c) => os.customers.delete(c.id)); ds.forEach((d) => os.details.delete(d.id)); }); });
+      });
     await p.reload(); await p.waitForSelector('.home-top'); const s6 = await k.settings();
     assert.equal(await p.evaluate(async () => (await import('./js/db.js')).getMeta('dataVersion')), 7); assert.equal(s6.onboard.done, true); assert.equal(s6.staffName, ''); assert.equal(s6.reflex.show, false); assert.equal(s6.salonName, 'みほん/サロン');
+    // --- 反射区：はじめは出さない → 所見の足の裏で切りかえ → 名前・色を直す → お客さんの図には出ない ---
+    await tap('＋ 新しいお客さん'); await p.getByPlaceholder('山田 花子').fill('見本 あしつぼ'); await tap('保存する'); await p.waitForSelector('.handbtn');
+    await tap('今日の来店をはじめる'); await p.waitForSelector('.scopepick');
+    const vid = await p.evaluate(async () => { const s = await import('./js/state.js'); await s.flush(); const db = await import('./js/db.js'); const id = location.hash.split('/')[2]; const v = await db.get('visits', id); v.scope = { type: 'part', parts: ['foot'] }; await db.put('visits', v); return id; });
+    await p.goto(BASE + `#/v/${vid}/shoken`); await p.waitForSelector('.zu.staff .bodypad.pt'); assert.equal(await p.locator('.rz').count(), 0, 'はじめは出さない'); assert.equal(await p.locator('.rzlegend:visible').count(), 0);
+    await tap('反射区を重ねる'); await p.waitForSelector('.rz'); const perFig = await p.evaluate(() => [...document.querySelectorAll('.bodypad')].map((s) => s.querySelectorAll('.rz').length));
+    assert.ok(perFig.filter((n) => n === 10).length >= 1 && perFig.every((n) => n === 0 || n === 10), '足の裏にだけ10個：' + perFig); assert.ok(await p.getByText('反射区（下書き・確かめていません）').count(), '下書きとはっきり出る');
+    await p.locator('.rzkey').nth(5).tap(); await p.waitForSelector('.rz.hi'); await p.locator('.rzlegend').evaluate((e) => e.scrollIntoView({ block: 'end' })); await shot('r1-shoken'); await k.noOverflow('反射区');
+    // 重ねたままでも、なぞれる（線が残る）
+    const cdp = await k.ctx.newCDPSession(p); const el = p.locator('.zu .bodypad').first(); await el.evaluate((e) => e.scrollIntoView({ block: 'center' })); await p.waitForTimeout(200); const bb = await el.boundingBox();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: bb.x + bb.width * 0.5, y: bb.y + bb.height * 0.4 }] });
+    for (const d of [0.02, 0.04, 0.06]) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: bb.x + bb.width * (0.5 + d), y: bb.y + bb.height * (0.4 + d) }] });
+    await p.waitForTimeout(120); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await p.waitForTimeout(400);
+    assert.equal(await p.locator('.zu .bodypad .strokes.own path').count(), 1, '反射区の上からなぞれる');
+    await p.locator('.openfull, .fullbtn').locator('visible=true').first().tap(); await p.waitForSelector('.zu.full'); await shot('r2-full'); await p.locator('.closefull').tap();
+    assert.equal((await k.settings()).reflex.show, true, '出す・出さないを覚える');
+    await p.goto(BASE + `#/v/${vid}/kininaru`); await p.waitForSelector('.zu.guest .bodypad.pt'); assert.equal(await p.locator('.rz').count(), 0, 'お客さんの図には出ない'); assert.equal(await p.getByText('反射区を重ねる').count(), 0);
+    await p.goto(BASE + '#/set/reflex'); await p.waitForSelector('.rzprev .rz'); await p.locator('.edit-row input.grow').first().fill('あたま'); await p.locator('.edit-row .mini').nth(1).tap(); await p.waitForFunction(() => document.querySelectorAll('.rzprev .rz').length === 18);
+    await shot('r3-set'); await k.noOverflow('反射区の設定'); const rf = (await k.settings()).reflex; assert.equal(rf.zones[0].name, 'あたま'); assert.equal(rf.zones[1].off, true);
+    await p.goto(BASE + `#/v/${vid}/shoken`); await p.waitForSelector('.rzkey'); assert.ok((await p.locator('.rzkey').first().textContent()).includes('あたま')); assert.equal(await p.locator('.rzkey').count(), 9);
+    await tap('反射区を重ねる'); await p.waitForFunction(() => !document.querySelector('.rz')); assert.equal((await k.settings()).reflex.show, false);
     await k.ctx.close(); console.log('✓', prefix);
   }
   await b.close();
   assert.deepEqual(errs, [], 'エラーなし'); assert.deepEqual(outside, [], '外への通信なし');
-  console.log('✓ ぜんぶ通った（第3段・売るための設定）');
+  console.log('✓ ぜんぶ通った（第3段・売るための設定と反射区）');
 })().catch((e) => { console.error(e); process.exit(1); });

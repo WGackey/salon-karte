@@ -1,5 +1,7 @@
 import { scopeChips } from '../scopepick.js';
-import { PART_FIGS, FIGS } from '../parts.js';
+import { PART_FIGS, FIGS, REFLEX_SHAPES, REFLEX_FIGS, reflexSvg } from '../parts.js';
+import { bodyPad } from '../bodymap.js';
+import { DEFAULT_REFLEX } from '../seed.js';
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, HERE, AUTO_NOTE } from '../ui.js';
 import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin } from '../state.js';
 import { choosePin, askPin } from './guest.js';
@@ -34,6 +36,7 @@ export function settingsView() {
         link('#/set/handover', 'お客さんに渡すとき（合言葉）', hasPin() ? '合言葉：決めてあります' : '合言葉：まだ決めていません'),
         link('#/set/menus', '施術メニュー', `${S.menus.length}個。メニューごとに「施術するところ（全身・手だけ など）」を決められる`),
         link('#/set/parts', '部位（手だけ・足だけ などのカルテ）', '部位の名前・濃度の目安・関わる「つらいところ」'),
+        link('#/set/reflex', '反射区（足の裏の区分け）', `足の裏の図に重ねる区分け。いまは「${(S.settings.reflex || {}).show ? '出す' : '出さない'}」・${(S.settings.reflex || {}).checked ? '確かめた' : '下書き（確かめていません）'}`),
         link('#/set/lists', 'えらぶ言葉を直す', '症状・肌の状態・アレルギー・目的・香りの好み・お仕事 など'),
         link('#/set/salon', 'お店の名前・施術する人の名前', [S.settings.salonName, S.settings.staffName].filter(Boolean).join('・') || '（まだ入っていません）'))),
       card(h('h2', null, 'データ'), h('div', { class: 'list' },
@@ -202,6 +205,37 @@ export const menusView = () => simpleList({
     (it, save) => h('div', { class: 'menuscope' }, h('span', { class: 'small muted' }, '施術するところ：'), scopeChips(it.scope, (sc) => { it.scope = sc; save(); }, { none: true }))],
   blank: () => ({ id: db.uid(), name: '', minutes: 60, scope: null }), onSave: (it) => saveMaster('menus', it), onDelete: (it) => deleteMaster('menus', it.id),
 });
+
+// ---- 反射区（足の裏の区分け） ----
+export function reflexView() {
+  const st = S.settings; st.reflex = st.reflex || JSON.parse(JSON.stringify(DEFAULT_REFLEX)); const r = st.reflex;
+  const save = () => { saveSettings(); drawPrev(); };
+  const prev = h('div', { class: 'pads both pt rzprev' }); const list = h('div');
+  const drawPrev = () => fill(prev, ...Object.keys(REFLEX_FIGS).map((id) => h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, FIGS[id].name),
+    bodyPad({ kind: id, strokes: [], marks: st.marks, readOnly: true, overlaySvg: reflexSvg(id, r) }))));
+  const drawList = () => {
+    let no = 0;
+    fill(list, ...r.zones.filter((z) => REFLEX_SHAPES[z.id]).map((z) => h('div', { class: 'edit-row' },
+      h('b', { class: 'rzno' }, z.off ? '－' : ++no),
+      input(z, 'name', { placeholder: '区分けの名前', cls: 'grow', onInput: save }),
+      (() => { const c = h('input', { type: 'color', class: 'colorin', value: z.color, 'aria-label': '色' }); c.oninput = () => { z.color = c.value; save(); }; return c; })(),
+      (() => { const b = h('button', { type: 'button', class: 'mini' + (z.off ? '' : ' on') }, z.off ? '出さない' : '✓ 出す'); b.onclick = () => { z.off = !z.off; save(); drawList(); }; return b; })())));
+  };
+  drawPrev(); drawList();
+  return page({
+    title: '反射区（足の裏の区分け）', back: '#/set', body: [
+      AUTO_NOTE(),
+      h('div', { class: 'notice draft' }, 'はじめから入っている区分けは「下書き」で、確かめていません。一般に知られている大まかな区分けを、このアプリ用に描いたものです。資料や流派によって、場所や名前はちがいます。自分の資料で確かめてから使ってください。からだの不調を診断したり、治したりするものではありません。'),
+      card(h('h2', null, '図に重ねる'),
+        chips([{ id: 'on', name: '足の裏の図に、反射区を重ねて出す' }], r.show ? ['on'] : [], { cls: 'col', onChange: (x) => { r.show = x.length > 0; save(); } }),
+        h('p', { class: 'hint' }, '出るのは、施術する人がなぞる「所見」の図（足の裏）だけです。お客さんに渡す画面には出ません。所見の画面の「反射区を重ねる」でも、出す・出さないを切りかえられます。'),
+        chips([{ id: 'ok', name: '自分の資料で確かめた（「下書き」のしるしを外す）' }], r.checked ? ['ok'] : [], { cls: 'col', onChange: (x) => { r.checked = x.length > 0; save(); } })),
+      card(h('h2', null, '見え方'), prev),
+      card(h('h2', null, '区分けの名前と色'), h('p', { class: 'hint' }, '名前・色を直せます。使わない区分けは「出さない」にできます。場所（形）は、いまは直せません。'), list,
+        h('div', { class: 'row' }, btn('はじめの下書きに戻す', async () => { if (!(await confirmDlg('区分けの名前・色・出す出さないを、はじめの下書きに戻します。', '戻す', true))) return; r.zones = JSON.parse(JSON.stringify(DEFAULT_REFLEX.zones)); r.checked = false; save(); drawList(); }, 'ghost'))),
+    ],
+  });
+}
 
 // ---- 部位（手だけ・足だけ などのカルテ） ----
 export function partsView() {

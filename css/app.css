@@ -356,3 +356,14 @@ button.thumbs { border: 0; background: none; padding: 0; margin: 0; font: inheri
 .guide > summary::after { content: '＋'; margin-left: auto; color: var(--accent); font-weight: 400; } .guide[open] > summary::after { content: '－'; }
 .guide-body { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; align-items: flex-start; } .guide-body .notice { align-self: stretch; }
 .gsalon { font-size: 1rem; color: #7a6a5e; margin: 0; }
+/* ---- 反射区（足の裏の区分け）：うすい線・番号。なぞるじゃまをしない ---- */
+.fig-overlay { pointer-events: none; } .rz ellipse, .rz path { fill: var(--c); fill-opacity: .09; stroke: var(--c); stroke-width: 1.2; stroke-opacity: .65; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.rz .rzline { fill: none; stroke-width: 9; stroke-opacity: .2; stroke-dasharray: none; stroke-linecap: round; vector-effect: none; }
+.rz text { font-size: 11px; font-weight: 700; fill: var(--c); fill-opacity: .85; text-anchor: middle; stroke: #fffdfa; stroke-width: 2.5px; paint-order: stroke; }
+.rz.hi ellipse, .rz.hi path { fill-opacity: .4; stroke-opacity: 1; stroke-dasharray: none; } .rz.hi .rzline { stroke-opacity: .6; fill: none; }
+.rzlegend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; padding: 4px 0; } .rzlegend[hidden] { display: none; }
+.rznote { font-size: .85rem; color: var(--muted); flex: 1 1 100%; text-align: center; }
+.rzkey { white-space: nowrap; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px 0 6px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); font-size: .9rem; cursor: pointer; }
+.rzkey b, .rzno { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--c, #999); color: #fff; font-size: .8rem; flex: none; } .rzkey.on { border-color: var(--c); box-shadow: 0 0 0 2px var(--c) inset; }
+.rzno { background: #8a8178; } .colorin { width: 52px; height: 44px; padding: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); flex: none; }
+.rzprev .padwrap { max-width: 300px; } .zu.full .rzlegend { flex: none; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; } .zu.full .rznote { flex: none; }

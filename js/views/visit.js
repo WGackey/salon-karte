@@ -1,5 +1,5 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone, saveBadge } from '../ui.js';
-import { S, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
+import { S, saveSettings, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
 import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchAll } from '../logic.js';
 import { figureEditor, hasLines } from '../figedit.js';
@@ -125,6 +125,7 @@ export async function visitView(id, step) {
     // ---------- 所見（施術する人の図） ----------
     shoken() {
       return figureEditor({ figures: v.figures, figs: figsOf(v.scope), layer: 'staff', marks: S.settings.marks, onSave: save,
+        reflex: { get: () => (S.settings.reflex = S.settings.reflex || { show: false, zones: [] }), save: saveSettings },
         under: { figures: v.guestFigures, layer: 'guest', label: 'お客さんの図も重ねる' },
         hints: ['さわって・見て分かったことを、施術する人がなぞります（ぬった線）。' + (hasLines(v.guestFigures) ? 'お客さんの「気になるところ」は、つぶつぶの線で下に重ねて出しています（「お客さんの図も重ねる」で出す・かくす）。' : ''),
           '「ひとつ戻す」＝直前にしたこと（かいた・消した）を1つ取り消す。「消しゴム」＝前にかいた線でも、さわった線だけ消す。「触れないで（×）」は施術する人も足せて、次の来店にも写ります。'] });
