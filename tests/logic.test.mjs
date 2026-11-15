@@ -235,7 +235,7 @@ test('版4への移し替え：精油を資料の30本に。手持ちは残す�
     visits: [{ id: 'v1', conds: ['c_preg'], interview: { symptoms: [], moods: [] }, blend: { oils: [{ oilId: 'o_lavender', name: 'ラベンダー（真正）', drops: 3 }], carriers: [] } }],
   } };
   const d = migrateDump(v3, MIGRATIONS, DATA_VERSION);
-  assert.equal(d.dataVersion, 4);
+  assert.equal(d.dataVersion, DATA_VERSION);
   const o = Object.fromEntries(d.stores.oils.map((x) => [x.id, x]));
   assert.equal(o.o_lavender.name, 'ラベンダー・アングスティフォリア'); assert.equal(o.o_lavender.owned, true); assert.deepEqual(o.o_lavender.components, { est: null, alc: null, hyd: null });
   assert.equal(o.o_marjoram.name, 'うちのマージョラム'); assert.deepEqual(o.o_marjoram.components, { alc: 50, hyd: 40 }); assert.equal(o.o_marjoram.family, 'f_flower'); assert.deepEqual(o.o_marjoram.uses, ['s_kata']);
@@ -256,4 +256,28 @@ test('版4への移し替え：精油を資料の30本に。手持ちは残す�
   assert.deepEqual(d.stores.visits[0].interview.famLikes, []); assert.equal(d.stores.visits[0].pregMonth, null); assert.equal(d.stores.visits[0].blend.oils[0].name, 'ラベンダー（真正）', '前の記録の名前はそのまま');
   const again = migrateDump({ ...d, dataVersion: 3 }, MIGRATIONS, DATA_VERSION);
   assert.deepEqual(again.stores.oils.map((x) => x.id).sort(), d.stores.oils.map((x) => x.id).sort(), '2回かけても増えない');
+});
+
+test('版5への移し替え：これまでの図は「所見」としてそのまま残る。お客さんの図・前半をだれが書いたか の入れ物が足される', () => {
+  const line = { m: 'm_pain', w: 14, p: [10, 10, 20, 20] }, x = { m: 'm_notouch', w: 14, p: [50, 50, 60, 60] };
+  const v4 = { dataVersion: 4, stores: {
+    visits: [{ id: 'v1', customerId: 'c1', figures: { front: [line, x], back: [] }, interview: { symptoms: [{ id: 's_kata', level: 7 }], memo: 'メモ' } }],
+    details: [{ id: 'c1', consents: [{ ver: 1 }], life: { sleep: 6 } }],
+  } };
+  const d = migrateDump(v4, MIGRATIONS, DATA_VERSION); const v = d.stores.visits[0];
+  assert.equal(d.dataVersion, 5);
+  assert.deepEqual(v.figures, { front: [line, x], back: [] }, 'これまでの図は所見の図として残る');
+  assert.deepEqual(v.guestFigures, { front: [], back: [] }); assert.equal(v.intake, null);
+  assert.equal(v.interview.wish, ''); assert.equal(v.interview.memo, 'メモ'); assert.equal(v.interview.symptoms[0].level, 7);
+  assert.equal(d.stores.details[0].intakeAt, ''); assert.equal(d.stores.details[0].life.sleep, 6); assert.equal(d.stores.details[0].consents.length, 1);
+  // お客さんの図に書いたあとで もう一度かけても、消えない
+  v.guestFigures.front.push(line); v.intake = { by: 'guest', at: 'x' };
+  const again = migrateDump({ ...d, dataVersion: 4 }, MIGRATIONS, DATA_VERSION).stores.visits[0];
+  assert.equal(again.guestFigures.front.length, 1); assert.equal(again.intake.by, 'guest');
+});
+test('触れないで（×）は、お客さんの図と施術する人の図の両方から集める', async () => {
+  const { noTouchAll } = await import('../js/logic.js'); const marks = [{ id: 'm_pain' }, { id: 'm_notouch', x: true }];
+  const g = { m: 'm_notouch', w: 14, p: [1, 1] }, s = { m: 'm_notouch', w: 6, p: [2, 2] }, n = { m: 'm_pain', w: 6, p: [3, 3] };
+  assert.deepEqual(noTouchAll({ guestFigures: { front: [g, n], back: [] }, figures: { front: [s], back: [n] } }, marks), { front: [g, s] });
+  assert.deepEqual(noTouchAll({ figures: { front: [n] } }, marks), {});
 });

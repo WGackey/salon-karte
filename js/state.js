@@ -3,7 +3,7 @@ import * as db from './db.js';
 import { DEFAULT_SETTINGS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_CARRIERS, DEFAULT_MENUS } from './seed.js';
 import { todayStr, noTouchOf } from './logic.js';
 
-export const S = { settings: null, people: [], oils: [], cats: [], carriers: [], menus: [], blends: [], newer: false };
+export const S = { settings: null, people: [], oils: [], cats: [], carriers: [], menus: [], blends: [], newer: false, guest: null };
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 export async function boot() {
@@ -21,6 +21,7 @@ export async function boot() {
   // あとから足した設定の項目は、足りない分だけ補う（使う人が直した値は上書きしない）
   S.settings = { ...clone(DEFAULT_SETTINGS), ...settings };
   await reload();
+  S.guest = await db.getMeta('guest'); // お客さんに渡している途中なら、開き直してもお客さん用の画面のまま
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 }
 export async function reload() {
@@ -46,7 +47,7 @@ export async function deleteMaster(store, id) { await db.del(store, id); S[store
 export function blankCustomer() {
   return {
     slim: { id: db.uid(), no: 0, name: '', kana: '', nextDate: '', lastVisit: '', visitCount: 0 },
-    det: { life: {}, consents: [], gender: '', birth: '', zip: '', address: '', tel: '', email: '', job: '', firstVisit: todayStr(), history: '', conds: [], allergy: '', allergyTags: [], avoidOilIds: [], avoidCarrierIds: [], experience: '', memo: '' },
+    det: { life: {}, consents: [], intakeAt: '', gender: '', birth: '', zip: '', address: '', tel: '', email: '', job: '', firstVisit: todayStr(), history: '', conds: [], allergy: '', allergyTags: [], avoidOilIds: [], avoidCarrierIds: [], experience: '', memo: '' },
   };
 }
 export async function saveCustomer(slim, det) {
@@ -76,9 +77,12 @@ export async function newVisit(customerId) {
     id: db.uid(), customerId, date: todayStr(), status: 'draft',
     scope: { type: 'whole' }, // 第2段で「部分（手・足など）」を足すための入れ物
     conds: prev ? prev.conds.filter((c) => !['c_sun', 'c_drive', 'c_drink'].includes(c)) : [], // その日だけのもの（屋外・運転・お酒）は写さない。妊娠の月数も写さない
-    interview: prev ? { ...clone(prev.interview), memo: '' } : { life: '', purposes: [], moods: [], symptoms: [], skins: [], memo: '' },
-    // 図の名前 → なぞった線。第2段で手・足の図を足せる。「触れないで（×）」の線は前回から写す
-    figures: { front: [], back: [], ...JSON.parse(JSON.stringify(prev ? noTouchOf(prev.figures, S.settings.marks) : {})) },
+    interview: prev ? { ...clone(prev.interview), memo: '', wish: '' } : { life: '', purposes: [], moods: [], symptoms: [], skins: [], memo: '', wish: '' },
+    // 図は2つ。guestFigures＝お客さんの「気になるところ」／figures＝施術する人の「所見」。図の名前 → なぞった線（第2段で手・足の図を足せる）
+    // 「触れないで（×）」の線だけは、それぞれ前回から写す
+    guestFigures: { front: [], back: [], ...clone(prev ? noTouchOf(prev.guestFigures, S.settings.marks) : {}) },
+    figures: { front: [], back: [], ...clone(prev ? noTouchOf(prev.figures, S.settings.marks) : {}) },
+    intake: null, // 前半（問診）をだれが書いたか：{ by:'guest'|'staff', at }
     blend: { areaId: S.settings.areas[0]?.id || '', oils: [], carriers: [], memo: '' },
     menus: [], treat: { seitai: '', aroma: '' },
     after: { levels: {}, scent: '', note: '' }, nextDate: '',
@@ -108,3 +112,15 @@ export function saveSoon(fn) { pending = fn; clearTimeout(timer); if (fn) { tell
 export async function flush() { clearTimeout(timer); const f = pending; pending = null; if (f) { try { await f(); } finally { if (!pending) tell(false); } } }
 addEventListener('pagehide', flush);
 document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+
+// ---- お客さんに渡す（お客さん用の画面）と、戻るための合言葉 ----
+// 合言葉そのものは残さず、まぜもの（salt）つきの要約だけを残す。外へは送らない
+const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+async function pinHash(pin, salt) { return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin))); }
+export const hasPin = () => !!(S.settings.pin && S.settings.pin.hash);
+export async function setPin(pin) { const salt = db.uid(); S.settings.pin = { salt, hash: await pinHash(pin, salt) }; await saveSettings(); }
+export async function checkPin(pin) { return hasPin() && (await pinHash(pin, S.settings.pin.salt)) === S.settings.pin.hash; }
+// g：{ customerId, visitId, parts:['profile','consent','monshin'], step, startedAt }
+export async function enterGuest(g) { await flush(); S.guest = { step: 0, startedAt: Date.now(), ...g }; await db.setMeta('guest', S.guest); }
+export async function saveGuest() { if (S.guest) await db.setMeta('guest', S.guest); }
+export async function leaveGuest() { await flush(); S.guest = null; await db.setMeta('guest', null); }

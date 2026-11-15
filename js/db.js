@@ -1,7 +1,7 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
 import { DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 4;
+export const DATA_VERSION = 5;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends'];
 const IDB_VERSION = 1;
 let DB_NAME = 'salon-karte';
@@ -50,6 +50,14 @@ export const MIGRATIONS = [
       visits: (r) => ({ pregMonth: null, ...r, interview: { famLikes: [], ...(r.interview || {}) } }),
     },
     add: { cats: DEFAULT_CATS, oils: DEFAULT_OILS },
+  },
+  { // 版5：からだの図を2つに分ける。これまでの図（figures）は、施術する人の「所見」の図としてそのまま引きつぐ。
+    //       お客さんの「気になるところ」の図（guestFigures）と、前半をだれが書いたか（intake）の入れ物を足す
+    to: 5,
+    stores: {
+      visits: (r) => ({ guestFigures: { front: [], back: [] }, intake: null, ...r, interview: { wish: '', ...(r.interview || {}) } }),
+      details: (r) => ({ intakeAt: '', ...r }),
+    },
   },
 ];
 

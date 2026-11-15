@@ -23,5 +23,8 @@ export function signPad({ strokes, onChange, readOnly = false }) {
   });
   const end = (e) => { if (e.pointerId !== id) return; id = null; if (cur) { strokes.push(cur); onChange && onChange(); } cur = null; curEl = null; };
   svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+  // すばやく払うように書き終えると、ブラウザが「払う動き」とみなして、すぐ次の1回押しを飲みこむことがある。
+  // 指の動きをここで引き受けて、ブラウザに払う動きとして扱わせない（書いたあとのボタンが1回で押せるように）
+  for (const t of ['touchstart', 'touchmove', 'touchend']) svg.addEventListener(t, (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
   return svg;
 }

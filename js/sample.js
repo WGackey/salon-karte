@@ -28,6 +28,7 @@ export async function addSamples(n = 1000) {
       visits.push({
         id: db.uid(), customerId: id, date, status: 'done', scope: { type: 'whole' }, conds: [], sample: true,
         interview: { life: '見本のデータです', purposes: [pick(st.purposes)], moods: [pick(st.moods)], symptoms: syms, skins: rnd() < 0.5 ? [pick(st.skins).id] : [], memo: '' },
+        guestFigures: { front: [stroke(st.marks)], back: rnd() < 0.5 ? [stroke(st.marks)] : [] }, intake: null,
         figures: { front: [stroke(st.marks), stroke(st.marks)], back: [stroke(st.marks), stroke(st.marks), stroke(st.marks)] },
         blend: { areaId: st.areas[0].id, oils, carriers: [{ carrierId: S.carriers[0].id, name: S.carriers[0].name, ml: 30 }], memo: '' },
         menus: S.menus[0] ? [{ id: S.menus[0].id, name: S.menus[0].name, minutes: S.menus[0].minutes }] : [], treat: { seitai: '', aroma: '見本' },

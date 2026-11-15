@@ -73,6 +73,9 @@ export const DEFAULT_CONSENT_TEXT = `施術を受ける前に、次のことを�
 
 export const DEFAULT_SETTINGS = {
   salonName: '',
+  pin: null, // お客さん用の画面から戻るための合言葉（数字4けた）。{ salt, hash } の形で残す
+  // 問診をだれが書くか（はじめに大きく出すボタン）。guest＝お客さんに渡す／staff＝施術する人が聞きながら書く。どちらもいつでも選べる
+  handover: { first: 'guest', repeat: 'staff' },
   consent: { text: DEFAULT_CONSENT_TEXT, ver: 1, draft: true }, // ver＝文の版。文を直して保存すると1つ上がる
   dropMl: 0.05, // 1滴の量（ml）
   cautionPct: 10, // 気をつける成分が何％以上入っていたら外すか

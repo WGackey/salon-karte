@@ -1,5 +1,6 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, AUTO_NOTE } from '../ui.js';
-import { S, saveSettings, saveMaster, deleteMaster, reload } from '../state.js';
+import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin } from '../state.js';
+import { choosePin, askPin } from './guest.js';
 import * as db from '../db.js';
 import { todayStr, daysBetween, ymd, jpDate, TRAITS } from '../logic.js';
 import { makeBackupText, readBackupHead, restoreBackup, handOver } from '../backup.js';
@@ -28,6 +29,7 @@ export function settingsView() {
         link('#/set/fats', 'キャリアオイルの成分（向いている肌の状態）', 'キャリアオイルの候補を出すもとになる表'))),
       card(h('h2', null, 'カルテ'), h('div', { class: 'list' },
         link('#/set/consent', '同意書と注意事項', `お客さんにサインしてもらう文（いまの文は版 ${(S.settings.consent || {}).ver || 1}）`),
+        link('#/set/handover', 'お客さんに渡すとき（合言葉）', hasPin() ? '合言葉：決めてあります' : '合言葉：まだ決めていません'),
         link('#/set/menus', '施術メニュー', `${S.menus.length}個`),
         link('#/set/lists', 'えらぶ言葉を直す', '症状・肌の状態・アレルギー・目的・香りの好み・お仕事 など'),
         link('#/set/salon', 'お店の名前', S.settings.salonName || '（まだ入っていません）'))),
@@ -346,6 +348,25 @@ export function listsView() {
 }
 export function salonView() {
   return page({ title: 'お店の名前', back: '#/set', body: [AUTO_NOTE(), card(field('ホームの上に出る名前', input(S.settings, 'salonName', { onInput: () => saveSettings(), placeholder: '例：〇〇サロン' })))] });
+}
+
+// ---- お客さんに渡すとき ----
+export function handoverView() {
+  const st = S.settings; st.handover = st.handover || { first: 'guest', repeat: 'staff' };
+  const box = h('div');
+  const who = [{ id: 'guest', name: 'お客さんに渡して書いてもらう' }, { id: 'staff', name: '施術する人が聞きながら書く' }];
+  const draw = () => fill(box,
+    card(h('h2', null, '戻るための合言葉（数字4けた）'),
+      h('p', null, hasPin() ? '✓ 決めてあります' : h('span', { class: 'warntext' }, 'まだ決めていません（はじめてお客さんに渡すときにも、決められます）')),
+      h('div', { class: 'row' }, btn(hasPin() ? '合言葉を変える' : '合言葉を決める', async () => { if (hasPin() && !(await askPin('いまの合言葉を入れてください'))) return; if (await choosePin()) draw(); }, 'primary')),
+      h('p', { class: 'hint' }, 'お客さん用の画面では、ほかのお客さんのカルテ・後半の画面・設定に行けません。戻るときに、この合言葉を入れます。'),
+      h('div', { class: 'notice amber' }, '合言葉は、どこかに書きとめておいてね。忘れると、お客さん用の画面から戻れなくなります（アプリを消して入れ直し、バックアップから戻すことになります）。バックアップをこまめに。')),
+    card(h('h2', null, '問診をだれが書くか（はじめに大きく出すボタン）'),
+      group('初回のお客さん', chips(who, st.handover.first, { multi: false, cls: 'col', onChange: (x) => { if (x) st.handover.first = x; saveSettings(); draw(); } })),
+      group('2回目からのお客さん', chips(who, st.handover.repeat, { multi: false, cls: 'col', onChange: (x) => { if (x) st.handover.repeat = x; saveSettings(); draw(); } })),
+      h('p', { class: 'hint' }, 'どちらにしていても、お客さんのページと問診の画面で、もう片方もえらべます。')));
+  draw();
+  return page({ title: 'お客さんに渡すとき', back: '#/set', body: [AUTO_NOTE(), box] });
 }
 
 // ---- バックアップ ----

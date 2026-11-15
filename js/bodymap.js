@@ -26,12 +26,13 @@ function el(tag, attrs) { const e = document.createElementNS(NS, tag); for (cons
 const pathOf = (p) => { let d = `M${p[0]} ${p[1]}`; if (p.length === 2) d += `l0.1 0`; for (let i = 2; i < p.length; i += 2) d += `L${p[i]} ${p[i + 1]}`; return d; };
 
 // kind: 'front' | 'back'。strokes をその場で書きかえる。getTool() → {mode:'draw'|'erase', mark, width}
-export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = false }) {
+// layer：だれの図か。'staff'＝施術する人の所見（ぬった線）／'guest'＝お客さんの気になるところ（つぶつぶの線）
+// under：下に重ねて見せるだけの図 [{ strokes, layer }]（なぞれない）
+export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = false, layer = 'staff', under = [] }) {
   const svg = el('svg', { viewBox: '15 5 270 628', class: 'bodypad' + (readOnly ? ' ro' : ''), role: 'img', 'aria-label': `からだの図（${kind === 'front' ? '前' : '後ろ'}）` });
   const left = kind === 'front' ? '右' : '左', right = kind === 'front' ? '左' : '右';
   svg.innerHTML = `<g transform="translate(150 0) scale(1.22 1) translate(-150 0)"><g class="fig"><ellipse cx="150" cy="47" rx="23" ry="34"/><path d="${OUTLINE}"/></g><g class="fig-detail">${DETAIL[kind]}</g></g>
-    <text x="50" y="40" class="fig-lr">${left}</text><text x="250" y="40" class="fig-lr">${right}</text><g class="strokes"></g>`;
-  const layer = svg.querySelector('.strokes');
+    <text x="50" y="40" class="fig-lr">${left}</text><text x="250" y="40" class="fig-lr">${right}</text>`;
   // 小さい画面用：上半身・下半身だけを大きく出す（線の位置は図の座標のままなので、ずれない）
   svg.setZone = (z) => svg.setAttribute('viewBox', ZONES[z] || ZONES.all);
   const color = (m) => (marks.find((x) => x.id === m) || { color: '#888' }).color;
@@ -42,12 +43,18 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2, r = 14;
     g.append(el('path', { d: `M${cx - r} ${cy - r}L${cx + r} ${cy + r}M${cx + r} ${cy - r}L${cx - r} ${cy + r}`, stroke: color(s.m), 'stroke-width': 6, class: 'xmark' }));
   };
-  const drawOne = (s) => {
-    if (!isX(s.m)) { const p = el('path', { d: pathOf(s.p), stroke: color(s.m), 'stroke-width': s.w }); layer.append(p); return p; }
+  const drawOne = (s, to, ly) => {
+    if (!isX(s.m)) {
+      // お客さんの線は「つぶつぶ」（丸い点のつらなり）、施術する人の線は「ぬった線」
+      const a = { d: pathOf(s.p), stroke: color(s.m), 'stroke-width': s.w }; if (ly === 'guest') a['stroke-dasharray'] = `0.1 ${Math.round(s.w * 1.3)}`;
+      const p = el('path', a); to.append(p); return p;
+    }
     const g = el('g', { class: 'notouch' }); const p = el('path', { d: pathOf(s.p), stroke: color(s.m), 'stroke-width': Math.min(s.w, 8), 'stroke-dasharray': '6 6' });
-    g.append(p); xMark(s, g); layer.append(g); return p;
+    g.append(p); xMark(s, g); to.append(g); return p;
   };
-  const redraw = () => { layer.replaceChildren(); strokes.forEach(drawOne); };
+  for (const u of under) { const g = el('g', { class: 'strokes under ' + u.layer }); svg.append(g); (u.strokes || []).forEach((s) => drawOne(s, g, u.layer)); }
+  const layerEl = el('g', { class: 'strokes own ' + layer }); svg.append(layerEl);
+  const redraw = () => { layerEl.replaceChildren(); strokes.forEach((s) => drawOne(s, layerEl, layer)); };
   redraw();
   if (readOnly) return svg;
 
@@ -66,7 +73,7 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
     e.preventDefault(); activeId = e.pointerId; svg.setPointerCapture(e.pointerId);
     const tool = getTool(); const p = pt(e);
     if (tool.mode === 'erase') { cur = 'erase'; eraseAt(p); return; }
-    cur = { m: tool.mark, w: tool.width, p: [...p] }; curEl = drawOne(cur);
+    cur = { m: tool.mark, w: tool.width, p: [...p] }; curEl = drawOne(cur, layerEl, layer);
   });
   svg.addEventListener('pointermove', (e) => {
     if (e.pointerId !== activeId || !cur) return;
@@ -85,6 +92,9 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
     cur = null; curEl = null;
   };
   svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+  // すばやく払うように書き終えると、ブラウザが「払う動き」とみなして、すぐ次の1回押しを飲みこむことがある。
+  // 指の動きをここで引き受けて、ブラウザに払う動きとして扱わせない（書いたあとのボタンが1回で押せるように）
+  for (const t of ['touchstart', 'touchmove', 'touchend']) svg.addEventListener(t, (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
   svg.redraw = redraw;
   return svg;
 }
