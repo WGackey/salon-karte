@@ -338,3 +338,9 @@ button.thumbs { border: 0; background: none; padding: 0; margin: 0; font: inheri
   .prow { grid-template-columns: 1fr 16px; gap: 6px 8px; } .prow .pc { grid-column: 1; } .prow .chev { grid-column: 2; grid-row: 1 / span 4; } .plabel { display: block; margin-top: 4px; } .pc.date { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; } .pc.date .chips.tight { margin-top: 0; }
   .keikabtn { flex: 1 1 100%; justify-content: center; } .pgroup { flex-wrap: wrap; } .pavg { flex-direction: row; gap: 8px; align-items: baseline; }
 }
+
+/* ---- 予定の一覧（ホーム） ---- */
+.schedrow { gap: 12px; } .swhen { flex: none; width: 7.2em; display: flex; flex-direction: column; line-height: 1.3; } .schedrow.today .swhen { width: 5.6em; } .schedrow .name { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sched.today { border-color: var(--accent); border-width: 1.5px; } .sched.overdue { background: var(--amber-soft); border-color: #e6cf9c; } .sched.overdue .swhen { display: none; }
+.timein { width: 8.2em; flex: none; } .latenote { flex-wrap: wrap; } .latenote .chip { background: var(--card); flex: none; min-height: 42px; }
+.latenote .grow { min-width: min(100%, 240px); }

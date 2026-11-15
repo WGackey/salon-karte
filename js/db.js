@@ -2,8 +2,9 @@
 import { DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
 export const DATA_VERSION = 6;
-export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends'];
-const IDB_VERSION = 1;
+export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
+// IDB_VERSION＝入れ物そのものを足すときに上げる（2：予定の入れ物 appts。Google カレンダーの取りこみ用・いまは空）
+const IDB_VERSION = 2;
 let DB_NAME = 'salon-karte';
 let _db = null;
 
@@ -129,6 +130,7 @@ export async function openDb() {
       v.createIndex('date', 'date');
       for (const s of ['oils', 'carriers', 'cats', 'menus', 'blends']) db.createObjectStore(s, { keyPath: 'id' });
     }
+    if (e.oldVersion < 2) { const a = db.createObjectStore('appts', { keyPath: 'id' }); a.createIndex('date', 'date'); a.createIndex('customerId', 'customerId'); }
   };
   _db = await req(r);
   _db.onversionchange = () => { _db.close(); _db = null; };

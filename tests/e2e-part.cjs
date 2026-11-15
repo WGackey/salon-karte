@@ -125,6 +125,31 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   await p.waitForFunction(() => document.querySelector('.hpos').textContent.startsWith('5／全6回')); // 2回目＝新しい順で5番目
   await p.goto(BASE + `#/c/${kid}/keika`); await p.waitForSelector('.pchart'); await p.locator('.plist .prow').first().tap(); await p.waitForSelector('.steps');
 
+  // ---------- ③ 予定の一覧 ----------
+  const ids = await p.evaluate(async () => { const st = await import('./js/state.js'); const { addDays, todayStr } = await import('./js/logic.js'); const t = todayStr(); const out = {};
+    const plan = [['よてい きょう', 0, '14:00'], ['よてい あさ', 0, '09:30'], ['よてい あした', 1, ''], ['よてい らいしゅう', 5, '10:00'], ['よてい さき', 20, ''], ['よてい すぎた', -4, ''], ['よてい むかし', -40, '']];
+    for (const [name, d, time] of plan) { const { slim, det } = st.blankCustomer(); slim.name = '見本 ' + name; slim.kana = name; slim.nextDate = addDays(t, d); slim.nextTime = time; await st.saveCustomer(slim, det); out[name] = slim.id; }
+    return out; });
+  await p.goto(BASE + '#/list'); await p.goto(BASE + '#/'); await p.waitForSelector('.sched.today');
+  const names = (k) => p.locator(`.sched.${k} .schedrow .name`).allTextContents();
+  assert.deepEqual(await names('today'), ['見本 よてい あさ', '見本 よてい きょう'], '今日は時間の順'); assert.deepEqual(await names('week'), ['見本 よてい あした', '見本 よてい らいしゅう']);
+  assert.deepEqual(await names('later'), ['見本 よてい さき']); assert.deepEqual(await names('overdue'), ['見本 よてい すぎた', '見本 よてい むかし'], '予定日を過ぎて来店の記録がない人');
+  await shot('30-home-sched'); await pad.noOverflow('ホーム');
+  // 予定を押すと、その人のカルテが開く
+  await p.locator('.sched.today .schedrow').first().tap(); await p.waitForSelector('text=今日の来店をはじめる'); assert.ok(await p.getByText('見本 よてい あさ').count()); assert.equal(await p.locator('.timein').inputValue(), '09:30');
+  // 来店をはじめると、予定は消える
+  await tap('今日の来店をはじめる'); await p.waitForSelector('.scopepick'); await p.goto(BASE + '#/'); await p.waitForSelector('.sched.today'); assert.deepEqual(await names('today'), ['見本 よてい きょう']);
+  // 過ぎた人：お客さんのページに知らせ → 予定を消す
+  await p.locator('.sched.overdue .schedrow').first().tap(); await p.waitForSelector('.latenote'); await shot('31-late'); await tap('予定を消す'); await p.waitForFunction(() => !document.querySelector('.latenote'));
+  await p.goto(BASE + '#/list'); await p.goto(BASE + '#/'); await p.waitForSelector('.sched.overdue'); assert.deepEqual(await names('overdue'), ['見本 よてい むかし']);
+  // 予定の入れ物（あとで Google カレンダーの取りこみが使う）。行を入れると、ホームに並ぶ。バックアップにも入る
+  const kept = await p.evaluate(async (cid) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); const { addDays, todayStr } = await import('./js/logic.js');
+    await db.put('appts', { id: 'x1', date: addDays(todayStr(), 2), time: '13:00', customerId: '', title: '山田さま（カレンダーから）', source: 'gcal' }); await db.put('appts', { id: 'x2', date: addDays(todayStr(), 3), time: '15:00', customerId: cid, source: 'gcal', confirmed: true });
+    await st.reload(); const dump = await db.dumpAll(); await db.restoreAll(dump); await st.reload(); return (await db.all('appts')).length; }, ids['よてい さき']);
+  assert.equal(kept, 2, '予定の入れ物は、書き出し → 戻しでも残る');
+  await p.goto(BASE + '#/list'); await p.goto(BASE + '#/'); await p.waitForSelector('.sched.week'); assert.ok((await names('week')).some((n) => n.includes('山田さま（カレンダーから）') && n.includes('お客さんを確かめる'))); assert.ok((await names('week')).includes('見本 よてい さき'));
+  await shot('32-home-appts');
+
   // ---------- iPhone ----------
   const ph = await kit(b, { viewport: { width: 390, height: 664 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }, 'ph-'); const q = ph.p;
   await q.goto(BASE); await q.waitForSelector('.page'); await ph.tap('＋ 新しいお客さん'); await q.getByPlaceholder('山田 花子').fill('見本 あしうら'); await ph.tap('保存する'); await q.waitForSelector('text=今日の来店をはじめる');
@@ -144,6 +169,11 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   await q.goto(BASE + `#/c/${kid2}/keika`); await q.waitForSelector('.pchart'); await ph.shot('07-keika'); await ph.noOverflow('iPhone 経過');
   await q.locator('.plist').evaluate((e) => e.scrollIntoView()); await ph.shot('08-keika-list');
   await q.goto(BASE + `#/c/${kid2}`); await q.waitForSelector('.keikabtn'); await q.locator('.hist').evaluate((e) => e.scrollIntoView()); await ph.shot('09-hist-entry'); await ph.noOverflow('iPhone これまでの記録');
+
+  await q.evaluate(async () => { const st = await import('./js/state.js'); const { addDays, todayStr } = await import('./js/logic.js'); const t = todayStr();
+    for (const [name, d, time] of [['きょう', 0, '10:00'], ['あした', 1, '16:30'], ['すぎた', -3, '']]) { const { slim, det } = st.blankCustomer(); slim.name = '見本 ' + name; slim.nextDate = addDays(t, d); slim.nextTime = time; await st.saveCustomer(slim, det); } });
+  await q.goto(BASE + '#/list'); await q.goto(BASE + '#/'); await q.waitForSelector('.sched.today'); await ph.shot('10-home-sched'); await ph.noOverflow('iPhone ホーム');
+  await q.locator('.sched.overdue .schedrow').first().tap(); await q.waitForSelector('.latenote'); await ph.shot('11-late'); await ph.noOverflow('iPhone 過ぎた人');
 
   assert.deepEqual(errs, [], 'エラーなし'); assert.deepEqual(outside, [], '外への通信なし');
   console.log('✓ ぜんぶ通った（第2段）'); await b.close();

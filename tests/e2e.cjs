@@ -159,7 +159,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
 
   // --- ホーム：予定とさがす ---
   await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
-  await p.getByLabel('お客さんをさがす').fill('シケン'); assert.equal(await p.locator('.list .row-link', { hasText: '試験 みほ' }).count(), 1, 'カタカナでもさがせる');
+  await p.getByLabel('お客さんをさがす').fill('シケン'); assert.equal(await p.locator('.home-top + .list .row-link', { hasText: '試験 みほ' }).count(), 1, 'カタカナでもさがせる');
 
   // --- バックアップ：合言葉つきで書き出し → ぜんぶ消す → 戻す ---
   await p.goto(BASE + '#/set/backup'); await p.waitForSelector('text=バックアップを作る');
@@ -180,7 +180,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await shot('11-home');
 
   // --- これまでの記録を横にめくる（前回 → 1回前 …） ---
-  await p.getByLabel('お客さんをさがす').fill('しけん'); await p.locator('.list .row-link', { hasText: '試験 みほ' }).tap(); await p.waitForSelector('.hist');
+  await p.getByLabel('お客さんをさがす').fill('しけん'); await p.locator('.home-top + .list .row-link', { hasText: '試験 みほ' }).tap(); await p.waitForSelector('.hist');
   assert.equal(await p.locator('.hist .slide').count(), 2, '来店の回数ぶんの紙がある'); assert.ok((await p.locator('.hpos').textContent()).startsWith('1／全2回'));
   assert.ok(await p.getByText('‹ 新しい').isDisabled(), 'いちばん新しい回では「新しい」は押せない');
   await tap('古い ›'); await p.waitForFunction(() => document.querySelector('.hpos').textContent.startsWith('2／全2回')); await p.waitForTimeout(500);
@@ -341,7 +341,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   // --- ネットなしで開く ---
   await p.goto(BASE); await p.evaluate(() => navigator.serviceWorker.ready); await p.waitForTimeout(800);
   await ctx.setOffline(true); await p.reload(); await p.waitForSelector('.home-top');
-  await p.getByLabel('お客さんをさがす').fill('試験'); await p.locator('.list .row-link').first().tap(); await p.waitForSelector('text=来店の記録');
+  await p.getByLabel('お客さんをさがす').fill('試験'); await p.locator('.home-top + .list .row-link').first().tap(); await p.waitForSelector('text=来店の記録');
   await p.goto(BASE + '#/set/oils'); await p.waitForSelector('text=ラベンダー');
   await ctx.setOffline(false); log('ネットなし：開けた');
 
@@ -478,7 +478,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await q.locator('input[type=file]').setInputFiles(file); await q.waitForSelector('text=合言葉つき');
   await q.locator('input[type=password]').nth(2).fill('あいことば123'); await ph.tap('このバックアップに入れ替える'); await ph.tap('入れ替える'); await q.waitForSelector('.home-top');
   assert.deepEqual(await ph.counts(), { c: 1, v: 2, b: 1 }, 'iPad → iPhone に移せる');
-  await q.getByLabel('お客さんをさがす').fill('しけん'); await q.locator('.list .row-link', { hasText: '試験 みほ' }).tap(); await q.waitForSelector('text=来店の記録');
+  await q.getByLabel('お客さんをさがす').fill('しけん'); await q.locator('.home-top + .list .row-link', { hasText: '試験 みほ' }).tap(); await q.waitForSelector('text=来店の記録');
   assert.equal(await q.locator('.thumbs .strokes path').count(), 1, '図の線もいっしょに移る'); await ph.shot('12-moved');
   await q.locator('.hist .track').scrollIntoViewIfNeeded(); await q.waitForTimeout(300); const tb = await q.locator('.hist .track').boundingBox(); // 指で横にめくる
   await ph.touchLine([[tb.x + tb.width * 0.85, tb.y + 200], [tb.x + tb.width * 0.6, tb.y + 202], [tb.x + tb.width * 0.35, tb.y + 204], [tb.x + tb.width * 0.15, tb.y + 205]]);
@@ -489,7 +489,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.goto(BASE + '#/set/backup'); await p.waitForSelector('text=書き出す');
   await p.locator('input[type=file]').setInputFiles(file2); await p.waitForSelector('text=合言葉なし'); await tap('このバックアップに入れ替える'); await tap('入れ替える'); await p.waitForSelector('.home-top');
   assert.deepEqual(await pad.counts(), { c: 1, v: 1, b: 0 }, 'iPhone → iPad に移せる');
-  await p.getByLabel('お客さんをさがす').fill('ためし'); assert.equal(await p.locator('.list .row-link', { hasText: '小画面 ためし' }).count(), 1);
+  await p.getByLabel('お客さんをさがす').fill('ためし'); assert.equal(await p.locator('.home-top + .list .row-link', { hasText: '小画面 ためし' }).count(), 1);
 
   // --- もっと小さい iPhone（375×667）でも、はみ出さない ---
   await q.setViewportSize({ width: 375, height: 667 });

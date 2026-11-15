@@ -301,8 +301,10 @@ export async function visitView(id, step) {
     // ---------- 施術後 ----------
     after() {
       const a = v.after; const nextIn = h('input', { type: 'date', class: 'input', value: v.nextDate, 'aria-label': '次回の予定日' });
-      const setNext = (d) => { v.nextDate = d; nextIn.value = d; p.nextDate = d; saveSoon(async () => { await saveVisit(v); await saveCustomer(p, null); }); };
+      const timeIn = h('input', { type: 'time', class: 'input timein', value: p.nextTime || '', step: 300, 'aria-label': '次回の予定の時間' });
+      const setNext = (d) => { v.nextDate = d; nextIn.value = d; p.nextDate = d; if (!d) { p.nextTime = ''; timeIn.value = ''; } saveSoon(async () => { await saveVisit(v); await saveCustomer(p, null); }); };
       nextIn.onchange = () => setNext(nextIn.value);
+      timeIn.onchange = () => { p.nextTime = timeIn.value; saveSoon(async () => { await saveVisit(v); await saveCustomer(p, null); }); };
       return [
         card(h('h2', null, 'つらさの変化'), h('p', { class: 'hint' }, '施術のあとのつらさをえらびます（0＝なくなった）'),
           v.interview.symptoms.length ? v.interview.symptoms.map((s) => h('div', { class: 'symrow' },
@@ -310,7 +312,7 @@ export async function visitView(id, step) {
             levelPicker(a.levels[s.id], (n) => { a.levels[s.id] = n; save(); }, true))) : h('p', { class: 'muted' }, '問診で「つらいところ」をえらぶと、ここで変化を残せます。')),
         card(group('香りの感想', chips(S.settings.scents, a.scent, { multi: false, onChange: (x) => { a.scent = x; save(); } })),
           field('施術後のようす・伝えたこと', textarea(a, 'note', { onInput: save, rows: 3 }))),
-        card(h('h2', null, '次回の予定日'), h('div', { class: 'row' }, nextIn,
+        card(h('h2', null, '次回の予定日'), h('p', { class: 'hint' }, '入れると、ホームの「予定」に並びます。時間は入れなくてもだいじょうぶ。'), h('div', { class: 'row' }, nextIn, timeIn,
           btn('1週間後', () => setNext(addDays(v.date, 7))), btn('2週間後', () => setNext(addDays(v.date, 14))), btn('1か月後', () => setNext(addDays(v.date, 28))), btn('なし', () => setNext(''), 'ghost'))),
         h('div', { class: 'row end' }, btn('この来店の記録を消す', async () => {
           if (await confirmDlg('この来店の記録を消します。元に戻せません。', '消す', true)) { saveSoon(null); await deleteVisit(v); toast('消しました'); go(`#/c/${p.id}`); }

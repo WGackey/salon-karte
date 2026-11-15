@@ -332,3 +332,18 @@ test('経過：回ごとの行（古い順）と、ブレンドごとのまと�
   assert.deepEqual(g.map((x) => [x.key, x.n, x.rated, x.avg]), [['lav+ora', 3, 2, 3.5], ['tea', 1, 1, 1]], '同じ組み合わせ（順番・滴数がちがっても）でまとまる。後が未記入の回は平均に入れない');
   assert.equal(g[0].last, '2026-04-01'); assert.deepEqual(blendGroups(progressRows([{ id: 'x', date: '2026-01-01', interview: {}, after: {}, blend: {} }])), []);
 });
+test('予定の一覧：今日・今週・その先・過ぎた人。予定の入れ物（あとの取りこみ用）もいっしょに並ぶ', async () => {
+  const { schedule } = await import('../js/logic.js'); const T = '2026-11-15';
+  const people = [{ id: 'a', name: 'あ', nextDate: '2026-11-15', nextTime: '14:00' }, { id: 'b', name: 'い', nextDate: '2026-11-15', nextTime: '' }, { id: 'c', name: 'う', nextDate: '2026-11-15', nextTime: '09:30' },
+    { id: 'd', name: 'え', nextDate: '2026-11-21' }, { id: 'e', name: 'お', nextDate: '2026-11-22' }, { id: 'f', name: 'か', nextDate: '2026-11-10' }, { id: 'g', name: 'き', nextDate: '2026-10-01' }, { id: 'h', name: 'く', nextDate: '' }];
+  const s = schedule(people, [], T);
+  assert.deepEqual(s.today.map((x) => x.person.id), ['c', 'a', 'b'], '今日は時間の早い順。時間のない人はうしろ');
+  assert.deepEqual(s.week.map((x) => x.person.id), ['d'], '今週＝あした〜6日後'); assert.deepEqual(s.later.map((x) => x.person.id), ['e']);
+  assert.deepEqual(s.overdue.map((x) => [x.person.id, x.late]), [['f', 5], ['g', 45]], '過ぎたばかりの人が上');
+  // 予定の入れ物（Google カレンダーの取りこみが足す行）
+  const ap = [{ id: '1', date: '2026-11-16', time: '10:00', customerId: 'h', source: 'gcal', confirmed: true }, { id: '2', date: '2026-11-16', time: '11:00', customerId: '', title: '山田さま', source: 'gcal' },
+    { id: '3', date: '2026-11-21', customerId: 'd', source: 'gcal' }, { id: '4', date: '2026-11-17', customerId: 'h', done: true }];
+  const w = schedule(people, ap, T).week;
+  assert.deepEqual(w.map((x) => [x.key, x.title, !!x.unsure]), [['a:1', 'く', false], ['a:2', '山田さま', true], ['p:d', 'え', false]], '同じ人・同じ日は1つ。お客さんが決まっていない予定は「確かめる」');
+  assert.deepEqual(schedule([], undefined, T), { overdue: [], today: [], week: [], later: [] });
+});

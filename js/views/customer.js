@@ -217,13 +217,21 @@ export async function customerView(id) {
     await saveVisit(v); toast('写しました。変わったところだけ直してね'); go(`#/v/${v.id}/monshin`);
   };
   const nextIn = h('input', { type: 'date', class: 'input', value: p.nextDate, 'aria-label': '次回の予定日' });
-  const setNext = async (d) => { p.nextDate = d; nextIn.value = d; await saveCustomer(p, null); toast(d ? `次回：${jpDate(d)}` : '予定を消しました'); };
+  const timeIn = h('input', { type: 'time', class: 'input timein', value: p.nextTime || '', step: 300, 'aria-label': '次回の予定の時間' });
+  const setNext = async (d) => { p.nextDate = d; nextIn.value = d; if (!d) { p.nextTime = ''; timeIn.value = ''; } await saveCustomer(p, null); toast(d ? `次回：${jpDate(d)}${p.nextTime ? ' ' + p.nextTime : ''}` : '予定を消しました'); fill(lateBox, lateNote()); };
   nextIn.onchange = () => setNext(nextIn.value);
+  timeIn.onchange = async () => { p.nextTime = timeIn.value; if (p.nextDate) { await saveCustomer(p, null); toast(`次回：${jpDate(p.nextDate)}${p.nextTime ? ' ' + p.nextTime : ''}`); } };
+  // 予定日を過ぎて、来店の記録がないとき（来店をはじめると、予定は自動で消える）
+  const lateBox = h('div');
+  const lateNote = () => (p.nextDate && p.nextDate < todayStr() ? h('div', { class: 'notice amber latenote' }, h('span', { class: 'grow' }, `予定日（${jpDate(p.nextDate, false)}）を過ぎています。来店の記録がありません。`),
+    btn('予定を消す', () => setNext(''), 'chip'), btn('1週間後にする', () => setNext(addDays(todayStr(), 7)), 'chip')) : null);
+  fill(lateBox, lateNote());
 
   return page({
     title: p.name, sub: [p.kana, `No.${p.no}`, det.gender, age != null ? `${age}歳` : '', det.job].filter(Boolean).join('・'),
     back: '#/', actions: h('a', { class: 'btn ghost', href: `#/c/${id}/edit` }, '情報を直す'),
     body: [
+      lateBox,
       (warns.length || det.allergy || tags.length || det.history || hasNoTouch) ? h('div', { class: 'warnbox' },
         h('strong', null, '⚠ 気をつけること'),
         warns.length ? h('div', { class: 'chips' }, warns.map((w) => badge(w, 'warn'))) : null,
@@ -235,7 +243,7 @@ export async function customerView(id) {
       det.memo ? card(h('h2', null, 'メモ'), h('p', { class: 'pre' }, det.memo)) : null,
       card(h('h2', null, '生活の様子'), h('p', null, life || h('span', { class: 'muted' }, 'まだ聞いていません（「情報を直す」で入れられます）')),
         life && det.life.updated ? h('p', { class: 'muted small' }, `${jpDate(det.life.updated)} に直した`) : null),
-      card(h('h2', null, '次回の予定日'), h('div', { class: 'row' }, nextIn,
+      card(h('h2', null, '次回の予定日'), h('div', { class: 'row' }, nextIn, timeIn,
         btn('1週間後', () => setNext(addDays(todayStr(), 7))), btn('2週間後', () => setNext(addDays(todayStr(), 14))), btn('1か月後', () => setNext(addDays(todayStr(), 28))),
         p.nextDate ? btn('消す', () => setNext(''), 'ghost') : null)),
       card(h('h2', null, '来店の記録 ', badge(`${visits.length}回`)),

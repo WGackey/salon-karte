@@ -242,3 +242,27 @@ export function blendGroups(rows) {
   return [...m.values()].map((g) => ({ ...g, avg: g.rated ? g.sum / g.rated : null, last: g.rows[g.rows.length - 1].date }))
     .sort((a, b) => b.n - a.n || (b.avg ?? -99) - (a.avg ?? -99));
 }
+
+// ---- 予定の一覧 ----
+// ホームに出す予定を、ひとつの並びにまとめる。もとは2つ：
+//   ① お客さんの「次回の予定日」（people の nextDate・nextTime）
+//   ② 予定の入れ物（appts）。Google カレンダーの取りこみ（第3段）が、ここに行を足す：
+//      { id, date, time, customerId（まだ分からなければ ''）, title, source:'gcal', extId, confirmed }
+// 返すもの：{ overdue：予定日を過ぎて来店の記録がない, today, week：あした〜6日後, later：その先 }。どれも { key, date, time, person, title, source, late（過ぎた日数） }
+export function schedule(people, appts, today = todayStr()) {
+  const byId = new Map((people || []).map((p) => [p.id, p])); const items = [];
+  for (const p of people || []) if (p.nextDate) items.push({ key: 'p:' + p.id, date: p.nextDate, time: p.nextTime || '', person: p, title: p.name, source: 'manual' });
+  for (const a of appts || []) {
+    if (!a || !a.date || a.done) continue; const p = a.customerId ? byId.get(a.customerId) : null;
+    if (p && p.nextDate === a.date) continue; // 同じ人・同じ日の予定は、1つにまとめる（手で入れたほうを出す）
+    items.push({ key: 'a:' + a.id, date: a.date, time: a.time || '', person: p || null, title: p ? p.name : (a.title || '（名前なし）'), source: a.source || 'manual', appt: a, unsure: !p || a.confirmed === false });
+  }
+  const ord = (a, b) => a.date.localeCompare(b.date) || (a.time || '99').localeCompare(b.time || '99') || a.title.localeCompare(b.title, 'ja');
+  const weekEnd = addDays(today, 6); const out = { overdue: [], today: [], week: [], later: [] };
+  for (const it of items.sort(ord)) {
+    if (it.date < today) out.overdue.push({ ...it, late: daysBetween(it.date, today) });
+    else if (it.date === today) out.today.push(it); else if (it.date <= weekEnd) out.week.push(it); else out.later.push(it);
+  }
+  out.overdue.reverse(); // 過ぎたばかりの人を上に
+  return out;
+}
