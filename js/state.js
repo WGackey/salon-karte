@@ -30,6 +30,9 @@ export async function reload() {
   S.listMs = performance.now() - t;
   const ja = (a, b) => a.name.localeCompare(b.name, 'ja');
   S.carriers.sort(ja);
+  // 成分の分類は資料の並び（炭化水素類 → アルコール類 → …）。自分で足した分類はうしろに
+  const ord = (c) => { const i = DEFAULT_CATS.findIndex((d) => d.id === c.id); return i < 0 ? 99 : i; };
+  S.cats.sort((a, b) => ord(a) - ord(b));
 }
 export const saveSettings = () => db.setMeta('settings', S.settings);
 

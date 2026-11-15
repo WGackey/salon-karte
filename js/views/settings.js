@@ -10,7 +10,8 @@ import { APP_VERSION } from '../version.js';
 const link = (href, title, desc) => h('a', { class: 'row-link', href }, h('div', { class: 'grow' }, h('div', { class: 'name' }, title), h('div', { class: 'muted' }, desc)), h('span', { class: 'chev' }, '›'));
 const fam = (id) => S.settings.families.find((f) => f.id === id) || { name: '', color: '#bbb' };
 const numIn = (obj, key, opt = {}) => input(obj, key, { type: 'number', inputmode: 'decimal', cls: 'num', ...opt });
-const DRAFT_NOTE = () => h('div', { class: 'notice draft' }, 'はじめから入っている中身は「下書き」です（一般に言われている内容をまとめたもの）。自分の資料で確かめて直し、「確かめた」にしるしをつけてください。');
+const DRAFT_NOTE = (from = '一般に言われている内容をまとめたもの') => h('div', { class: 'notice draft' }, `はじめから入っている中身は「下書き」です（${from}）。自分の資料で確かめて直し、「確かめた」にしるしをつけてください。`);
+const AROMA_SRC = 'アロマテラピーを学んだときの資料をもとに入れたもの';
 
 export function settingsView() {
   const own = S.oils.filter((o) => o.owned).length;
@@ -48,7 +49,7 @@ export function oilsView() {
   }));
   draw();
   return page({ title: '精油の一覧と手持ち', back: '#/set', actions: h('a', { class: 'btn', href: '#/set/oil/new' }, '＋ 足す'),
-    body: [h('div', { class: 'notice draft' }, '精油のデータは、がっき〜の資料（アロマDB・アロマ表）の30本から入れたものです（「下書き」のしるしつき）。確かめたら、中身の画面で「確かめた」にしるしをつけてください。「資料にない」は前の下書きにあった精油で、候補の点数には入れていません。'),
+    body: [h('div', { class: 'notice draft' }, 'はじめの30本は、アロマテラピーを学んだときの資料をもとに入れたものです（「下書き」のしるしつき）。自分の資料で確かめたら、中身の画面で「確かめた」にしるしをつけてください。「資料にない」は前の下書きにあった精油で、候補の点数には入れていません。'),
       h('p', { class: 'hint' }, '持っている精油の右のボタンを押すと「手持ち」になります（すぐ保存されます）。名前を押すと中身を直せます。'), list] });
 }
 export function oilEditView(id) {
@@ -84,7 +85,7 @@ export function oilEditView(id) {
   const condItems = st.conds;
   return page({
     title: isNew ? '精油を足す' : o.name, back: '#/set/oils', body: [
-      o.draft ? DRAFT_NOTE() : null,
+      o.draft ? DRAFT_NOTE(o.ref === false ? undefined : AROMA_SRC) : null,
       card(field('名前', input(o, 'name')), group('香りの系統', chips(st.families, o.family || '', { multi: false, onChange: (v) => { o.family = v || ''; } }), 'もう一度押すと外れます（系統なし）'),
         field('植物の科（資料の「種類」）', input(o, 'plant', { placeholder: '例：シソ科' }), '植物アレルギー（キク科・イネ科など）の判定に使います'),
         h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: o.owned, onchange: (e) => { o.owned = e.target.checked; } }), '手持ち（持っている）')),
@@ -92,7 +93,7 @@ export function oilEditView(id) {
         S.cats.map(compRow), total),
       card(h('h2', null, '入っている成分（アロマ表）'), h('p', { class: 'hint' }, 'えらんだ成分の作用が、候補の「なぜ出たか」になります。'),
         S.cats.filter((c) => (c.subs || []).length).map((c) => group(c.name, chips(c.subs, o.subs, { onChange: (v) => { o.subs = [...o.subs.filter((x) => !c.subs.some((sb) => sb.id === x)), ...v]; } })))),
-      card(group('この精油の作用（アロマDBの「効能」）', chips(st.actions || [], o.actions, { onChange: (v) => { o.actions = v; } })),
+      card(group('この精油の作用（資料の「効能」）', chips(st.actions || [], o.actions, { onChange: (v) => { o.actions = v; } })),
         group('向いている場面（資料の「OK」・使いどころ）', chips(st.symptoms, o.uses, { onChange: (v) => { o.uses = v; } })),
         group('向いている状態（資料の「OK」）', chips(condItems, o.okConds, { onChange: (v) => { o.okConds = v; } }), '候補の「なぜ出たか」に出します。外す判定には使いません')),
       card(group('使わない状態（資料の「NG」）', chips(condItems, o.cautions, { onChange: (v) => { o.cautions = v; } }), 'あてはまるお客さんには、候補から外して理由を見せます'),
@@ -219,7 +220,7 @@ export function catsView() {
   const st = S.settings; const acts = st.actions || [];
   return page({
     title: '成分の分類と成分', back: '#/set', body: [
-      DRAFT_NOTE(), AUTO_NOTE(),
+      DRAFT_NOTE(AROMA_SRC), AUTO_NOTE(),
       h('p', { class: 'hint' }, '資料「アロマ表」の分け方です。成分ごとに「作用」をえらびます（候補の「作用 ← 成分」になります）。「使わない状態」にあてはまるお客さんには、その分類が入っている精油を外して理由を見せます。外す割合の決まりは 設定 → 外す決まり。'),
       S.cats.map((c) => {
         c.subs = c.subs || []; c.cautions = c.cautions || []; c.warns = c.warns || [];
@@ -284,10 +285,10 @@ export function symActsView() {
     h('div', { class: 'notice draft' }, 'はじめの重みは下書きです。「とても」は「少し」の2倍の点になります。触ってみて、候補の並びがしっくりこなければ直してね。'),
     st.symptoms.map((sy) => {
       sy.acts = sy.acts || {};
-      const sumEl = h('span', { class: 'muted small' });
+      const sumEl = h('span', { class: 'muted small sumline' });
       const upd = () => { sumEl.textContent = acts.filter((a) => sy.acts[a.id] > 0).map((a) => `${a.name}${sy.acts[a.id] >= 2 ? '◎' : '○'}`).join('・') || 'まだつながっていません'; };
       upd();
-      return h('details', { class: 'card fold' }, h('summary', null, sy.name || '（名前なし）', ' ', sumEl),
+      return h('details', { class: 'card fold' }, h('summary', { class: 'wrap' }, h('span', null, sy.name || '（名前なし）'), sumEl),
         acts.map((a) => h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, a.name),
           chips(W, String(sy.acts[a.id] || 0), { multi: false, onChange: (v) => { if (Number(v) > 0) sy.acts[a.id] = Number(v); else delete sy.acts[a.id]; save(); upd(); } }))));
     })] });
@@ -414,7 +415,7 @@ export async function aboutView() {
         h('li', null, 'Safari で開いたときと、ホーム画面のアイコンから開いたときでは、データの置き場がちがいます。いつもホーム画面のアイコンから開いてください。'),
         h('li', null, 'iPad と iPhone の両方で使えますが、データは端末ごとに別々です。移すときは 設定 → バックアップ の「iPad と iPhone のあいだで移す」を見てね。'))),
       card(h('h2', null, '精油のデータについて'), h('ul', { class: 'plain' },
-        h('li', null, '精油・成分の分類・作用・気をつける状態は、がっき〜の資料から入れたものです。キャリアオイル・濃度の目安・つらいところと作用の重みは「下書き」です。自分の資料で確かめてから使ってください。'),
+        h('li', null, '精油・成分の分類・作用・気をつける状態は、アロマテラピーを学んだときの資料をもとに入れたものです。キャリアオイル・濃度の目安・つらいところと作用の重みは「下書き」です。自分の資料で確かめてから使ってください。'),
         h('li', null, '候補は「こんな場面で選ばれることが多い」という目安です。作用は「こんな働きがあると言われる」という分け方で、病気を治したり診断したりするものではありません。'),
         h('li', null, '最後に決めるのは施術する人です。'))),
     ],

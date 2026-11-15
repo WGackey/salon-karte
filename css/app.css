@@ -229,3 +229,6 @@ html.noscroll, html.noscroll body { overflow: hidden; }
   .sheet-body { padding: 8px 14px 16px; } .dialog { padding: 18px; }
 }
 .comprow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-bottom: 1px solid #eee; } .comprow .chips { flex-wrap: nowrap; } .subrow { padding: 8px 0; border-bottom: 1px solid #eee; }
+@media (max-width: 700px) { .comprow > .grow { flex-basis: 100%; font-weight: 600; } }
+.comprow .num { width: 76px; } .fold > summary.wrap { flex-wrap: wrap; } .fold > summary.wrap .sumline { flex-basis: 100%; padding-left: calc(1.2em + 8px); font-weight: 400; }
+@media (max-width: 700px) { .comprow .chip { padding-left: 10px; padding-right: 10px; } .comprow .num { width: 64px; } }

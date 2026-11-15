@@ -67,6 +67,8 @@ export function effectiveConds({ settings, det = {}, visit = {}, today = todaySt
 
 // 成分の割合の見せ方。null＝入っている（割合は資料になし）、'tr'＝微量
 export const pctText = (p) => (p === 'tr' ? '微量' : p == null || p === '' ? '割合は分からない' : `約${p}％`);
+// 書き方のゆれ（ティートゥリー／ティートリー、スウィート／スイート）を同じとみなす
+const kanaLoose = (t) => t.replace(/ウィ/g, 'イ').replace(/ゥ/g, '');
 const has = (comp, id) => !!comp && Object.prototype.hasOwnProperty.call(comp, id);
 
 // 精油の候補。資料の3段：つらいところ → 作用（働き）→ 成分（分類・小分類）→ 精油。
@@ -136,7 +138,7 @@ export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidO
     }
     if (avoid.has(oil.id)) blocks.push('このお客さんの「避ける精油」に入っている');
     const base = oil.name.split(/[・（(]/)[0];
-    if (allergy && base.length >= 2 && allergy.includes(base)) blocks.push(`アレルギーの欄に「${base}」と書いてある`);
+    if (allergy && base.length >= 2 && kanaLoose(allergy).includes(kanaLoose(base))) blocks.push(`アレルギーの欄に「${base}」と書いてある`);
     reasons.sort((a, b) => b.w - a.w);
     return { oil, score, reasons: reasons.map((r) => r.text), blocks: [...new Set(blocks)], warns: [...new Set(warns)] };
   }).sort((a, b) => b.score - a.score || a.oil.name.localeCompare(b.oil.name, 'ja'));

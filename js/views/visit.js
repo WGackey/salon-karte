@@ -180,7 +180,7 @@ export async function visitView(id, step) {
             (r.warns || []).length ? h('ul', { class: 'why warn' }, r.warns.map((t) => h('li', null, '⚠ ' + t))) : null,
             r.reasons.length ? h('ul', { class: 'why' }, r.reasons.slice(0, 3).map((t) => h('li', null, t))) : null,
             r.reasons.length > 3 ? h('details', { class: 'more' }, h('summary', null, `ほかの理由（${r.reasons.length - 3}）`), h('ul', { class: 'why' }, r.reasons.slice(3).map((t) => h('li', null, t)))) : null,
-            isOil && it.ref === false ? h('div', { class: 'muted small' }, 'がっき〜の資料にない精油なので、候補の点数には入れていません（気をつける点は見ています）。') : null,
+            isOil && it.ref === false ? h('div', { class: 'muted small' }, 'はじめの資料にない精油なので、候補の点数には入れていません（気をつける点は見ています）。') : null,
             it.note ? h('div', { class: 'muted small' }, it.note) : null),
           h('div', { class: 'oil-act' }, use, own));
       };
@@ -208,7 +208,7 @@ export async function visitView(id, step) {
         const isOil = tab === 'oil'; const al = allergyNames();
         fill(headBox,
           h('div', { class: 'tabs' }, [['oil', '精油'], ['car', 'キャリアオイル']].map(([id, name]) => h('button', { type: 'button', class: 'tab' + (tab === id ? ' on' : ''), onclick: () => { tab = id; drawHead(); draw(); } }, name))),
-          h('div', { class: 'notice draft' }, isOil ? '精油のデータは、資料（アロマDB・アロマ表）から入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは「下書き」です。自分の資料で確かめて、設定から直してください。候補は目安で、最後に決めるのは施術する人です。'),
+          h('div', { class: 'notice draft' }, isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは「下書き」です。自分の資料で確かめて、設定から直してください。候補は目安で、最後に決めるのは施術する人です。'),
           card(h('div', { class: 'facts' },
             isOil ? h('div', null, h('b', null, 'つらいところ：'), iv.symptoms.map((s) => `${symName(s.id)}（${s.level}）`).join('、') || 'なし')
               : [h('div', null, h('b', null, '肌の状態：'), (iv.skins || []).map(skinName).filter(Boolean).join('・') || 'えらんでいません'),
