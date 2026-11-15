@@ -32,7 +32,7 @@ if (require.main === module) (async () => {
     await tap('つぎへ'); await p.waitForSelector('text=手持ちのキャリアオイル'); await p.locator('.ownpick .chip').nth(1).tap(); await p.waitForSelector('text=いま 1 個にしるし', { exact: false });
     await tap('つぎへ'); await p.waitForSelector('text=はじめから入っているのは例です', { exact: false }); const m0 = await p.locator('.edit-row').count();
     await tap('＋ 足す'); await p.waitForFunction((n) => document.querySelectorAll('.edit-row').length === n + 1, m0); await p.locator('.edit-row input.grow').last().fill('見本のメニュー'); await shot('s5-menus'); await k.noOverflow('メニュー');
-    await tap('つぎへ'); await p.waitForSelector('text=濃度の目安'); assert.ok(await p.getByText('体：1％まで').count(), '濃度の下書きが見える');
+    await tap('つぎへ'); await p.waitForSelector('text=濃度の目安'); assert.ok(await p.getByText('体：5％まで').count(), '濃度の下書きが見える');
     await tap('下書きだと分かりました。自分で確かめて直します'); await shot('s6-draft'); await k.noOverflow('下書き');
     // 直す画面へ行って戻っても、続きから
     await tap('同意書の文を直す'); await p.waitForSelector('textarea'); await p.goto(BASE + '#/hajime'); await p.waitForSelector('text=「下書き」の確かめ');
@@ -60,7 +60,7 @@ if (require.main === module) (async () => {
     await p.evaluate(async () => { const db = await import('./js/db.js'); const st = await db.getMeta('settings'); delete st.onboard; delete st.staffName; delete st.reflex; await db.setMeta('settings', st); await db.setMeta('dataVersion', 6);
       });
     await p.reload(); await p.waitForSelector('.home-top'); const s6 = await k.settings();
-    assert.equal(await p.evaluate(async () => (await import('./js/db.js')).getMeta('dataVersion')), 8); assert.equal(s6.onboard.done, true); assert.equal(s6.staffName, ''); assert.equal(s6.reflex.show, false); assert.equal(s6.salonName, 'みほん/サロン');
+    assert.equal(await p.evaluate(async () => (await import('./js/db.js')).getMeta('dataVersion')), 9); assert.equal(s6.onboard.done, true); assert.equal(s6.staffName, ''); assert.equal(s6.reflex.show, false); assert.equal(s6.salonName, 'みほん/サロン');
     // --- 反射区：はじめは出さない → 所見の足の裏で切りかえ → 名前・色を直す → お客さんの図には出ない ---
     await tap('＋ 新しいお客さん'); await p.getByPlaceholder('山田 花子').fill('見本 あしつぼ'); await tap('保存する'); await p.waitForSelector('.handbtn');
     await tap('今日の来店をはじめる'); await p.waitForSelector('.scopepick');

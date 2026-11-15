@@ -1,7 +1,7 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
-import { DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
+import { CARRIERS_V8, DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 8;
+export const DATA_VERSION = 9;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
 // IDB_VERSION＝入れ物そのものを足すときに上げる（2：予定の入れ物 appts。Google カレンダーの取りこみ用・いまは空）
 const IDB_VERSION = 2;
@@ -86,7 +86,38 @@ export const MIGRATIONS = [
       visits: (r) => ('staffEdits' in r ? r : { ...r, staffEdits: {} }),
     },
   },
+  { // 版9：キャリアオイルと濃度の目安を、がっき〜の資料（プリント）に合わせる。
+    //   はじめから入っていたオイル：「確かめた」にしていなければ、0.9.0 の下書きのままのらんだけ資料の中身にする（使う人が直したらんは残す）。名前・手持ち・メモ以外も同じ
+    //   資料にある新しいオイルを足す。濃度の目安：0.9.0 の下書きの数字のまま（体 1％・顔 0.5％）なら資料の数字に。「部分ぬり 10％」を足す
+    to: 9,
+    stores: {
+      carriers: (r) => {
+        const d = CAR9[r.id]; if (!d) return r; // 自分で足したオイル
+        if (r.draft === false) return { ...r, ref: d.ref }; // 確かめたオイルは中身をさわらない
+        const o = CAR8[r.id] || {}; const same = (k) => JSON.stringify(r[k] ?? null) === JSON.stringify(o[k] ?? null);
+        const out = { ...r, ref: d.ref, draft: true };
+        for (const k of CAR_FIELDS) out[k] = same(k) ? clone(d[k]) : r[k];
+        return out;
+      },
+      meta: (r) => (r.key === 'settings' && r.value ? { ...r, value: settingsV9(r.value) } : r),
+    },
+    add: { carriers: DEFAULT_CARRIERS },
+  },
 ];
+
+// ---- 版9 の移し替えで使う部品 ----
+const CAR9 = Object.fromEntries(DEFAULT_CARRIERS.map((c) => [c.id, c]));
+const CAR8 = Object.fromEntries(CARRIERS_V8.map((c) => [c.id, c]));
+const CAR_FIELDS = ['fatty', 'traits', 'skins', 'purposes', 'allergens', 'cautions', 'note'];
+function settingsV9(v) {
+  const n = { ...v };
+  const fats = v.fats || [];
+  if (!fats.some((f) => f.id === 'gla')) n.fats = [...fats, clone(DEFAULT_SETTINGS.fats.find((f) => f.id === 'gla'))];
+  const OLD = { a_body: 1, a_face: 0.5 }; const NEW = Object.fromEntries(DEFAULT_SETTINGS.areas.map((a) => [a.id, a]));
+  n.areas = (v.areas || []).map((a) => (a.id in OLD && a.draft && a.max === OLD[a.id] ? { ...a, max: NEW[a.id].max } : a));
+  if (!n.areas.some((a) => a.id === 'a_spot')) n.areas.push(clone(NEW.a_spot));
+  return n;
+}
 
 // ---- 版4 の移し替えで使う部品 ----
 const clone = (o) => JSON.parse(JSON.stringify(o));

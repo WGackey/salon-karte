@@ -112,15 +112,19 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   const cOut = await p.locator('.oil.out').allTextContents();
   assert.ok(cOut.some((t) => t.includes('スイートアーモンドオイル') && t.includes('ナッツ類')), 'ナッツのアレルギーにあたるオイルは理由つきで外す：' + cOut.join('|').slice(0, 200));
   assert.ok(cOut.some((t) => t.includes('マカデミアナッツオイル')), 'マカデミアも外す');
-  const tsubaki = p.locator('.oil', { hasText: '椿オイル' });
-  assert.ok((await tsubaki.textContent()).includes('「乾燥しやすい」← オレイン酸が多い'), '「なぜ出たか」が出る');
-  assert.equal(await p.locator('.oil.buy', { hasText: '椿オイル' }).count(), 1, '持っていないが合うものは「次に買う候補」');
-  await tsubaki.getByText('手持ちにする').tap(); await p.locator('.oil.hit', { hasText: '椿オイル' }).waitFor();
-  await p.locator('.oil.hit', { hasText: '椿オイル' }).getByText('使う', { exact: true }).tap();
-  assert.ok((await p.locator('.chosen').textContent()).includes('キャリアオイル：椿オイル'));
+  const tsubaki = p.locator('.oil', { hasText: 'アボカドオイル' });
+  assert.ok((await tsubaki.textContent()).includes('「乾燥しやすい」← このオイルの特徴として登録'), '「なぜ出たか」が出る');
+  assert.equal(await p.locator('.oil.buy', { hasText: 'アボカドオイル' }).count(), 1, '持っていないが合うものは「次に買う候補」');
+  await tsubaki.getByText('手持ちにする').tap(); await p.locator('.oil.hit', { hasText: 'アボカドオイル' }).waitFor();
+  await p.locator('.oil.hit', { hasText: 'アボカドオイル' }).getByText('使う', { exact: true }).tap();
+  assert.ok((await p.locator('.chosen').textContent()).includes('キャリアオイル：アボカドオイル'));
+  assert.ok((await p.locator('.oil', { hasText: 'セサミオイル' }).textContent()).includes('オレイン酸'), '成分の名前が出る（割合は資料にないので数字なし）');
   await shot('06b-carrier');
 
   // --- ブレンド ---
+  // 0.10.0：はじめの目安は資料の数字（体 5％・顔 3％・部分ぬり 10％・手足は空き）。ここからは使う人が「体 1％」に直した場合で試す（直した値で動く）
+  assert.deepEqual(await p.evaluate(async () => (await import('./js/state.js')).S.settings.areas.map((a) => [a.id, a.max])), [['a_body', 5], ['a_face', 3], ['a_part', null], ['a_spot', 10]]);
+  await p.evaluate(async () => { const st = await import('./js/state.js'); st.S.settings.areas[0].max = 1; delete st.S.settings.areas[0].draft; await st.saveSettings(); });
   await tap('次へ：ブレンド ›'); await p.waitForSelector('.meter');
   assert.equal((await p.locator('.meter .pct').textContent()).trim(), '0.3％', '30ml に 2滴で 0.3％');
   await tap('＋ キャリアオイルをえらぶ'); assert.ok(await p.getByText('⚠ スイートアーモンドオイル（持っていない）').count(), 'えらぶ一覧でも注意が出る'); await tap('とじる');
@@ -264,10 +268,10 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   const mig = await p.evaluate(async () => {
     const db = await import('./js/db.js'); const cs = Object.fromEntries((await db.all('carriers')).map((c) => [c.id, c]));
     const cn = Object.fromEntries((await db.getMeta('settings')).conds.map((c) => [c.id, c.name]));
-    return { ver: await db.getMeta('dataVersion'), sun: cn.c_sun, mens: cn.c_mens, jojoba: [cs.k_jojoba.name, cs.k_jojoba.fatty.wax, cs.k_jojoba.draft], tsubakiOwned: cs.k_tsubaki.owned, argan: !!cs.k_argan, n: Object.keys(cs).length,
+    return { ver: await db.getMeta('dataVersion'), sun: cn.c_sun, mens: cn.c_mens, jojoba: [cs.k_jojoba.name, cs.k_jojoba.fatty.wax, cs.k_jojoba.draft], tsubakiOwned: cs.k_avocado.owned, argan: !!cs.k_argan, n: Object.keys(cs).length,
       tags: (await db.all('details'))[0].allergyTags, skins: (await db.all('visits')).map((v) => v.interview.skins.length), syms: (await db.all('visits')).map((v) => v.interview.symptoms.length) };
   });
-  assert.deepEqual(mig, { ver: 8, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', 97, true], tsubakiOwned: true, argan: true, n: 12, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 9, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', null, true], tsubakiOwned: true, argan: true, n: 23, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
   await p.goto(BASE + '#/set/carriers'); await p.waitForSelector('text=ホホバ（自分で直した名前）');
   // --- 版3（0.4.0 のころ）の精油のデータから、版4（資料の30本）へ。手持ち・確かめた精油は残る・資料にない精油は「資料にない」で残る ---
   await p.evaluate(async () => {
@@ -291,7 +295,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     return { ver: await db.getMeta('dataVersion'), n: Object.keys(os).length, lav: [os.o_lavender.name, os.o_lavender.owned], ginger: [os.o_ginger.ref, os.o_ginger.owned, os.o_ginger.components.hyd], clary: [os.o_clary.name, os.o_clary.family, os.o_clary.components.est],
       cats: (await db.all('cats')).map((c) => c.id).sort().join(), fam: st.families.map((f) => f.name).join(), drive: st.conds.some((c) => c.id === 'c_drive'), acts: st.symptoms[0].acts.a_relax, iv: (await db.all('visits')).every((v) => Array.isArray(v.interview.famLikes)) };
   });
-  assert.deepEqual(mig4, { ver: 8, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
+  assert.deepEqual(mig4, { ver: 9, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
     cats: 'alc,ald,est,hyd,ket,oxi,phe', fam: '樹木系,花穂系,柑橘系', drive: true, acts: 2, iv: true }, '版3 → 版4 の移し替え：' + JSON.stringify(mig4));
   await p.goto(BASE + '#/set/oils'); await p.waitForSelector('text=ラベンダー・アングスティフォリア'); assert.ok(await p.getByText('資料にない').count(), '資料にない精油のしるし');
   // 移し替えたあとのカルテで、精油の候補の画面が開ける
@@ -308,19 +312,19 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
   const mig5 = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); const v = await db.get('visits', id);
     return { ver: await db.getMeta('dataVersion'), n: v.figures.front.length + v.figures.back.length, g: v.guestFigures, intake: v.intake, wish: v.interview.wish, hand: st.S.settings.handover, pin: st.hasPin(), all: (await db.all('visits')).every((x) => x.guestFigures && x.figures) }; }, v4.id);
-  assert.deepEqual(mig5, { ver: 8, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
+  assert.deepEqual(mig5, { ver: 9, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
   await p.goto(BASE + `#/v/${v4.id}/shoken`); await p.waitForSelector('.zu.staff .bodypad'); assert.equal(await p.locator('.zu .strokes.own.staff > *').count(), v4.n, '0.5.0 の図が、施術する人の「所見」の図として出る');
   await p.goto(BASE + `#/v/${v4.id}/kininaru`); await p.waitForSelector('.zu.guest .bodypad'); assert.equal(await p.locator('.zu .strokes.own > *').count(), 0, 'お客さんの図は空で始まる');
   await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
   // 移し替えのしくみそのもの（次の版を足すとき用）
   const mig3 = await p.evaluate(async () => {
     const db = await import('./js/db.js');
-    const r = await db.migrateDb([{ to: 9, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 9);
+    const r = await db.migrateDb([{ to: 10, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 10);
     const ok = (await db.all('visits')).every((x) => x._test === 'moved'); const ver = await db.getMeta('dataVersion');
-    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 8);
+    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 9);
     return { r, ok, ver };
   });
-  assert.deepEqual(mig3, { r: { from: 8, to: 9 }, ok: true, ver: 9 }, '版の移し替え');
+  assert.deepEqual(mig3, { r: { from: 9, to: 10 }, ok: true, ver: 10 }, '版の移し替え');
 
   // --- 見本 1,000人で速さを見る ---
   await p.goto(BASE + '#/set/sample'); await tap('見本を 1,000人 入れる'); await p.waitForSelector('text=入れました', { timeout: 120000 });
@@ -361,7 +365,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
 
   // --- 設定でキャリアオイルを直す → 候補が変わる（決め打ちではない） ---
   await p.evaluate(async () => { const db = await import('./js/db.js'); const d = (await db.all('details'))[0]; d.allergyTags = ['al_nut']; await db.put('details', d); }); // 移し替えの試しで外れたしるしを付け直す
-  await p.goto(BASE + '#/set/carrier/k_tsubaki'); await p.waitForSelector('text=成分ごとの割合');
+  await p.goto(BASE + '#/set/carrier/k_tsubaki'); await p.waitForSelector('text=成分と割合');
   await tap('ナッツ類（木の実）'); await tap('自分の資料で確かめた（「下書き」のしるしを外す）'); await tap('保存する'); await p.waitForSelector('text=キャリアオイルの一覧と手持ち');
   assert.equal(await p.locator('.row-link', { hasText: '椿オイル' }).getByText('確かめた').count(), 1, '「下書き」のしるしが外れる');
   await p.goto(BASE + `#/v/${vid}/seiyu`); await p.locator('.tab', { hasText: 'キャリアオイル' }).tap();
@@ -477,6 +481,9 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await ph.noOverflow('オイルの候補'); await ph.shot('06-carrier');
   await ph.tap('次へ：ブレンド ›'); await q.waitForSelector('.meter');
   await q.getByText('20ml', { exact: true }).tap();
+  assert.ok(await q.getByText('この量なら 20滴まで', { exact: false }).count(), '20ml・はじめの目安（資料：体 5％）なら 20滴まで');
+  await q.evaluate(async () => { const st = await import('./js/state.js'); await st.flush(); st.S.settings.areas[0].max = 1; delete st.S.settings.areas[0].draft; await st.saveSettings(); }); // ここからは使う人が「体 1％」に直した場合
+  await q.reload(); await q.waitForSelector('.meter');
   assert.equal((await q.locator('.meter .pct').textContent()).trim(), '0.3％', '20ml に 1滴で 0.25％');
   assert.ok(await q.getByText('この量なら 4滴まで', { exact: false }).count(), '20ml・目安1％なら 4滴まで');
   const plus2 = q.locator('.brow:not(.car)').first().getByText('＋'); for (let i = 0; i < 4; i++) await plus2.tap();

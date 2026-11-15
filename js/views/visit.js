@@ -162,7 +162,8 @@ export async function visitView(id, step) {
           if (!on && kind === 'out' && !(await confirmDlg(`${it.name} は、次の理由で外してあります。\n\n・${r.blocks.join('\n・')}\n\nそれでも使いますか？（決めるのは施術する人です）`, '使う', true))) return;
           isOil ? toggleOil(it) : toggleCar(it); draw();
         }, on ? 'primary' : kind === 'out' ? 'ghost' : '');
-        const traits = isOil ? [] : traitText(it);
+        // キャリアオイルは、特徴と成分（割合が資料にないものは名前だけ）
+        const traits = isOil ? [] : [...traitText(it), ...Object.entries(it.fatty || {}).map(([fid, n]) => { const f = (S.settings.fats || []).find((x) => x.id === fid); return f ? f.name + (typeof n === 'number' ? ` 約${n}％` : '') : ''; }).filter(Boolean)];
         return h('div', { class: 'oil ' + kind + (on ? ' picked' : ''), style: { '--fam': f ? f.color : '#c9b98f' } },
           h('div', { class: 'grow' },
             h('div', { class: 'name' }, it.name, ' ', f && f.name ? h('span', { class: 'famtag' }, f.name) : null, it.ref === false ? badge('資料にない', 'amber') : it.draft ? badge('下書き', 'draft') : null),
@@ -171,7 +172,7 @@ export async function visitView(id, step) {
             (r.warns || []).length ? h('ul', { class: 'why warn' }, r.warns.map((t) => h('li', null, '⚠ ' + t))) : null,
             r.reasons.length ? h('ul', { class: 'why' }, r.reasons.slice(0, 3).map((t) => h('li', null, t))) : null,
             r.reasons.length > 3 ? h('details', { class: 'more' }, h('summary', null, `ほかの理由（${r.reasons.length - 3}）`), h('ul', { class: 'why' }, r.reasons.slice(3).map((t) => h('li', null, t)))) : null,
-            isOil && it.ref === false ? h('div', { class: 'muted small' }, 'はじめの資料にない精油なので、候補の点数には入れていません（気をつける点は見ています）。') : null,
+            it.ref === false ? h('div', { class: 'muted small' }, `はじめの資料にない${isOil ? '精油' : 'オイル'}なので、候補の点数には入れていません（気をつける点は見ています）。`) : null,
             it.note ? h('div', { class: 'muted small' }, it.note) : null),
           h('div', { class: 'oil-act' }, use, own));
       };
@@ -199,7 +200,7 @@ export async function visitView(id, step) {
         const isOil = tab === 'oil'; const al = allergyNames();
         fill(headBox,
           h('div', { class: 'tabs' }, [['oil', '精油'], ['car', 'キャリアオイル']].map(([id, name]) => h('button', { type: 'button', class: 'tab' + (tab === id ? ' on' : ''), onclick: () => { tab = id; drawHead(); draw(); } }, name))),
-          h('div', { class: 'notice draft' }, isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは「下書き」です。自分の資料で確かめて、設定から直してください。候補は目安で、最後に決めるのは施術する人です。'),
+          h('div', { class: 'notice draft' }, isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは、アロマテラピーを学んだときの資料をもとに入れたものです（下書き）。アレルギー体質・敏感肌・はじめて使う人は、腕の内側に1〜2滴ぬって赤くならないか確かめる（パッチテスト）と資料に。候補は目安で、最後に決めるのは施術する人です。'),
           card(h('div', { class: 'facts' },
             isOil ? h('div', null, h('b', null, 'つらいところ：'), iv.symptoms.map((s) => `${symName(s.id)}（${s.level}）`).join('、') || 'なし')
               : [h('div', null, h('b', null, '肌の状態：'), (iv.skins || []).map(skinName).filter(Boolean).join('・') || 'えらんでいません'),
@@ -288,7 +289,7 @@ export async function visitView(id, step) {
       refresh();
       return [
         h('div', { class: 'sticky' }, meter),
-        card(group('どこに使う？', areaBox, [isPart(v.scope) ? `今日は「${scopeText(S.settings, v.scope)}」の施術なので、部位に合わせた目安をえらんであります（設定 → 部位 で変えられます）。` : '', S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : ''].filter(Boolean).join('　') || null)),
+        card(group('どこに使う？', areaBox, [isPart(v.scope) ? `今日は「${scopeText(S.settings, v.scope)}」の施術なので、部位に合わせた目安をえらんであります（設定 → 部位 で変えられます）。` : '', S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : '', 'はじめての人・敏感肌の人は、目安よりうすめに（資料のメモ。数字は書いていない）。'].filter(Boolean).join('　') || null)),
         card(h('h2', null, 'キャリアオイル'), carBox, h('div', { class: 'row' }, btn('＋ キャリアオイルをえらぶ', addCarrier))),
         card(h('h2', null, '精油'), oilBox, h('div', { class: 'row' }, btn('＋ 精油を足す', addOil)),
           h('p', { class: 'hint' }, `濃度は「精油の量 ÷ キャリアオイルの量」で出しています（1滴＝${fmt(dropMl)}ml。設定で変えられます）。`)),

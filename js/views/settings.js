@@ -138,12 +138,13 @@ export function carriersView() {
     const sw = h('button', { type: 'button', class: 'mini big' + (o.owned ? ' on' : ''), 'aria-pressed': String(!!o.owned) }, o.owned ? '✓ 手持ち' : '持っていない');
     sw.onclick = async () => { o.owned = !o.owned; await saveMaster('carriers', o); draw(); };
     return h('div', { class: 'row-link' },
-      h('a', { class: 'grow', href: `#/set/carrier/${o.id}` }, h('div', { class: 'name' }, o.name || '（名前なし）', ' ', o.draft ? badge('下書き', 'draft') : badge('確かめた', 'ok')),
+      h('a', { class: 'grow', href: `#/set/carrier/${o.id}` }, h('div', { class: 'name' }, o.name || '（名前なし）', ' ', o.ref === false ? badge('資料にない', 'amber') : o.draft ? badge('下書き', 'draft') : badge('確かめた', 'ok')),
         h('div', { class: 'muted' }, TRAITS.map((t) => t.opts[((o.traits || {})[t.id] || 0) - 1]).filter(Boolean).join('・'))), sw);
   }));
   draw();
   return page({ title: 'キャリアオイルの一覧と手持ち', back: '#/set', actions: h('a', { class: 'btn', href: '#/set/carrier/new' }, '＋ 足す'),
-    body: [DRAFT_NOTE(), h('p', { class: 'hint' }, '持っているオイルの右のボタンを押すと「手持ち」になります（すぐ保存されます）。名前を押すと中身を直せます。'), list] });
+    body: [h('div', { class: 'notice draft' }, 'はじめから入っているキャリアオイルは、アロマテラピーを学んだときの資料をもとに入れたものです（「下書き」のしるしつき）。資料に割合（％）がない成分は「割合は未記入」、書いていない特徴は空けてあります。「資料にない」は前の下書きにあったオイルで、候補の点数には入れていません。自分の資料で確かめたら、中身の画面で「確かめた」にしるしをつけてください。'),
+      h('p', { class: 'hint' }, '持っているオイルの右のボタンを押すと「手持ち」になります（すぐ保存されます）。名前を押すと中身を直せます。'), list] });
 }
 export function carrierEditView(id) {
   const isNew = id === 'new';
@@ -154,20 +155,33 @@ export function carrierEditView(id) {
   const total = h('span', { class: 'muted' });
   const sum = () => { const t = st.fats.reduce((s, c) => s + (Number(o.fatty[c.id]) || 0), 0); total.textContent = `合計 ${t}％${t > 100 ? '（100をこえています）' : ''}`; };
   sum();
+  // 成分1つぶん：なし／入っている（割合を入れる・空けておける）
+  const fatRow = (c) => {
+    const box = h('div', { class: 'comprow' });
+    const draw = () => {
+      const on = c.id in o.fatty;
+      const num = h('input', { type: 'number', inputmode: 'decimal', class: 'input num', placeholder: '未記入', value: typeof o.fatty[c.id] === 'number' ? o.fatty[c.id] : '', disabled: !on });
+      num.oninput = () => { o.fatty[c.id] = num.value === '' ? null : Number(num.value); sum(); };
+      fill(box, h('div', { class: 'grow' }, c.name),
+        chips([{ id: 'none', name: 'なし' }, { id: 'yes', name: '入っている' }], on ? 'yes' : 'none', { multi: false, onChange: (x) => { if (x === 'yes') { if (!(c.id in o.fatty)) o.fatty[c.id] = null; } else delete o.fatty[c.id]; draw(); sum(); } }),
+        h('span', { class: 'row tight' }, num, '％'));
+    };
+    draw(); return box;
+  };
   const save = async () => {
     if (!o.name.trim()) { toast('名前を入れてね'); return; }
-    for (const k of Object.keys(o.fatty)) if (o.fatty[k] == null || o.fatty[k] === '') delete o.fatty[k];
+    for (const k of Object.keys(o.fatty)) if (o.fatty[k] === '') o.fatty[k] = null; // null＝入っている（割合は分からない）。消さない
     await saveMaster('carriers', o); toast('保存しました'); go('#/set/carriers');
   };
   // 目的は言葉そのもので覚えている。言葉を直す前の古いものが残っていたら、外せるように一緒に出す
   const purposeItems = [...new Set([...st.purposes, ...o.purposes])];
   return page({
     title: isNew ? 'キャリアオイルを足す' : o.name, back: '#/set/carriers', body: [
-      o.draft ? DRAFT_NOTE() : null,
+      o.draft ? DRAFT_NOTE(o.ref === false ? undefined : AROMA_SRC) : null,
       card(field('名前', input(o, 'name')),
         h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: o.owned, onchange: (e) => { o.owned = e.target.checked; } }), '手持ち（持っている）')),
-      card(h('h2', null, '成分ごとの割合（％）'), h('p', { class: 'hint' }, 'おおよその値でかまいません。産地や作り方でも変わります。分からないところは空けたままに。'),
-        h('div', { class: 'grid2' }, st.fats.map((c) => field(c.name, numIn(o.fatty, c.id, { onInput: sum })))), total),
+      card(h('h2', null, '成分と割合（％）'), h('p', { class: 'hint' }, '資料に割合がないときは「入っている」にして、数字は空けたままに（もっともらしく埋めない）。産地や作り方でも変わります。'),
+        st.fats.map((c) => fatRow(c)), total),
       card(h('h2', null, '特徴'), h('p', { class: 'hint' }, '分からないものは、えらばずに空けておけます（もう一度押すと外れます）。'),
         TRAITS.map((t) => group(t.name, chips(t.opts.map((name, i) => ({ id: i + 1, name })), o.traits[t.id] || '', { multi: false, onChange: (v) => { o.traits[t.id] = v || null; } })))),
       card(group('このオイルならではの「向いている肌の状態」', chips(st.skins, o.skins, { onChange: (v) => { o.skins = v; } })),
@@ -269,7 +283,7 @@ export function limitsView() {
   return page({
     title: '濃度の目安・1滴の量', back: '#/set', body: [
       AUTO_NOTE(),
-      h('div', { class: 'notice draft' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 1％・顔 0.5％」は、よく言われている目安の下書きです。自分の資料で確かめて直してください（数字を直すと「下書き」のしるしが外れます）。空けたところは「目安なし」になります。'),
+      h('div', { class: 'notice draft' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 5％・顔 3％・部分ぬり 10％」は、アロマテラピーを学んだときの資料の数字です（下書き）。資料のメモ：はじめての人・敏感肌の人は、うすめに。手・足だけ・子ども・高齢・妊娠中の数字は資料にないので空けてあります。自分の資料で確かめて直してください（数字を直すと「下書き」のしるしが外れます）。空けたところは「目安なし」になります。'),
       card(h('h2', null, '濃度の出し方'), h('p', null, '濃度（％）＝ 精油の量 ÷ キャリアオイルの量 × 100'), h('p', { class: 'hint' }, '例：キャリアオイル 30ml に、精油 6滴（1滴 0.05ml なら 0.3ml）→ 1％。「この量なら○滴まで」も同じ式で出しています。')),
       card(h('h2', null, '部位ごとの上限'), areaBox, h('div', { class: 'row' }, btn('＋ 部位を足す', () => { st.areas.push({ id: db.uid(), name: '', max: null }); save(); drawAreas(); }))),
       card(h('h2', null, 'お客さんの状態ごとの上限'), h('p', { class: 'hint' }, 'あてはまるお客さんでは、部位の上限とくらべて低いほうを使います。はじめは空けてあります。'),

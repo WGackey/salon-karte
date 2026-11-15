@@ -180,6 +180,7 @@ export function pickCarriers({ carriers, skins, purposes, condIds, allergyTags, 
       if ((car.skins || []).includes(sid)) { score += 0.5; reasons.push({ w: 0.5, text: `「${skinName(sid)}」← このオイルの特徴として登録` }); }
     }
     for (const pu of purposes || []) if ((car.purposes || []).includes(pu)) { score += 0.5; reasons.push({ w: 0.45, text: `目的「${pu}」← このオイルの特徴として登録` }); }
+    if (car.ref === false) { score = 0; reasons.length = 0; } // 資料にない油は、精油と同じく候補の点数に入れない（気をつける点は見る）
     for (const a of car.allergens || []) if (hits[a]) blocks.push(hits[a]);
     for (const c of car.cautions || []) if (conds.has(c)) blocks.push(`「${condName(c)}」のときは気をつけるオイルとして登録`);
     if (avoid.has(car.id)) blocks.push('このお客さんの「避けるキャリアオイル」に入っている');
