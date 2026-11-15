@@ -27,7 +27,7 @@ export async function addSamples(n = 1000) {
       const oils = [pick(S.oils), pick(S.oils)].map((o) => ({ oilId: o.id, name: o.name, drops: 1 + ri(3) }));
       visits.push({
         id: db.uid(), customerId: id, date, status: 'done', scope: { type: 'whole' }, conds: [], sample: true,
-        interview: { life: '見本のデータです', purposes: [pick(st.purposes)], moods: [pick(st.moods)], symptoms: syms, memo: '' },
+        interview: { life: '見本のデータです', purposes: [pick(st.purposes)], moods: [pick(st.moods)], symptoms: syms, skins: rnd() < 0.5 ? [pick(st.skins).id] : [], memo: '' },
         figures: { front: [stroke(st.marks), stroke(st.marks)], back: [stroke(st.marks), stroke(st.marks), stroke(st.marks)] },
         blend: { areaId: st.areas[0].id, oils, carriers: [{ carrierId: S.carriers[0].id, name: S.carriers[0].name, ml: 30 }], memo: '' },
         menus: S.menus[0] ? [{ id: S.menus[0].id, name: S.menus[0].name, minutes: S.menus[0].minutes }] : [], treat: { seitai: '', aroma: '見本' },
@@ -36,7 +36,7 @@ export async function addSamples(n = 1000) {
       });
     }
     customers.push({ id, no: no++, name: `${s} ${m}`, kana: `${sk} ${mk}`, nextDate: rnd() < 0.03 ? addDays(today, ri(7)) : '', lastVisit: last, visitCount: nv, sample: true });
-    details.push({ id, gender: pick(['女性', '女性', '男性']), birth: `${1950 + ri(55)}-${String(1 + ri(12)).padStart(2, '0')}-${String(1 + ri(28)).padStart(2, '0')}`, zip: '', address: '', tel: '', email: '', job: pick(st.jobs), firstVisit: last, history: '', conds: rnd() < 0.15 ? [pick(st.conds.filter((c) => c.when === 'person')).id] : [], allergy: '', avoidOilIds: [], experience: '', memo: '見本のお客さんです（作りもの）', sample: true });
+    details.push({ id, gender: pick(['女性', '女性', '男性']), birth: `${1950 + ri(55)}-${String(1 + ri(12)).padStart(2, '0')}-${String(1 + ri(28)).padStart(2, '0')}`, zip: '', address: '', tel: '', email: '', job: pick(st.jobs), firstVisit: last, history: '', conds: rnd() < 0.15 ? [pick(st.conds.filter((c) => c.when === 'person')).id] : [], allergy: '', allergyTags: [], avoidOilIds: [], avoidCarrierIds: [], experience: '', memo: '見本のお客さんです（作りもの）', sample: true });
   }
   await db.bulkPut('customers', customers); await db.bulkPut('details', details);
   for (let i = 0; i < visits.length; i += 1000) await db.bulkPut('visits', visits.slice(i, i + 1000));

@@ -43,7 +43,7 @@ export async function deleteMaster(store, id) { await db.del(store, id); S[store
 export function blankCustomer() {
   return {
     slim: { id: db.uid(), no: 0, name: '', kana: '', nextDate: '', lastVisit: '', visitCount: 0 },
-    det: { gender: '', birth: '', zip: '', address: '', tel: '', email: '', job: '', firstVisit: todayStr(), history: '', conds: [], allergy: '', avoidOilIds: [], experience: '', memo: '' },
+    det: { gender: '', birth: '', zip: '', address: '', tel: '', email: '', job: '', firstVisit: todayStr(), history: '', conds: [], allergy: '', allergyTags: [], avoidOilIds: [], avoidCarrierIds: [], experience: '', memo: '' },
   };
 }
 export async function saveCustomer(slim, det) {
@@ -73,7 +73,7 @@ export async function newVisit(customerId) {
     id: db.uid(), customerId, date: todayStr(), status: 'draft',
     scope: { type: 'whole' }, // 第2段で「部分（手・足など）」を足すための入れ物
     conds: prev ? prev.conds.filter((c) => c !== 'c_sun') : [],
-    interview: prev ? { ...clone(prev.interview), memo: '' } : { life: '', purposes: [], moods: [], symptoms: [], memo: '' },
+    interview: prev ? { ...clone(prev.interview), memo: '' } : { life: '', purposes: [], moods: [], symptoms: [], skins: [], memo: '' },
     figures: { front: [], back: [] }, // 図の名前 → なぞった線。第2段で手・足の図を足せる
     blend: { areaId: S.settings.areas[0]?.id || '', oils: [], carriers: [], memo: '' },
     menus: [], treat: { seitai: '', aroma: '' },
@@ -97,8 +97,10 @@ export async function recount(customerId) {
 }
 
 // ---- 保存の後回し（入力のたびに書くと重いので、少しまとめて書く） ----
+// 画面には「保存しています…／保存済み」を出す（saveState の合図）
 let pending = null; let timer = null;
-export function saveSoon(fn) { pending = fn; clearTimeout(timer); timer = setTimeout(flush, 400); }
-export async function flush() { clearTimeout(timer); const f = pending; pending = null; if (f) await f(); }
+const tell = (busy) => dispatchEvent(new CustomEvent('savestate', { detail: { busy } }));
+export function saveSoon(fn) { pending = fn; clearTimeout(timer); if (fn) { tell(true); timer = setTimeout(flush, 400); } else tell(false); }
+export async function flush() { clearTimeout(timer); const f = pending; pending = null; if (f) { try { await f(); } finally { if (!pending) tell(false); } } }
 addEventListener('pagehide', flush);
 document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
