@@ -1,5 +1,6 @@
 import { h, fill, page, card, btn, badge, go } from '../ui.js';
 import { S } from '../state.js';
+import { startView } from './guide.js';
 import * as db from '../db.js';
 import { todayStr, daysBetween, jpDate, searchPeople, ymd, schedule } from '../logic.js';
 
@@ -23,6 +24,8 @@ function schedRow(it, kind, today) {
 }
 
 export async function homeView() {
+  // はじめて開いたとき（だれも登録されていない・案内をまだ終えていない）は、はじめの案内を出す。とばせる・あとで設定から開ける
+  if (!(S.settings.onboard || {}).done && !S.people.length && !S.newer) return startView();
   const today = todayStr(); const sc = schedule(S.people, S.appts, today);
 
   const results = h('div', { class: 'list' });

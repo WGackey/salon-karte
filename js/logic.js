@@ -266,3 +266,9 @@ export function schedule(people, appts, today = todayStr()) {
   out.overdue.reverse(); // 過ぎたばかりの人を上に
   return out;
 }
+
+// バックアップのファイル名。お店の名前が入っていれば頭につける（ファイル名に使えない字は外す）
+export function backupName(salon, date) {
+  const s = String(salon || '').replace(/[\\/:*?"<>|\s.]+/g, ' ').trim().replace(/ /g, '_').slice(0, 30);
+  return `${s ? s + '_' : ''}カルテのバックアップ_${date}.json`;
+}

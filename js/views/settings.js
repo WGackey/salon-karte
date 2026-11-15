@@ -1,10 +1,10 @@
 import { scopeChips } from '../scopepick.js';
 import { PART_FIGS, FIGS } from '../parts.js';
-import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, AUTO_NOTE } from '../ui.js';
+import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, HERE, AUTO_NOTE } from '../ui.js';
 import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin } from '../state.js';
 import { choosePin, askPin } from './guest.js';
 import * as db from '../db.js';
-import { todayStr, daysBetween, ymd, jpDate, TRAITS } from '../logic.js';
+import { todayStr, daysBetween, ymd, jpDate, TRAITS, backupName } from '../logic.js';
 import { makeBackupText, readBackupHead, restoreBackup, handOver } from '../backup.js';
 import { addSamples, removeSamples } from '../sample.js';
 import { notFound } from './customer.js';
@@ -35,11 +35,15 @@ export function settingsView() {
         link('#/set/menus', '施術メニュー', `${S.menus.length}個。メニューごとに「施術するところ（全身・手だけ など）」を決められる`),
         link('#/set/parts', '部位（手だけ・足だけ などのカルテ）', '部位の名前・濃度の目安・関わる「つらいところ」'),
         link('#/set/lists', 'えらぶ言葉を直す', '症状・肌の状態・アレルギー・目的・香りの好み・お仕事 など'),
-        link('#/set/salon', 'お店の名前', S.settings.salonName || '（まだ入っていません）'))),
+        link('#/set/salon', 'お店の名前・施術する人の名前', [S.settings.salonName, S.settings.staffName].filter(Boolean).join('・') || '（まだ入っていません）'))),
       card(h('h2', null, 'データ'), h('div', { class: 'list' },
-        link('#/set/backup', 'バックアップ（書き出し・戻し）', `データは この ${DEVICE} の中だけにあります。こまめに書き出してね`),
+        link('#/set/backup', 'バックアップ（書き出し・戻し）', `データは ${HERE} の中だけにあります。こまめに書き出してね`),
         link('#/set/sample', '見本のデータ', '速さを試すための、作りもののお客さん'),
         link('#/set/about', 'このアプリについて', `版 ${APP_VERSION}`))),
+      card(h('h2', null, '使い方'), h('div', { class: 'list' },
+        link('#/set/tebiki', '使い方の手引き', 'ホーム画面への追加・1回の来店の流れ・新しい版への切りかえ・端末のあいだの移し方'),
+        link('#/set/kangae', 'この考え方で作っています', '下書きであること・医療ではないこと・データの置き場'),
+        link('#/hajime', 'はじめの案内をもう一度', 'お店の名前 → 合言葉 → 手持ちのオイル → メニュー → 下書きの確かめ → バックアップ'))),
     ],
   });
 }
@@ -368,8 +372,14 @@ export function listsView() {
     ],
   });
 }
+// お店の名前・施術する人の名前（設定と、はじめの案内の両方で使う）
+export const salonFields = () => [
+  field('お店の名前', input(S.settings, 'salonName', { onInput: () => saveSettings(), placeholder: '例：〇〇サロン' }), 'ホームの上・お客さん用の画面・同意書・バックアップのファイル名に出ます。'),
+  field('施術する人の名前', input(S.settings, 'staffName', { onInput: () => saveSettings(), placeholder: '例：山田' }), '同意書のサインの記録と、お客さん用の画面の「スタッフ（〇〇）にお返しください」に出ます。'),
+  h('p', { class: 'hint' }, 'どちらも空のままで使えます。あとからいつでも直せます。'),
+];
 export function salonView() {
-  return page({ title: 'お店の名前', back: '#/set', body: [AUTO_NOTE(), card(field('ホームの上に出る名前', input(S.settings, 'salonName', { onInput: () => saveSettings(), placeholder: '例：〇〇サロン' })))] });
+  return page({ title: 'お店の名前・施術する人の名前', back: '#/set', body: [AUTO_NOTE(), card(salonFields())] });
 }
 
 // ---- お客さんに渡すとき ----
@@ -404,7 +414,7 @@ export async function backupView() {
       // iPad・iPhone の「共有」の画面は、ボタンを押したその場でしか出せないので、できあがってからもう一度押してもらう
       fill(ready, h('div', { class: 'notice ok' }, 'バックアップができました。下のボタンで保存先をえらんでね。'),
         btn('保存先をえらぶ', async () => {
-          if (await handOver(text, `カルテのバックアップ_${todayStr()}.json`)) { await db.setMeta('lastBackupAt', Date.now()); toast('書き出しました'); go('#/set/backup?' + Date.now()); }
+          if (await handOver(text, backupName(S.settings.salonName, todayStr()))) { await db.setMeta('lastBackupAt', Date.now()); toast('書き出しました'); go('#/set/backup?' + Date.now()); }
         }, 'primary big wide'));
     } catch (e) { fill(ready); toast('書き出せませんでした：' + e.message); }
   };
@@ -423,7 +433,7 @@ export async function backupView() {
   };
   const doRestore = async () => {
     if (!head) return;
-    if (!(await confirmDlg(`いま この ${DEVICE} の中にあるデータ（お客さん ${S.people.length}人）を、このバックアップの中身に入れ替えます。いまのデータは消えます（混ぜることはできません）。`, '入れ替える', true))) return;
+    if (!(await confirmDlg(`いま ${HERE} の中にあるデータ（お客さん ${S.people.length}人）を、このバックアップの中身に入れ替えます。いまのデータは消えます（混ぜることはできません）。`, '入れ替える', true))) return;
     try { await restoreBackup(head, o.rpass); await reload(); toast('バックアップから戻しました'); go('#/'); }
     catch (e) { toast(e.message); }
   };
@@ -471,7 +481,7 @@ export async function aboutView() {
       card(h('p', null, `版 ${APP_VERSION}（データの形 ${db.DATA_VERSION}）`), est ? h('p', null, `使っている容量：${est}`) : null,
         h('p', null, persisted ? 'データは「消されにくい保存」になっています。' : 'ホーム画面に追加したアイコンから開くと、データが消されにくくなります。')),
       card(h('h2', null, 'データについて'), h('ul', { class: 'plain' },
-        h('li', null, `お客さんのデータは、この ${DEVICE} の中だけに保存します。インターネットのどこにも送りません。`),
+        h('li', null, `お客さんのデータは、${HERE} の中だけに保存します。インターネットのどこにも送りません。`),
         h('li', null, 'Safari の「履歴とWebサイトデータを消去」をすると、カルテも消えます。バックアップをこまめに。'),
         h('li', null, 'Safari で開いたときと、ホーム画面のアイコンから開いたときでは、データの置き場がちがいます。いつもホーム画面のアイコンから開いてください。'),
         h('li', null, 'iPad と iPhone の両方で使えますが、データは端末ごとに別々です。移すときは 設定 → バックアップ の「iPad と iPhone のあいだで移す」を見てね。'))),

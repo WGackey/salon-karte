@@ -182,6 +182,7 @@ export function noTouchFigures(noTouch) {
 function consentCard(p, cs) {
   const cur = S.settings.consent || { ver: 1 };
   const show = () => sheet(`${jpDate(cs.last.at.slice(0, 10))} の同意（文の版 ${cs.last.ver}）`, h('div', null,
+    cs.last.salon || cs.last.staff ? h('p', { class: 'muted' }, [cs.last.salon, cs.last.staff ? `施術する人：${cs.last.staff}` : ''].filter(Boolean).join('　')) : null,
     h('p', { class: 'pre consenttext' }, cs.last.text), h('div', { class: 'signbox' }, signPad({ strokes: cs.last.sign || [], readOnly: true }))));
   return card(h('h2', null, '同意書'),
     cs.last ? h('p', null, `${jpDate(cs.last.at.slice(0, 10))} に同意・サインあり（文の版 ${cs.last.ver}）`, cs.stale ? h('span', { class: 'warntext' }, `　いまの文は版 ${cur.ver}。直したあとの文には、まだ同意をもらっていません`) : null)

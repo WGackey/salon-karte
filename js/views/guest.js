@@ -49,6 +49,7 @@ export const askPin = (title = 'スタッフ用：合言葉を入れてくださ
 } });
 
 // ---- 渡す前の確かめ（施術する人の画面に出る） ----
+const backTo = () => (S.settings.staffName ? `スタッフ（${S.settings.staffName}）` : 'スタッフ');
 const PARTS = [['profile', 'お客さんの情報（お名前・連絡先・からだのこと・生活の様子）'], ['consent', '同意書とサイン'], ['monshin', '今日の問診（今日の状態・つらいところ・気になるところの図・香りの好み）']];
 export async function startHandover(p, parts, visit, pick = null) {
   if (!parts.length) { toast('書いてもらうものをえらんでね'); return false; }
@@ -93,7 +94,7 @@ export async function guestView() {
   };
   const staffLink = () => h('button', { type: 'button', class: 'stafflink', onclick: unlock }, 'スタッフ用（合言葉でもどる）');
   let v = null;
-  if (!p) { fill(root, h('div', { class: 'gdone' }, h('h1', null, 'スタッフにお返しください'), staffLink())); return root; }
+  if (!p) { fill(root, h('div', { class: 'gdone' }, h('h1', null, backTo() + 'にお返しください'), staffLink())); return root; }
   const det = (await db.get('details', p.id)) || blankCustomer().det;
   v = g.visitId ? await db.get('visits', g.visitId) : null;
   if (v) { v.guestFigures = v.guestFigures || { front: [], back: [] }; v.interview.wish = v.interview.wish || ''; }
@@ -120,7 +121,7 @@ export async function guestView() {
 
   const SCREEN = {
     hello: () => ({ title: `${p.name} 様`, body: [h('div', { class: 'ghello' },
-      h('p', { class: 'gbig' }, '本日はありがとうございます。'), h('p', null, '施術の前に、いくつかおうかがいします。'),
+      S.settings.salonName ? h('p', { class: 'gsalon' }, S.settings.salonName) : null, h('p', { class: 'gbig' }, '本日はありがとうございます。'), h('p', null, '施術の前に、いくつかおうかがいします。'),
       h('ul', { class: 'plain' }, has('profile') ? h('li', null, 'お客さまのこと（お名前・ご連絡先・おからだのこと）') : null, has('consent') ? h('li', null, '施術を受ける前のお願い（お読みいただいて、サイン）') : null, has('monshin') ? h('li', null, '今日のおからだの調子') : null),
       h('p', { class: 'ghint' }, '書きにくいところ・分からないところは、空けたままでだいじょうぶです。あとでスタッフがおうかがいします。'))], next: 'はじめる' }),
     p1: () => ({ title: 'お客さまのこと', body: [q('お名前', null,
@@ -142,7 +143,7 @@ export async function guestView() {
     consent: () => {
       const okBtn = btn('同意して、サインを残す', async () => {
         if (!signStrokes.length) { toast('わくの中にサインをお願いします'); return; }
-        det.consents = [...(det.consents || []), { at: new Date().toISOString(), ver: consent.ver || 1, text: consent.text, sign: signStrokes.slice() }];
+        det.consents = [...(det.consents || []), { at: new Date().toISOString(), ver: consent.ver || 1, text: consent.text, sign: signStrokes.slice(), salon: S.settings.salonName || '', staff: S.settings.staffName || '' }];
         signed = true; await saveCustomer(p, det); show(i + 1);
       }, 'primary big wide gnext');
       const sync = () => okBtn.classList.toggle('dim', signStrokes.length === 0);
@@ -181,7 +182,7 @@ export async function guestView() {
         short ? null : group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; saveV(); } }))),
       q('伝えておきたいこと', '力かげん・気をつけてほしいこと・聞いておきたいこと など、なんでも', textarea(iv, 'wish', { rows: 3, onInput: saveV }))] }; },
     done: () => ({ title: '', done: true, body: [h('div', { class: 'gdone' }, h('div', { class: 'gcheck' }, '✓'), h('h1', null, 'ありがとうございました'),
-      h('p', { class: 'gbig' }, 'スタッフにお返しください。'), btn('スタッフ：合言葉を入れてもどる', unlock, 'primary big'))] }),
+      h('p', { class: 'gbig' }, backTo() + 'にお返しください。'), btn('スタッフ：合言葉を入れてもどる', unlock, 'primary big'))] }),
   };
 
   const finishUp = async () => { // 書き終わったしるしを残す

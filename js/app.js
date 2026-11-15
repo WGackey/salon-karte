@@ -7,6 +7,7 @@ import { customerView, customerFormView, notFound } from './views/customer.js';
 import { visitView } from './views/visit.js';
 import { progressView } from './views/progress.js';
 import * as st from './views/settings.js';
+import { startView, ideaView, guideView } from './views/guide.js';
 
 const ROUTES = [
   [/^\/$/, homeView], [/^\/list$/, listView], [/^\/new$/, () => customerFormView(null)],
@@ -16,6 +17,7 @@ const ROUTES = [
   [/^\/set\/carriers$/, st.carriersView], [/^\/set\/carrier\/([^/]+)$/, st.carrierEditView], [/^\/set\/fats$/, st.fatsView], [/^\/set\/menus$/, st.menusView], [/^\/set\/parts$/, st.partsView], [/^\/set\/limits$/, st.limitsView],
   [/^\/set\/cats$/, st.catsView], [/^\/set\/rules$/, st.rulesView], [/^\/set\/consent$/, st.consentView], [/^\/set\/actions$/, st.actionsView], [/^\/set\/symacts$/, st.symActsView], [/^\/set\/lists$/, st.listsView], [/^\/set\/salon$/, st.salonView], [/^\/set\/handover$/, st.handoverView],
   [/^\/set\/backup$/, st.backupView], [/^\/set\/sample$/, st.sampleView], [/^\/set\/about$/, st.aboutView],
+  [/^\/hajime$/, startView], [/^\/set\/kangae$/, ideaView], [/^\/set\/tebiki$/, guideView],
 ];
 const root = document.getElementById('app');
 let seq = 0;

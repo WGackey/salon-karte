@@ -344,3 +344,15 @@ button.thumbs { border: 0; background: none; padding: 0; margin: 0; font: inheri
 .sched.today { border-color: var(--accent); border-width: 1.5px; } .sched.overdue { background: var(--amber-soft); border-color: #e6cf9c; } .sched.overdue .swhen { display: none; }
 .timein { width: 8.2em; flex: none; } .latenote { flex-wrap: wrap; } .latenote .chip { background: var(--card); flex: none; min-height: 42px; }
 .latenote .grow { min-width: min(100%, 240px); }
+/* ---- はじめの案内・考え方・手引き ---- */
+.startpage .main { max-width: 760px; margin: 0 auto; width: 100%; } .lead { font-size: 1.1rem; font-weight: 600; margin: 0; }
+.startdots { display: flex; gap: 6px; justify-content: center; } .startdots span { width: 22px; height: 6px; border-radius: 3px; background: var(--line); } .startdots .past { background: #cfc4b4; } .startdots .on { background: var(--accent); }
+.startskip { background: none; border: 0; color: var(--muted, #7a6a5e); text-decoration: underline; font-size: .95rem; min-height: 48px; padding: 0 12px; align-self: center; cursor: pointer; }
+.startpage .card { display: flex; flex-direction: column; gap: 14px; } .startpage .card > * { margin-top: 0; margin-bottom: 0; }
+.ownpick .chip { min-height: 48px; } .foot .btn.grow { flex: 1 1 0; }
+.idea { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); align-items: flex-start; } .idea:last-child { border-bottom: 0; } .idea:first-child { padding-top: 0; }
+.idea h3 { margin: 0; font-size: 1.05rem; } .idea p { margin: 0; } .consenttext.small { font-size: .9rem; max-height: 220px; overflow: auto; background: #faf7f2; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; align-self: stretch; }
+.guide > summary { font-weight: 700; font-size: 1.05rem; min-height: 48px; display: flex; align-items: center; cursor: pointer; list-style: none; } .guide > summary::-webkit-details-marker { display: none; }
+.guide > summary::after { content: '＋'; margin-left: auto; color: var(--accent); font-weight: 400; } .guide[open] > summary::after { content: '－'; }
+.guide-body { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; align-items: flex-start; } .guide-body .notice { align-self: stretch; }
+.gsalon { font-size: 1rem; color: #7a6a5e; margin: 0; }

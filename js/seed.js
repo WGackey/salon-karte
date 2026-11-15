@@ -78,8 +78,22 @@ export const DEFAULT_PARTS = [
   { id: 'neck', name: '首・肩', areaId: 'a_body', syms: ['s_kata', 's_kubi', 's_atama', 's_me', 's_kinniku', 's_stress'] },
   { id: 'back', name: '背中・腰', areaId: 'a_body', syms: ['s_senaka', 's_koshi', 's_kata', 's_kinniku', 's_tsukare'] },
 ];
+// 反射区（足の裏の区分け）。一般に知られている大まかな区分けだけの下書きで、確かめていない。名前と色は使う人が直せる。
+// 形（どこにあるか）は parts.js の REFLEX_SHAPES。名前は区分けの名前だけ（「〇〇に効く」とは書かない）。show＝図に重ねて出すか（はじめは出さない）／checked＝使う人が確かめた
+export const DEFAULT_REFLEX = {
+  show: false, checked: false,
+  zones: [
+    { id: 'rz_head', name: '頭', color: '#8d6cc0' }, { id: 'rz_neck', name: '首', color: '#c0569b' },
+    { id: 'rz_eye', name: '目', color: '#3d74d9' }, { id: 'rz_ear', name: '耳', color: '#2a9aa8' },
+    { id: 'rz_shoulder', name: '肩', color: '#d9822b' }, { id: 'rz_chest', name: '胸・肺', color: '#4f9a5d' },
+    { id: 'rz_stomach', name: '胃', color: '#c9a227' }, { id: 'rz_gut', name: '腸', color: '#a0683c' },
+    { id: 'rz_spine', name: '背骨', color: '#6b7280' }, { id: 'rz_pelvis', name: '骨盤まわり', color: '#d0564c' },
+  ],
+};
 export const DEFAULT_SETTINGS = {
-  salonName: '',
+  salonName: '', // お店の名前。ホームの上・お客さん用の画面・同意書・バックアップのファイル名に出る
+  staffName: '', // 施術する人の名前。同意書のサインの記録と、お客さん用の画面の「お返しください」に出る
+  onboard: { done: false, step: 0, ack: '' }, // はじめて開いたときの案内。done＝終えた（とばした）／ack＝下書きであることを確かめた日
   pin: null, // お客さん用の画面から戻るための合言葉（数字4けた）。{ salt, hash } の形で残す
   // 問診をだれが書くか（はじめに大きく出すボタン）。guest＝お客さんに渡す／staff＝施術する人が聞きながら書く。どちらもいつでも選べる
   handover: { first: 'guest', repeat: 'staff' },
@@ -97,6 +111,7 @@ export const DEFAULT_SETTINGS = {
   // 部位だけのカルテ（手だけ・足だけ など）。図は parts.js。名前・濃度の目安（areas のどれを使うか）・関わる「つらいところ」は設定で直せる
   wholeAreaId: 'a_body', // 全身のときの濃度の目安
   parts: DEFAULT_PARTS,
+  reflex: DEFAULT_REFLEX,
   symptoms: SYM.map(([id, name, acts]) => ({ id, name, acts: { ...acts } })),
   actions: DEFAULT_ACTIONS,
   conds: DEFAULT_CONDS,

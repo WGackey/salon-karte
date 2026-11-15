@@ -1,7 +1,7 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
-import { DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
+import { DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 6;
+export const DATA_VERSION = 7;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
 // IDB_VERSION＝入れ物そのものを足すときに上げる（2：予定の入れ物 appts。Google カレンダーの取りこみ用・いまは空）
 const IDB_VERSION = 2;
@@ -67,6 +67,16 @@ export const MIGRATIONS = [
       meta: (r) => (r.key === 'settings' && r.value && !r.value.parts ? { ...r, value: { ...r.value, wholeAreaId: r.value.wholeAreaId || 'a_body', parts: JSON.parse(JSON.stringify(DEFAULT_PARTS)) } } : r),
       menus: (r) => ('scope' in r ? r : { ...r, scope: null }),
       visits: (r) => (r.scope && r.scope.type ? r : { ...r, scope: { type: 'whole' } }),
+    },
+  },
+  { // 版7：売るための設定。施術する人の名前・はじめの案内（もう使っている端末には出さない）・反射区（足の裏に重ねる区分け。はじめは出さない）
+    to: 7,
+    stores: {
+      meta: (r) => {
+        if (r.key !== 'settings' || !r.value) return r;
+        const v = r.value; if (v.onboard && 'staffName' in v && v.reflex) return r;
+        return { ...r, value: { ...v, staffName: v.staffName || '', onboard: v.onboard || { done: true, step: 0, ack: '' }, reflex: v.reflex || JSON.parse(JSON.stringify(DEFAULT_REFLEX)) } };
+      },
     },
   },
 ];
