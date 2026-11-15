@@ -87,6 +87,12 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes path').count();
   assert.ok(outText.some((t) => t.includes('ティートゥリー') && t.includes('アレルギー')), 'アレルギーの精油は理由つきで外す（書き方のゆれ「ティートリー」でも）');
   assert.ok(outText.some((t) => t.includes('ジュニパー') && t.includes('妊娠中')), '妊娠中に使わない精油は理由つきで外す');
   assert.ok(outText.some((t) => t.includes('サイプレス') && t.includes('月数が入っていない')), '月数がないときは、初期の注意も見る');
+  // 妊娠の月数をえらぶと、時期に合わせた注意になる
+  await p.locator('.steps').getByText('問診').tap(); await tap('3か月');
+  await p.locator('.steps').getByText('オイル').tap(); await p.waitForSelector('.oil');
+  const out3 = await p.locator('.oil.out').allTextContents();
+  assert.ok(out3.some((t) => t.includes('サイプレス') && t.includes('妊娠3か月')), '3か月 → 初期の注意：' + out3.join('|').slice(0, 300));
+  assert.ok(!out3.some((t) => t.includes('月数が入っていない')));
   const lav = p.locator('.oil', { hasText: 'ラベンダー・アングスティフォリア' });
   await lav.getByText('手持ちにする').tap(); await p.locator('.oil.hit', { hasText: 'ラベンダー・アングスティフォリア' }).waitFor();
   await p.locator('.oil.hit', { hasText: 'ラベンダー・アングスティフォリア' }).getByText('使う', { exact: true }).tap();
