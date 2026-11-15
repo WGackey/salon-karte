@@ -2,7 +2,7 @@ import { h, fill, page, card, btn, badge, go, chips, field, group, input, textar
 import { signPad } from '../signpad.js';
 import { S, blankCustomer, saveCustomer, deleteCustomer, person, visitsOf, newVisit, saveVisit } from '../state.js';
 import * as db from '../db.js';
-import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, effectiveConds, noTouchAll, consentState, intakeInfo } from '../logic.js';
+import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, effectiveConds, noTouchAll, consentState, isFirstBlend } from '../logic.js';
 import { handoverSheet, startHandover } from './guest.js';
 const allergenName = (id) => (S.settings.allergens.find((c) => c.id === id) || {}).name || '';
 import { bodyPad } from '../bodymap.js';
@@ -127,7 +127,7 @@ function history(visits, det, copyFrom, startIdx = 0, customerId = '') {
   };
   const slideOf = (v, k) => {
     const nth = n - k; const c = blendCalc(v.blend, dropMl);
-    const lim = limitFor(S.settings, v.blend.areaId, effectiveConds({ settings: S.settings, det, visit: v, today: v.date }).ids); const lv = limitLevel(c.pct, lim.max);
+    const lim = limitFor(S.settings, v.blend.areaId, effectiveConds({ settings: S.settings, det, visit: v, today: v.date }).ids, { first: isFirstBlend(v.blend, nth) }); const lv = limitLevel(c.pct, lim.max);
     const oils = (v.blend.oils || []).filter((x) => x.drops > 0), cars = (v.blend.carriers || []).filter((x) => x.ml > 0);
     const conds = (v.conds || []).map(condName).filter(Boolean);
     const row = (label, ...kids) => h('div', { class: 'hrow' }, h('div', { class: 'hlabel' }, label), h('div', { class: 'hval' }, kids.some((x) => x != null && x !== '' && !(Array.isArray(x) && !x.length)) ? kids : h('span', { class: 'muted' }, '—')));
@@ -140,7 +140,6 @@ function history(visits, det, copyFrom, startIdx = 0, customerId = '') {
           row('つらさ（前→後）', v.interview.symptoms.map((s) => { const a = v.after.levels[s.id]; return h('div', { class: 'hsym' }, `${symName(s.id) || '（消した症状）'} ${s.level}${a != null ? '→' + a : ''}`, a != null && a < s.level ? h('span', { class: 'down' }, ` ▼${s.level - a}`) : a != null && a > s.level ? h('span', { class: 'up' }, ` ▲${a - s.level}`) : null); })),
           row('ブレンド', oils.length || cars.length ? [h('div', null, oils.map((x) => `${x.name} ${x.drops}滴`).join('・') || '精油なし'), h('div', null, cars.map((x) => `${x.name} ${x.ml}ml`).join('・') || 'キャリアオイルなし')] : null),
           row('濃度', c.pct != null ? h('span', { class: 'hpct ' + lv }, `${c.pct.toFixed(1)}％`, lv === 'over' ? '（目安をこえている）' : '') : null),
-          row('書いた人', intakeInfo(v).text),
           row('メニュー', v.menus.map((m) => `${m.name}${m.minutes ? m.minutes + '分' : ''}`).join('・')),
           row('施術後', [v.after.scent ? `香り：${v.after.scent}` : '', v.after.note].filter(Boolean).join('　') || null))),
       h('div', { class: 'row hact' }, h('a', { class: 'btn', href: `#/v/${v.id}/monshin` }, 'この回のカルテを開く ›'),
@@ -216,7 +215,7 @@ export async function customerView(id) {
     const draft = visits.find((v) => v.date === todayStr() && v.id !== src.id);
     if (!(await confirmDlg(`${jpDate(src.date)} の問診とブレンドを、今日のカルテに写します。${draft ? '\n今日のカルテにもう書いてある問診とブレンドは、入れ替わります。' : ''}\n（からだの図・施術・施術後は写しません）`, '写す'))) return;
     const v = draft || await newVisit(id, { by: 'staff' }); const c = (o) => JSON.parse(JSON.stringify(o));
-    v.interview = { skins: [], ...c(src.interview), memo: '' }; v.blend = c(src.blend); v.copied = true; v.status = 'draft';
+    v.interview = { skins: [], ...c(src.interview), memo: '' }; v.blend = c(src.blend); delete v.blend.first; v.copied = true; // はじめての人の目安かどうかは、写さない（今日の回数で決まる） v.status = 'draft';
     await saveVisit(v); toast('写しました。変わったところだけ直してね'); go(`#/v/${v.id}/monshin`);
   };
   const nextIn = h('input', { type: 'date', class: 'input', value: p.nextDate, 'aria-label': '次回の予定日' });

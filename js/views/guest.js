@@ -173,7 +173,7 @@ export async function guestView() {
           symChipBox, symBox)] };
     },
     m2: () => ({ title: '気になるところを、図に', wide: true, body: [h('section', { class: 'gcard' }, h('h2', null, '気になるところを、指でなぞってください'),
-      h('p', { class: 'ghint' }, short ? `今日は「${scopeText(S.settings, v.scope)}」の施術です。下の図を押すと大きく開くので、色をえらんでから、なぞってください。` : '下の図を押すと大きく開くので、色をえらんでから、なぞってください。書けたら左上の「もどる（とじる）」。', h('b', null, '触れてほしくないところ'), 'は「触れないで（×）」をえらんでなぞってください。なければ、そのまま次へ。'),
+      h('p', { class: 'ghint' }, short ? `今日は「${scopeText(S.settings, v.scope)}」の施術です。下の図を押すと大きく開くので、色をえらんでから、なぞってください。` : '下の図を押すと大きく開くので、色をえらんでから、なぞってください。まちがえたら「↩ 戻す」か「消しゴム」で消せます。書けたら左上の「もどる（とじる）」。', h('b', null, '触れてほしくないところ'), 'は「触れないで（×）」をえらんでなぞってください。なければ、そのまま次へ。'),
       figureEditor({ figures: v.guestFigures, figs: figsOf(v.scope), layer: 'guest', marks: S.settings.marks, onSave: saveV, simple: true, markLabel: '色をえらぶ' }))] }),
     m3: () => { const iv = v.interview; return { title: '香りの好み・ご希望', body: [
       short ? null : q('今日の目的', 'あてはまるものを押してください', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; saveV(); } })),

@@ -1,7 +1,7 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
 import { CARRIERS_V8, DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 9;
+export const DATA_VERSION = 10;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
 // IDB_VERSION＝入れ物そのものを足すときに上げる（2：予定の入れ物 appts。Google カレンダーの取りこみ用・いまは空）
 const IDB_VERSION = 2;
@@ -103,7 +103,27 @@ export const MIGRATIONS = [
     },
     add: { carriers: DEFAULT_CARRIERS },
   },
+  { // 版10：がっき〜の答え（11/16）。濃度の目安に「はじめての人」（体 1％・顔 0.5％の下書き）を足す。問診の「肌の状態」に「敏感肌」を足し、
+    //   資料で敏感肌向きのオイル（アプリコット・ピーチ・カレンデュラ）にしるしをつける。使う人が直した・確かめたものはさわらない
+    to: 10,
+    stores: {
+      carriers: (r) => (SENS10.includes(r.id) && r.draft !== false && JSON.stringify(r.skins || []) === '["sk_dry"]' ? { ...r, skins: ['sk_dry', 'sk_sensitive'] } : r),
+      meta: (r) => (r.key === 'settings' && r.value ? { ...r, value: settingsV10(r.value) } : r),
+    },
+  },
 ];
+const SENS10 = ['k_apricot', 'k_peach', 'k_calendula'];
+function settingsV10(v) {
+  const n = { ...v };
+  const skins = v.skins || [];
+  if (!skins.some((x) => x.id === 'sk_sensitive')) {
+    const i = skins.findIndex((x) => x.id === 'sk_normal'); const add = { id: 'sk_sensitive', name: '敏感肌' };
+    n.skins = i >= 0 ? [...skins.slice(0, i), add, ...skins.slice(i)] : [...skins, add];
+  }
+  const FIRST = { a_body: 1, a_face: 0.5 };
+  n.areas = (v.areas || []).map((a) => (a.id in FIRST && !('firstMax' in a) ? { ...a, firstMax: FIRST[a.id], firstDraft: true } : a));
+  return n;
+}
 
 // ---- 版9 の移し替えで使う部品 ----
 const CAR9 = Object.fromEntries(DEFAULT_CARRIERS.map((c) => [c.id, c]));

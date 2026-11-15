@@ -29,10 +29,12 @@ export function maxDrops(limitPct, carrierMl, dropMl) {
   return Math.floor((limitPct / 100) * carrierMl / dropMl + 1e-9);
 }
 // 部位の目安と、お客さんの状態ごとの目安のうち、いちばん低いものを使う
-export function limitFor(settings, areaId, condIds) {
+// first＝はじめての人の目安で見る（0.11.0）。部位に「はじめての人」の数字（firstMax）があれば、ふつうの数字のかわりにそれを使う
+export function limitFor(settings, areaId, condIds, { first = false } = {}) {
   const parts = [];
   const area = (settings.areas || []).find((a) => a.id === areaId);
-  if (area && area.max != null) parts.push({ label: area.name, max: area.max });
+  if (area && first && area.firstMax != null) parts.push({ label: area.name + '（はじめての人）', max: area.firstMax, first: true });
+  else if (area && area.max != null) parts.push({ label: area.name, max: area.max });
   for (const id of condIds || []) {
     const m = (settings.stateLimits || {})[id];
     if (m != null) { const c = settings.conds.find((x) => x.id === id); parts.push({ label: c ? c.name : id, max: m }); }
@@ -41,6 +43,8 @@ export function limitFor(settings, areaId, condIds) {
   const low = parts.reduce((a, b) => (b.max < a.max ? b : a));
   return { max: low.max, by: low.label, parts, area };
 }
+// はじめての人の目安で見るか。施術する人が切りかえていればそれ（blend.first）、まだなら来店が1回目かどうか
+export const isFirstBlend = (blend, nth) => (blend && typeof blend.first === 'boolean' ? blend.first : nth === 1);
 export function limitLevel(pct, max) {
   if (pct == null) return 'none'; if (max == null) return 'unknown';
   return pct > max + 1e-9 ? 'over' : pct > max * 0.9 ? 'near' : 'ok';
@@ -48,6 +52,8 @@ export function limitLevel(pct, max) {
 
 // その日の「気をつける状態」をまとめる。お客さんごと ＋ 来店ごと ＋ 自動でつくもの（妊娠の月数・年齢）。
 // 返すもの：{ ids：状態の番号, auto：{ 番号: 自動でついた理由 } }
+// 敏感肌：お客さんの情報の「からだの状態」（いつも）と、問診の「肌の状態」（今日）の両方にある。どちらか1つでえらべば、両方えらんだのと同じに扱う
+export const SENSITIVE_COND = 'c_skin', SENSITIVE_SKIN = 'sk_sensitive';
 export function effectiveConds({ settings, det = {}, visit = {}, today = todayStr() }) {
   const ids = new Set([...(det.conds || []), ...(visit.conds || [])]); const auto = {};
   const addAuto = (id, why) => { if (!ids.has(id)) { ids.add(id); auto[id] = why; } };
@@ -62,6 +68,8 @@ export function effectiveConds({ settings, det = {}, visit = {}, today = todaySt
     if (r.child != null && age <= r.child) addAuto('c_child', `${age}歳`);
     if (r.old != null && age >= r.old) addAuto('c_old', `${age}歳`);
   }
+  // 敏感肌は1つのこととして見る（0.11.0）：問診の「肌の状態」で今日えらんでも、「お客さんの情報」でいつもの状態にしていても同じ
+  if (((visit.interview || {}).skins || []).includes(SENSITIVE_SKIN)) addAuto(SENSITIVE_COND, '今日の肌の状態');
   return { ids: [...ids], auto };
 }
 
@@ -167,6 +175,8 @@ export function pickCarriers({ carriers, skins, purposes, condIds, allergyTags, 
   const condName = (id) => (settings.conds.find((s) => s.id === id) || {}).name || id;
   const conds = new Set(condIds || []); const avoid = new Set(avoidIds || []);
   const hits = allergyHits(settings.allergens, allergyTags, allergyText);
+  // 敏感肌がいつもの状態（お客さんの情報）なら、今日の肌の状態でえらんでいなくても、敏感肌向きのオイルを候補に上げる
+  if (conds.has(SENSITIVE_COND) && !(skins || []).includes(SENSITIVE_SKIN) && (settings.skins || []).some((x) => x.id === SENSITIVE_SKIN)) skins = [...(skins || []), SENSITIVE_SKIN];
   return carriers.map((car) => {
     let score = 0; const reasons = []; const blocks = [];
     for (const sid of skins || []) {
@@ -227,8 +237,8 @@ export function progressRows(visits, dropMl = 0.05) {
     const oils = (b.oils || []).filter((x) => x.drops > 0), carriers = (b.carriers || []).filter((x) => x.ml > 0);
     return { id: v.id, date: v.date, nth: i + 1, status: v.status, scope: v.scope || { type: 'whole' }, syms,
       drop: done.length ? done.reduce((t, s) => t + (s.before - s.after), 0) : null,
-      oils, carriers, pct: c.pct, areaId: b.areaId || '', menus: v.menus || [], scent: (v.after || {}).scent || '', note: (v.after || {}).note || '',
-      blendKey: oils.map((o) => o.oilId || o.name).sort().join('+'), who: intakeInfo(v).text };
+      oils, carriers, pct: c.pct, areaId: b.areaId || '', first: isFirstBlend(b, i + 1), menus: v.menus || [], scent: (v.after || {}).scent || '', note: (v.after || {}).note || '',
+      blendKey: oils.map((o) => o.oilId || o.name).sort().join('+') };
   });
 }
 // 同じ精油の組み合わせ（滴数はちがってもよい）ごとに、回数と、つらさの下がり方の平均をまとめる。回数の多い順
@@ -272,19 +282,4 @@ export function schedule(people, appts, today = todayStr()) {
 export function backupName(salon, date) {
   const s = String(salon || '').replace(/[\\/:*?"<>|\s.]+/g, ' ').trim().replace(/ /g, '_').slice(0, 30);
   return `${s ? s + '_' : ''}カルテのバックアップ_${date}.json`;
-}
-
-// ---- 前半（問診・気になるところ）をだれが書いたか（0.9.0） ----
-// intake.by：'guest'＝お客さんが自分で書いて返した／'staff'＝施術する人が聞き取って書いた。
-// intake が無い回（0.8.0 までの記録・渡したけれど書き終わらなかった回）は「記録なし」として、うその印をつけない。
-// staffEdits：お客さんが書いて返したあとに、施術する人が直した問診のらん → 直した時刻
-export const EDIT_LABELS = { conds: '今日の状態', pregMonth: '妊娠の月数', symptoms: 'つらいところ', skins: '肌の状態', purposes: '今日の目的', famLikes: '好きな香りの系統', moods: '香りの好み・気分', life: 'くらしのようす', wish: 'お客さんから伝えたいこと' };
-export function intakeInfo(v) {
-  const by = v && v.intake && v.intake.by;
-  const edits = Object.keys((v && v.staffEdits) || {}).filter((k) => EDIT_LABELS[k]).map((k) => EDIT_LABELS[k]);
-  const xByStaff = Object.values((v && v.guestFigures) || {}).reduce((n, arr) => n + (arr || []).filter((s) => s && s.by === 'staff').length, 0);
-  if (by === 'guest') return { kind: 'guest', edits, xByStaff,
-    text: 'お客さんが自分で書いた' + (edits.length ? `（施術者が書き足した：${edits.join('・')}）` : '') + (xByStaff ? `（図の「触れないで（×）」を施術者が${xByStaff}つ足した）` : '') };
-  if (by === 'staff') return { kind: 'staff', edits, xByStaff, text: '施術者が聞き取って書いた' };
-  return { kind: 'unknown', edits, xByStaff, text: 'だれが書いたかの記録なし' };
 }

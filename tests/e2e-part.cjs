@@ -100,7 +100,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
     await db.batch(['menus', 'visits', 'meta'], (os) => { ms.forEach((m) => os.menus.put(m)); vs.forEach((x) => os.visits.put(x)); os.meta.put({ key: 'settings', value: st }); os.meta.put({ key: 'dataVersion', value: 5 }); }); });
   await p.reload(); await p.waitForSelector('.home-top');
   const mig = await p.evaluate(async () => { const db = await import('./js/db.js'); const st = await db.getMeta('settings'); return { ver: await db.getMeta('dataVersion'), parts: st.parts.length, menus: (await db.all('menus')).map((m) => m.scope), n: (await db.all('visits')).length }; });
-  assert.deepEqual(mig, { ver: 9, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 10, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
   await p.goto(BASE + `#/v/${vid}/monshin`); await p.waitForSelector('.scopepick'); assert.ok(await p.locator('.scopesel .wholechip.on').count(), '0.6.0 のカルテは全身として開く');
 
   // ---------- ② 経過のページ ----------

@@ -123,7 +123,7 @@ export function startView() {
       draw();
       return [h('p', null, '次の2つは、とくに大事な「下書き」です。そのまま使わず、自分の資料・お店に合わせて直してください。'),
         h('div', { class: 'idea' }, h('h3', null, '濃度の目安 ', badge('下書き', 'draft')),
-          ul(...(st.areas || []).map((a) => `${a.name}：${pct(a.max)}`)), h('p', { class: 'hint' }, 'はじめの数字は、アロマテラピーを学んだときの資料のもの（精油 ÷ キャリアオイル）。流派や資料によってちがいます。はじめての人・敏感肌の人は、うすめに。妊娠中・高齢・子どもなど、状態ごとの目安は資料にないので空です（自分で入れます）。'),
+          ul(...(st.areas || []).map((a) => `${a.name}：${pct(a.max)}${a.firstMax != null ? `（はじめての人 ${pct(a.firstMax)}）` : ''}`)), h('p', { class: 'hint' }, 'はじめの数字は、アロマテラピーを学んだときの資料のもの（精油 ÷ キャリアオイル）。流派や資料によってちがいます。はじめての人・敏感肌の人は、うすめに。妊娠中・高齢・子どもなど、状態ごとの目安は資料にないので空です（自分で入れます）。'),
           h('a', { class: 'btn', href: '#/set/limits' }, '濃度の目安を直す')),
         h('div', { class: 'idea' }, h('h3', null, '同意書と注意事項の文 ', badge('下書き', 'draft')),
           h('p', { class: 'pre consenttext small' }, (st.consent || {}).text || ''), h('p', { class: 'hint' }, '法律の文書として正しいかは、確かめていません。'),
