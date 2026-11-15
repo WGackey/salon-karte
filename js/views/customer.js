@@ -5,7 +5,8 @@ import * as db from '../db.js';
 import { ageOf, jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, effectiveConds, noTouchAll, consentState } from '../logic.js';
 import { handoverSheet, startHandover } from './guest.js';
 const allergenName = (id) => (S.settings.allergens.find((c) => c.id === id) || {}).name || '';
-import { bodyPad, FIGURES } from '../bodymap.js';
+import { bodyPad } from '../bodymap.js';
+import { FIGS, figsOf, isPart, scopeText } from '../parts.js';
 
 const condName = (id) => (S.settings.conds.find((c) => c.id === id) || {}).name || '';
 const symName = (id) => (S.settings.symptoms.find((c) => c.id === id) || {}).name || '';
@@ -18,7 +19,7 @@ export function visitSummary(v) {
   const sy = v.interview.symptoms.map((s) => {
     const a = v.after.levels[s.id]; return `${symName(s.id)} ${s.level}${a != null ? '→' + a : ''}`;
   }).join('、');
-  return [sy, v.menus.map((m) => `${m.name}${m.minutes ? m.minutes + '分' : ''}`).join('・'), blendText(v.blend)].filter(Boolean);
+  return [isPart(v.scope) ? scopeText(S.settings, v.scope) : '', sy, v.menus.map((m) => `${m.name}${m.minutes ? m.minutes + '分' : ''}`).join('・'), blendText(v.blend)].filter(Boolean);
 }
 
 // 生活の様子。初回に聞いて、変わったときに直す（毎回の問診には出さない）
@@ -109,9 +110,21 @@ export async function customerFormView(id) {
 
 // これまでの記録を、横にめくってさかのぼる（新しい順）。どの回も同じ並び・同じ大きさで出すので、めくると変化が目に入る。
 // 回数が多くても重くならないように、中身を作るのは「いま見ている回と、その前後」だけ。
-function history(visits, det, copyFrom) {
-  const n = visits.length; const today = todayStr(); let idx = 0; let figMode = 'both'; // 図の見せ方：both 両方／guest お客さん／staff 施術者
+function history(visits, det, copyFrom, startIdx = 0, customerId = '') {
+  const n = visits.length; const today = todayStr(); let idx = Math.max(0, Math.min(n - 1, startIdx | 0)); let figMode = 'both'; // 図の見せ方：both 両方／guest お客さん／staff 施術者
   const dropMl = S.settings.dropMl || 0.05;
+  // 図の小さな写し。全身＝前・後ろ／部分＝その部位の図（多いときは、線のある図を先に4つまで）。押すと大きく見られる
+  const padOf = (v, f) => bodyPad({ kind: f.id, marks: S.settings.marks, readOnly: true, layer: figMode === 'guest' ? 'guest' : 'staff',
+    strokes: (figMode === 'guest' ? (v.guestFigures || {})[f.id] : (v.figures || {})[f.id]) || [],
+    under: figMode === 'both' ? [{ strokes: (v.guestFigures || {})[f.id] || [], layer: 'guest' }] : [] });
+  const thumbs = (v) => {
+    const all = figsOf(v.scope); const part = isPart(v.scope); const drawn = (f) => ((v.figures || {})[f.id] || []).length + ((v.guestFigures || {})[f.id] || []).length > 0;
+    const show = all.length > 4 ? [...all.filter(drawn), ...all.filter((f) => !drawn(f))].slice(0, 4) : all;
+    const big = () => sheet(`${jpDate(v.date)} の図${part ? `（${scopeText(S.settings, v.scope)}）` : ''}`, h('div', { class: 'bigfigs' }, all.map((f) => h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name), padOf(v, f)))), { wide: true });
+    return h('button', { type: 'button', class: 'thumbs' + (part ? ' pt n' + show.length : ''), 'aria-label': '図を大きく見る', onclick: big },
+      show.map((f) => h('div', { class: 'thumb' }, h('span', { class: 'small muted' }, f.name), padOf(v, f))),
+      h('span', { class: 'zoomtag' }, all.length > show.length ? `⤢ ぜんぶ見る（${all.length}）` : '⤢ 大きく見る'));
+  };
   const slideOf = (v, k) => {
     const nth = n - k; const c = blendCalc(v.blend, dropMl);
     const lim = limitFor(S.settings, v.blend.areaId, effectiveConds({ settings: S.settings, det, visit: v, today: v.date }).ids); const lv = limitLevel(c.pct, lim.max);
@@ -120,11 +133,9 @@ function history(visits, det, copyFrom) {
     const row = (label, ...kids) => h('div', { class: 'hrow' }, h('div', { class: 'hlabel' }, label), h('div', { class: 'hval' }, kids.some((x) => x != null && x !== '' && !(Array.isArray(x) && !x.length)) ? kids : h('span', { class: 'muted' }, '—')));
     return [
       h('div', { class: 'hhead' }, h('b', null, jpDate(v.date)), h('span', { class: 'muted' }, `${nth}回目`),
-        v.date === today && v.status === 'draft' ? badge('今日・書きかけ', 'amber') : k === 0 ? badge('いちばん新しい記録') : badge(`${k}回前`, 'draft'), conds.map((x) => badge(x, 'warn'))),
+        v.date === today && v.status === 'draft' ? badge('今日・書きかけ', 'amber') : k === 0 ? badge('いちばん新しい記録') : badge(`${k}回前`, 'draft'), isPart(v.scope) ? badge(scopeText(S.settings, v.scope), 'part') : null, conds.map((x) => badge(x, 'warn'))),
       h('div', { class: 'hbody' },
-        h('div', { class: 'thumbs' }, FIGURES.map((f) => h('div', { class: 'thumb' }, h('span', { class: 'small muted' }, f.name), bodyPad({ kind: f.id, marks: S.settings.marks, readOnly: true, layer: figMode === 'guest' ? 'guest' : 'staff',
-          strokes: (figMode === 'guest' ? (v.guestFigures || {})[f.id] : (v.figures || {})[f.id]) || [],
-          under: figMode === 'both' ? [{ strokes: (v.guestFigures || {})[f.id] || [], layer: 'guest' }] : [] })))),
+        thumbs(v),
         h('div', { class: 'hrows' },
           row('つらさ（前→後）', v.interview.symptoms.map((s) => { const a = v.after.levels[s.id]; return h('div', { class: 'hsym' }, `${symName(s.id) || '（消した症状）'} ${s.level}${a != null ? '→' + a : ''}`, a != null && a < s.level ? h('span', { class: 'down' }, ` ▼${s.level - a}`) : a != null && a > s.level ? h('span', { class: 'up' }, ` ▲${a - s.level}`) : null); })),
           row('ブレンド', oils.length || cars.length ? [h('div', null, oils.map((x) => `${x.name} ${x.drops}滴`).join('・') || '精油なし'), h('div', null, cars.map((x) => `${x.name} ${x.ml}ml`).join('・') || 'キャリアオイルなし')] : null),
@@ -150,19 +161,21 @@ function history(visits, det, copyFrom) {
   let raf = 0;
   track.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth)); if (i !== idx && i >= 0 && i < n) { idx = i; show(); } }); }, { passive: true });
   show();
+  if (idx > 0) requestAnimationFrame(() => track.scrollTo({ left: slides[idx].offsetLeft - track.offsetLeft })); // 経過のページから「この回を見る」で来たとき
   // 図は2つ：お客さんの「気になるところ」（つぶつぶの線）と、施術する人の「所見」（ぬった線）。重ねる・片方だけを切りかえ
   const figSel = h('div', { class: 'figsel' }, h('span', { class: 'small' }, '図：'),
     chips([{ id: 'both', name: '両方を重ねる' }, { id: 'guest', name: 'お客さんの「気になるところ」' }, { id: 'staff', name: '施術者の「所見」' }], figMode, { multi: false, cls: 'tight', onChange: (x) => { figMode = x || 'both'; figSel.querySelectorAll('.chip').forEach((c, i) => c.classList.toggle('on', ['both', 'guest', 'staff'][i] === figMode)); made.clear(); show(); } }),
     h('span', { class: 'legend' }, h('i', { class: 'lg guest' }), 'つぶつぶ＝お客さん', h('i', { class: 'lg staff' }), 'ぬった線＝施術者'));
   return h('section', { class: 'card hist' },
-    h('h2', null, 'これまでの記録'), figSel,
+    h('div', { class: 'histhead' }, h('div', { class: 'grow' }, h('h2', null, 'これまでの記録'), h('p', { class: 'hint' }, '1回ずつ くわしく見る：ここで横にめくる　／　ぜんぶの回を並べて見る：経過のページ')),
+      h('a', { class: 'btn keikabtn', href: `#/c/${customerId}/keika` }, '📈 経過を並べて見る ›')), figSel,
     n > 1 ? h('div', { class: 'hnav' }, newer, h('div', { class: 'hmid' }, pos, dots), older) : null,
     track, n > 1 ? h('p', { class: 'hint center' }, '横にめくる（スワイプする）と、前の回にさかのぼれます。') : null);
 }
 
 // 「触れないで」の線だけを、小さな図で見せる
 export function noTouchFigures(noTouch) {
-  return h('div', { class: 'thumbs notouchfig' }, FIGURES.filter((f) => noTouch[f.id]).map((f) => h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name),
+  return h('div', { class: 'thumbs notouchfig' }, Object.values(FIGS).filter((f) => noTouch[f.id]).map((f) => h('div', { class: 'padwrap' }, h('div', { class: 'padname' }, f.name),
     bodyPad({ kind: f.id, strokes: noTouch[f.id], marks: S.settings.marks, readOnly: true }))));
 }
 // 同意書：いちばん新しい同意と、サインをもらうボタン（お客さん用の画面に切りかえて書いてもらう）
@@ -204,13 +217,21 @@ export async function customerView(id) {
     await saveVisit(v); toast('写しました。変わったところだけ直してね'); go(`#/v/${v.id}/monshin`);
   };
   const nextIn = h('input', { type: 'date', class: 'input', value: p.nextDate, 'aria-label': '次回の予定日' });
-  const setNext = async (d) => { p.nextDate = d; nextIn.value = d; await saveCustomer(p, null); toast(d ? `次回：${jpDate(d)}` : '予定を消しました'); };
+  const timeIn = h('input', { type: 'time', class: 'input timein', value: p.nextTime || '', step: 300, 'aria-label': '次回の予定の時間' });
+  const setNext = async (d) => { p.nextDate = d; nextIn.value = d; if (!d) { p.nextTime = ''; timeIn.value = ''; } await saveCustomer(p, null); toast(d ? `次回：${jpDate(d)}${p.nextTime ? ' ' + p.nextTime : ''}` : '予定を消しました'); fill(lateBox, lateNote()); };
   nextIn.onchange = () => setNext(nextIn.value);
+  timeIn.onchange = async () => { p.nextTime = timeIn.value; if (p.nextDate) { await saveCustomer(p, null); toast(`次回：${jpDate(p.nextDate)}${p.nextTime ? ' ' + p.nextTime : ''}`); } };
+  // 予定日を過ぎて、来店の記録がないとき（来店をはじめると、予定は自動で消える）
+  const lateBox = h('div');
+  const lateNote = () => (p.nextDate && p.nextDate < todayStr() ? h('div', { class: 'notice amber latenote' }, h('span', { class: 'grow' }, `予定日（${jpDate(p.nextDate, false)}）を過ぎています。来店の記録がありません。`),
+    btn('予定を消す', () => setNext(''), 'chip'), btn('1週間後にする', () => setNext(addDays(todayStr(), 7)), 'chip')) : null);
+  fill(lateBox, lateNote());
 
   return page({
     title: p.name, sub: [p.kana, `No.${p.no}`, det.gender, age != null ? `${age}歳` : '', det.job].filter(Boolean).join('・'),
     back: '#/', actions: h('a', { class: 'btn ghost', href: `#/c/${id}/edit` }, '情報を直す'),
     body: [
+      lateBox,
       (warns.length || det.allergy || tags.length || det.history || hasNoTouch) ? h('div', { class: 'warnbox' },
         h('strong', null, '⚠ 気をつけること'),
         warns.length ? h('div', { class: 'chips' }, warns.map((w) => badge(w, 'warn'))) : null,
@@ -218,11 +239,11 @@ export async function customerView(id) {
         det.history ? h('p', null, h('b', null, 'これまでの病気・けが：'), det.history) : null,
         hasNoTouch ? h('div', null, h('p', null, h('b', null, '✕ 触れないでほしいところがあります')), noTouchFigures(noTouch)) : null) : null,
       consentCard(p, cs),
-      visits.length ? history(visits, det, copyFrom) : null,
+      visits.length ? history(visits, det, copyFrom, Number(new URLSearchParams((location.hash.split('?')[1] || '')).get('k')) || 0, id) : null,
       det.memo ? card(h('h2', null, 'メモ'), h('p', { class: 'pre' }, det.memo)) : null,
       card(h('h2', null, '生活の様子'), h('p', null, life || h('span', { class: 'muted' }, 'まだ聞いていません（「情報を直す」で入れられます）')),
         life && det.life.updated ? h('p', { class: 'muted small' }, `${jpDate(det.life.updated)} に直した`) : null),
-      card(h('h2', null, '次回の予定日'), h('div', { class: 'row' }, nextIn,
+      card(h('h2', null, '次回の予定日'), h('div', { class: 'row' }, nextIn, timeIn,
         btn('1週間後', () => setNext(addDays(todayStr(), 7))), btn('2週間後', () => setNext(addDays(todayStr(), 14))), btn('1か月後', () => setNext(addDays(todayStr(), 28))),
         p.nextDate ? btn('消す', () => setNext(''), 'ghost') : null)),
       card(h('h2', null, '来店の記録 ', badge(`${visits.length}回`)),

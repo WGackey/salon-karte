@@ -5,6 +5,8 @@ import { jpDate, todayStr, addDays, blendCalc, limitFor, limitLevel, maxDrops, p
 import { figureEditor, hasLines } from '../figedit.js';
 import { notFound, blendText, noTouchFigures } from './customer.js';
 import { handoverSheet } from './guest.js';
+import { scopePicker } from '../scopepick.js';
+import { isPart, figsOf, scopeText, areaForScope, symsForScope } from '../parts.js';
 
 // 来店の流れは2つに分かれる。前半（guest）＝お客さんから聞くこと／後半（staff）＝施術する人の記録
 const STEPS = [['monshin', '問診', 'guest'], ['kininaru', '気になるところ', 'guest'],
@@ -36,7 +38,8 @@ export async function visitView(id, step) {
   const nth = all.length - all.findIndex((x) => x.id === v.id);
   if (step === 'zu') step = 'shoken'; // 前の版のアドレス
   if (!STEPS.some((s) => s[0] === step)) step = 'monshin';
-  v.guestFigures = v.guestFigures || { front: [], back: [] }; v.figures = v.figures || { front: [], back: [] };
+  v.guestFigures = v.guestFigures || { front: [], back: [] }; v.figures = v.figures || { front: [], back: [] }; v.scope = v.scope || { type: 'whole' };
+  let showAll = false; // 部分のときの問診は短い版。「ぜんぶの項目を出す」で、いつもの問診に
   const idx = STEPS.findIndex((s) => s[0] === step);
   const save = () => saveSoon(() => saveVisit(v));
   const eff = () => effectiveConds({ settings: S.settings, det, visit: v });
@@ -74,33 +77,54 @@ export async function visitView(id, step) {
       const drawSym = () => fill(symBox, ...iv.symptoms.map((s) => h('div', { class: 'symrow' },
         h('div', { class: 'symname' }, symName(s.id)), levelPicker(s.level, (n) => { s.level = n; save(); }))));
       drawSym();
+      const part = isPart(v.scope), short = part && !showAll;
+      // 部分のときは、その部位に関わる「つらいところ」だけ先に出す（えらんであるものは、いつも出す）
+      const rel = symsForScope(S.settings, v.scope); let moreSym = false;
+      const symChipBox = h('div');
+      const drawSymChips = () => {
+        const list = short && !moreSym ? S.settings.symptoms.filter((s) => rel.includes(s.id) || iv.symptoms.some((x) => x.id === s.id)) : S.settings.symptoms;
+        fill(symChipBox, chips(list, iv.symptoms.map((s) => s.id), {
+          onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); save(); },
+        }), short && !moreSym && list.length < S.settings.symptoms.length ? btn(`ほかのつらいところも出す（あと ${S.settings.symptoms.length - list.length}）`, () => { moreSym = true; drawSymChips(); }, 'chip ghostchip moresym') : null);
+      };
+      drawSymChips();
+      // 気をつける状態・アレルギーの確認は、短い版でも省かない
+      const al = allergyNames(); const always = det.conds.map(condName).filter(Boolean);
+      const checkBox = h('div', { class: 'checkbox ' + (al.length || det.allergy || always.length ? 'has' : '') },
+        h('b', null, '施術の前に確かめること'),
+        h('div', null, 'アレルギー：', [...al, det.allergy].filter(Boolean).join('／') || '登録なし', '　／　いつものからだの状態：', always.join('・') || '登録なし'),
+        h('div', { class: 'small' }, '変わりがないか、ひとこと聞いてね。変わっていたら ', h('a', { href: `#/c/${p.id}/edit` }, 'お客さんの情報を直す ›')));
       return [
+        card(h('h2', null, '今日のメニューと、施術するところ'), scopePicker(v, (changed) => {
+          if (changed) { const a = areaForScope(S.settings, v.scope); if (a) v.blend.areaId = a; showAll = false; }
+          save(); if (changed) redraw();
+        })),
         v.copied && prev && !(v.intake && v.intake.by === 'guest') ? h('div', { class: 'notice ok' }, `前回（${jpDate(prev.date)}）の問診が入っています。変わったところだけ直してね。`) : null,
         card(h('div', { class: 'row' }, field('来店日', input(v, 'date', { type: 'date', onInput: () => { save(); } })), h('span', { class: 'muted' }, `${nth}回目`)),
-          group('今日の状態', chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; save(); drawPreg(); } }), condHint()), pregBox),
-        card(h('h2', null, 'つらいところ'), h('p', { class: 'hint' }, 'あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます'),
-          chips(S.settings.symptoms, iv.symptoms.map((s) => s.id), {
-            onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); save(); },
-          }), symBox),
+          group('今日の状態', chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; save(); drawPreg(); } }), condHint()), pregBox, checkBox),
+        card(h('h2', null, 'つらいところ'), h('p', { class: 'hint' }, short ? `${scopeText(S.settings, v.scope)}の施術に関わるものを先に出しています。あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます` : 'あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます'),
+          symChipBox, symBox),
         card(group('肌の状態', chips(S.settings.skins, iv.skins || [], { onChange: (x) => { iv.skins = x; save(); } }),
           'キャリアオイルの候補に使います。敏感肌・アレルギーは「お客さんの情報」でえらびます'),
-          group('今日の目的', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; save(); } })),
+          short ? null : group('今日の目的', chips(S.settings.purposes, iv.purposes, { onChange: (x) => { iv.purposes = x; save(); } })),
           group('好きな香りの系統', chips(S.settings.families, iv.famLikes || [], { onChange: (x) => { iv.famLikes = x; save(); } }), '精油の候補の画面で、はじめにこの系統でしぼります'),
-          group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; save(); } })),
-          field('くらしのようす（睡眠・食事・仕事など）', textarea(iv, 'life', { onInput: save })),
+          short ? null : group('香りの好み・気分', chips(S.settings.moods, iv.moods, { onChange: (x) => { iv.moods = x; save(); } })),
+          short ? null : field('くらしのようす（睡眠・食事・仕事など）', textarea(iv, 'life', { onInput: save })),
           field('お客さんから伝えたいこと・気をつけてほしいこと', textarea(iv, 'wish', { onInput: save, rows: 2 })),
           field('今日のメモ（施術する人用）', textarea(iv, 'memo', { onInput: save, rows: 2 }))),
+        part ? h('div', { class: 'notice shortnote' }, h('span', { class: 'grow' }, short ? '部分の施術なので、問診を短くしています（今日の目的・香りの気分・くらしのようす は出していません）。' : 'いつもの問診（ぜんぶの項目）を出しています。'),
+          btn(short ? 'ぜんぶの項目を出す' : '短い問診にもどす', () => { showAll = !showAll; redraw(); }, 'chip')) : null,
       ];
     },
     // ---------- 気になるところ（お客さんの図） ----------
     kininaru() {
-      return figureEditor({ figures: v.guestFigures, layer: 'guest', marks: S.settings.marks, onSave: save, markLabel: 'どんなふうに気になる？（色）',
+      return figureEditor({ figures: v.guestFigures, figs: figsOf(v.scope), layer: 'guest', marks: S.settings.marks, onSave: save, markLabel: 'どんなふうに気になる？（色）',
         hints: ['お客さんに聞きながら、気になるところ・つらいところをなぞります。お客さんに渡したときは、お客さんが自分でなぞった図がここに出ます。',
           'お客さんの線は「つぶつぶ」で出ます（施術する人の所見は、ぬった線）。「触れないで（×）」は、次の来店にも写ります。'] });
     },
     // ---------- 所見（施術する人の図） ----------
     shoken() {
-      return figureEditor({ figures: v.figures, layer: 'staff', marks: S.settings.marks, onSave: save,
+      return figureEditor({ figures: v.figures, figs: figsOf(v.scope), layer: 'staff', marks: S.settings.marks, onSave: save,
         under: { figures: v.guestFigures, layer: 'guest', label: 'お客さんの図も重ねる' },
         hints: ['さわって・見て分かったことを、施術する人がなぞります（ぬった線）。' + (hasLines(v.guestFigures) ? 'お客さんの「気になるところ」は、つぶつぶの線で下に重ねて出しています（「お客さんの図も重ねる」で出す・かくす）。' : ''),
           '「ひとつ戻す」＝直前にしたこと（かいた・消した）を1つ取り消す。「消しゴム」＝前にかいた線でも、さわった線だけ消す。「触れないで（×）」は施術する人も足せて、次の来店にも写ります。'] });
@@ -244,7 +268,7 @@ export async function visitView(id, step) {
       refresh();
       return [
         h('div', { class: 'sticky' }, meter),
-        card(group('どこに使う？', areaBox, S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : null)),
+        card(group('どこに使う？', areaBox, [isPart(v.scope) ? `今日は「${scopeText(S.settings, v.scope)}」の施術なので、部位に合わせた目安をえらんであります（設定 → 部位 で変えられます）。` : '', S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : ''].filter(Boolean).join('　') || null)),
         card(h('h2', null, 'キャリアオイル'), carBox, h('div', { class: 'row' }, btn('＋ キャリアオイルをえらぶ', addCarrier))),
         card(h('h2', null, '精油'), oilBox, h('div', { class: 'row' }, btn('＋ 精油を足す', addOil)),
           h('p', { class: 'hint' }, `濃度は「精油の量 ÷ キャリアオイルの量」で出しています（1滴＝${fmt(dropMl)}ml。設定で変えられます）。`)),
@@ -267,7 +291,8 @@ export async function visitView(id, step) {
       const nt = noTouchAll(v, S.settings.marks);
       return [
         Object.keys(nt).length ? h('div', { class: 'warnbox' }, h('strong', null, '✕ 触れないでほしいところがあります'), noTouchFigures(nt)) : null,
-        card(h('h2', null, '施術メニュー'), box, h('p', { class: 'hint' }, 'いくつでもえらべます。メニューは 設定 → 施術メニュー で作れます。')),
+        card(h('h2', null, '施術メニュー'), box, h('p', { class: 'hint' }, 'いくつでもえらべます。メニューは 設定 → 施術メニュー で作れます。'),
+          h('p', null, h('b', null, '施術するところ：'), scopeText(S.settings, v.scope), '　', h('a', { href: `#/v/${id}/monshin` }, '問診の画面で変える ›'))),
         card(field('整体でしたこと', textarea(v.treat, 'seitai', { onInput: save, rows: 4, placeholder: '例：首〜肩まわりをゆるめた。右の腰がかたい' })),
           field('アロマでしたこと', textarea(v.treat, 'aroma', { onInput: save, rows: 4, placeholder: '例：背中と脚を中心に。圧は弱め' })),
           blendText(v.blend) ? h('p', { class: 'muted' }, '使ったブレンド：' + blendText(v.blend)) : null),
@@ -276,8 +301,10 @@ export async function visitView(id, step) {
     // ---------- 施術後 ----------
     after() {
       const a = v.after; const nextIn = h('input', { type: 'date', class: 'input', value: v.nextDate, 'aria-label': '次回の予定日' });
-      const setNext = (d) => { v.nextDate = d; nextIn.value = d; p.nextDate = d; saveSoon(async () => { await saveVisit(v); await saveCustomer(p, null); }); };
+      const timeIn = h('input', { type: 'time', class: 'input timein', value: p.nextTime || '', step: 300, 'aria-label': '次回の予定の時間' });
+      const setNext = (d) => { v.nextDate = d; nextIn.value = d; p.nextDate = d; if (!d) { p.nextTime = ''; timeIn.value = ''; } saveSoon(async () => { await saveVisit(v); await saveCustomer(p, null); }); };
       nextIn.onchange = () => setNext(nextIn.value);
+      timeIn.onchange = () => { p.nextTime = timeIn.value; saveSoon(async () => { await saveVisit(v); await saveCustomer(p, null); }); };
       return [
         card(h('h2', null, 'つらさの変化'), h('p', { class: 'hint' }, '施術のあとのつらさをえらびます（0＝なくなった）'),
           v.interview.symptoms.length ? v.interview.symptoms.map((s) => h('div', { class: 'symrow' },
@@ -285,7 +312,7 @@ export async function visitView(id, step) {
             levelPicker(a.levels[s.id], (n) => { a.levels[s.id] = n; save(); }, true))) : h('p', { class: 'muted' }, '問診で「つらいところ」をえらぶと、ここで変化を残せます。')),
         card(group('香りの感想', chips(S.settings.scents, a.scent, { multi: false, onChange: (x) => { a.scent = x; save(); } })),
           field('施術後のようす・伝えたこと', textarea(a, 'note', { onInput: save, rows: 3 }))),
-        card(h('h2', null, '次回の予定日'), h('div', { class: 'row' }, nextIn,
+        card(h('h2', null, '次回の予定日'), h('p', { class: 'hint' }, '入れると、ホームの「予定」に並びます。時間は入れなくてもだいじょうぶ。'), h('div', { class: 'row' }, nextIn, timeIn,
           btn('1週間後', () => setNext(addDays(v.date, 7))), btn('2週間後', () => setNext(addDays(v.date, 14))), btn('1か月後', () => setNext(addDays(v.date, 28))), btn('なし', () => setNext(''), 'ghost'))),
         h('div', { class: 'row end' }, btn('この来店の記録を消す', async () => {
           if (await confirmDlg('この来店の記録を消します。元に戻せません。', '消す', true)) { saveSoon(null); await deleteVisit(v); toast('消しました'); go(`#/c/${p.id}`); }
@@ -316,7 +343,7 @@ export async function visitView(id, step) {
   const hasAllergy = !!det.allergy || (det.allergyTags || []).length > 0; const hasWarn = warn.length > 0 || hasAllergy;
   const nextLabel = idx < STEPS.length - 1 ? (STEPS[idx + 1][2] !== phase ? `後半へ：${STEPS[idx + 1][1]} ›` : `次へ：${STEPS[idx + 1][1]} ›`) : '';
   return page({
-    cls: 'visit phase-' + phase + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${v.status === 'draft' ? '（書きかけ）' : ''}`, badgeEl: saveBadge(), back: `#/c/${p.id}`,
+    cls: 'visit phase-' + phase + (hasWarn ? ' haswarn' : ''), title: p.name, sub: `${jpDate(v.date)}・${nth}回目${isPart(v.scope) ? '・' + scopeText(S.settings, v.scope) : ''}${v.status === 'draft' ? '（書きかけ）' : ''}`, badgeEl: saveBadge(), back: `#/c/${p.id}`,
     body: [hasWarn ? h('div', { class: 'visit-warn' }, '⚠ ' + [...new Set(warn), hasAllergy ? 'アレルギーあり' : ''].filter(Boolean).join('・')) : null, nav, phaseBar, body],
     footer: [
       idx > 0 ? h('a', { class: 'btn big', href: `#/v/${id}/${STEPS[idx - 1][0]}` }, '‹ 前へ') : h('span'),

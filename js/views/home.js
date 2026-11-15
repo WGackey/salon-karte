@@ -1,7 +1,7 @@
 import { h, fill, page, card, btn, badge, go } from '../ui.js';
 import { S } from '../state.js';
 import * as db from '../db.js';
-import { todayStr, addDays, daysBetween, jpDate, searchPeople, ymd } from '../logic.js';
+import { todayStr, daysBetween, jpDate, searchPeople, ymd, schedule } from '../logic.js';
 
 export function personRow(p, extra) {
   return h('a', { class: 'row-link', href: `#/c/${p.id}` },
@@ -10,10 +10,20 @@ export function personRow(p, extra) {
     h('span', { class: 'chev' }, '›'));
 }
 
+// 予定の1行。押すと、その人のカルテ（お客さんのページ）が開く
+function schedRow(it, kind, today) {
+  const p = it.person; const when = kind === 'today' ? (it.time || '時間は未定') : `${jpDate(it.date, false)}${it.time ? ' ' + it.time : ''}`;
+  const sub = kind === 'overdue' ? `予定日 ${jpDate(it.date, false)}（${it.late}日前）・来店の記録がありません`
+    : p ? (p.lastVisit ? `前回 ${jpDate(p.lastVisit, false)}・${p.visitCount}回` : 'はじめての来店') : 'どのお客さんか、まだ決まっていません';
+  const days = kind === 'week' || kind === 'later' ? daysBetween(today, it.date) : 0;
+  return h('a', { class: 'row-link schedrow ' + kind, href: p ? `#/c/${p.id}` : '#/list' },
+    h('div', { class: 'swhen' }, h('b', null, when), days ? h('span', { class: 'muted small' }, days === 1 ? 'あした' : `${days}日後`) : null),
+    h('div', { class: 'grow' }, h('div', { class: 'name' }, it.title || '（名前なし）', it.unsure ? badge('お客さんを確かめる', 'amber') : null), h('div', { class: 'muted small' }, sub)),
+    h('span', { class: 'chev' }, '›'));
+}
+
 export async function homeView() {
-  const today = todayStr(); const weekEnd = addDays(today, 6);
-  const due = S.people.filter((p) => p.nextDate && p.nextDate >= today && p.nextDate <= weekEnd).sort((a, b) => a.nextDate.localeCompare(b.nextDate));
-  const todays = due.filter((p) => p.nextDate === today), week = due.filter((p) => p.nextDate !== today);
+  const today = todayStr(); const sc = schedule(S.people, S.appts, today);
 
   const results = h('div', { class: 'list' });
   const search = h('input', { class: 'input search', type: 'search', placeholder: '名前・ふりがな・カルテ番号でさがす', 'aria-label': 'お客さんをさがす', autocomplete: 'off' });
@@ -33,8 +43,14 @@ export async function homeView() {
     : h('a', { class: 'notice ' + (days == null || days >= 30 ? 'red' : days >= 7 ? 'amber' : 'ok'), href: '#/set/backup' },
       days == null ? 'まだバックアップしていません' : days === 0 ? '今日バックアップ済み' : `前のバックアップから ${days} 日`, h('span', { class: 'chev' }, '›'));
 
-  const sched = (title, list) => card(h('h2', null, title, ' ', badge(String(list.length))),
-    list.length ? h('div', { class: 'list' }, list.map((p) => personRow(p, jpDate(p.nextDate, false)))) : h('p', { class: 'muted' }, '予定はありません'));
+  // 予定：今日・今週（あした〜6日後）・その先。多いときは、はじめの何件かだけ出して「もっと見る」
+  const sched = (title, list, kind, { cls = '', first = 8, empty = '予定はありません', hint = null } = {}) => {
+    let shown = first; const box = h('div', { class: 'list' });
+    const draw = () => fill(box, ...list.slice(0, shown).map((it) => schedRow(it, kind, today)), list.length > shown ? btn(`もっと見る（あと ${list.length - shown} 件）`, () => { shown += 30; draw(); }, 'wide') : null);
+    draw();
+    return h('section', { class: 'card sched ' + kind + ' ' + cls }, h('h2', null, title, ' ', badge(String(list.length), kind === 'overdue' ? 'warn' : '')), hint ? h('p', { class: 'hint' }, hint) : null,
+      list.length ? box : h('p', { class: 'muted' }, empty));
+  };
 
   return page({
     title: S.settings.salonName || 'カルテ', sub: jpDate(today),
@@ -43,7 +59,10 @@ export async function homeView() {
       S.newer ? h('div', { class: 'notice red' }, 'このデータは新しい版のアプリで作られています。アプリを新しくしてください。') : null,
       h('div', { class: 'home-top' }, search, h('a', { class: 'btn primary big', href: '#/new' }, '＋ 新しいお客さん')),
       results,
-      h('div', { class: 'grid2' }, sched('今日の予定', todays), sched('今週の予定', week)),
+      sc.overdue.length ? sched('予定日を過ぎた人', sc.overdue, 'overdue', { first: 5, hint: '予定日を過ぎて、来店の記録がない人です。名前を押して、来店をはじめるか、予定日を直す・消すかしてね。' }) : null,
+      h('div', { class: 'grid2' }, sched('今日の予定', sc.today, 'today', { first: 30 }), sched('今週の予定', sc.week, 'week', { first: 30, empty: 'あした〜6日後の予定はありません' })),
+      sc.later.length ? sched('その先の予定', sc.later, 'later', { first: 5 }) : null,
+      h('p', { class: 'hint center' }, '予定は、お客さんのページか 施術後の画面の「次回の予定日」から入ります。'),
       h('div', { class: 'row' }, h('a', { class: 'btn', href: '#/list' }, `お客さんの一覧（${S.people.length}人）`), bk),
     ],
   });

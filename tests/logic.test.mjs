@@ -265,7 +265,7 @@ test('版5への移し替え：これまでの図は「所見」としてその�
     details: [{ id: 'c1', consents: [{ ver: 1 }], life: { sleep: 6 } }],
   } };
   const d = migrateDump(v4, MIGRATIONS, DATA_VERSION); const v = d.stores.visits[0];
-  assert.equal(d.dataVersion, 5);
+  assert.equal(d.dataVersion, DATA_VERSION);
   assert.deepEqual(v.figures, { front: [line, x], back: [] }, 'これまでの図は所見の図として残る');
   assert.deepEqual(v.guestFigures, { front: [], back: [] }); assert.equal(v.intake, null);
   assert.equal(v.interview.wish, ''); assert.equal(v.interview.memo, 'メモ'); assert.equal(v.interview.symptoms[0].level, 7);
@@ -280,4 +280,70 @@ test('触れないで（×）は、お客さんの図と施術する人の図の
   const g = { m: 'm_notouch', w: 14, p: [1, 1] }, s = { m: 'm_notouch', w: 6, p: [2, 2] }, n = { m: 'm_pain', w: 6, p: [3, 3] };
   assert.deepEqual(noTouchAll({ guestFigures: { front: [g, n], back: [] }, figures: { front: [s], back: [n] } }, marks), { front: [g, s] });
   assert.deepEqual(noTouchAll({ figures: { front: [n] } }, marks), {});
+});
+
+test('版6への移し替え：部位の設定が足される・メニューと来店に「施術するところ」の入れ物・前の図と線はそのまま', async () => {
+  const line = { m: 'm_pain', w: 14, p: [10, 10, 20, 20] };
+  const v5 = { dataVersion: 5, stores: {
+    meta: [{ key: 'settings', value: { salonName: 'みほんの店', areas: [{ id: 'a_body', name: '体', max: 2 }] } }, { key: 'nextNo', value: 3 }],
+    menus: [{ id: 'm1', name: '自分のメニュー', minutes: 45 }],
+    visits: [{ id: 'v1', customerId: 'c1', scope: { type: 'whole' }, figures: { front: [line], back: [] }, guestFigures: { front: [line], back: [] }, menus: [{ id: 'm1', name: '自分のメニュー', minutes: 45 }] }, { id: 'v0', customerId: 'c1', figures: { front: [], back: [line] } }],
+  } };
+  const d = migrateDump(v5, MIGRATIONS, DATA_VERSION); const st = d.stores.meta[0].value;
+  assert.equal(d.dataVersion, 6);
+  assert.deepEqual(st.parts.map((p) => p.id), ['hand', 'foot', 'head', 'neck', 'back']); assert.equal(st.salonName, 'みほんの店'); assert.equal(st.areas[0].max, 2, '濃度の目安はさわらない');
+  assert.equal(d.stores.meta[1], v5.stores.meta[1], '変えない行は同じものを返す');
+  assert.deepEqual(d.stores.menus, [{ id: 'm1', name: '自分のメニュー', minutes: 45, scope: null }], 'メニューは増やさない');
+  assert.deepEqual(d.stores.visits[0].figures, { front: [line], back: [] }); assert.deepEqual(d.stores.visits[0].guestFigures, { front: [line], back: [] });
+  assert.deepEqual(d.stores.visits[1].scope, { type: 'whole' }); assert.deepEqual(d.stores.visits[1].figures.back, [line]);
+  // 部位の名前を直したあと・部分の来店を作ったあとに もう一度かけても、戻らない
+  st.parts[0].name = 'ハンド'; d.stores.visits[0].scope = { type: 'part', parts: ['hand'] }; d.stores.menus[0].scope = { type: 'part', parts: ['hand'] };
+  const again = migrateDump({ ...d, dataVersion: 5 }, MIGRATIONS, DATA_VERSION);
+  assert.equal(again.stores.meta[0].value.parts[0].name, 'ハンド'); assert.equal(again.stores.visits[0].scope.type, 'part'); assert.equal(again.stores.menus[0].scope.parts[0], 'hand');
+});
+test('全身／部分：出す図・濃度の目安・関わるつらいところ・メニューから決まる', async () => {
+  const P = await import('../js/parts.js'); const st = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  const hand = { type: 'part', parts: ['hand'] }, hf = { type: 'part', parts: ['hand', 'foot'] };
+  assert.deepEqual(P.figIdsOf({ type: 'whole' }), ['front', 'back']); assert.deepEqual(P.figIdsOf(undefined), ['front', 'back'], '入れ物がなければ全身');
+  assert.deepEqual(P.figIdsOf(hand), ['hand_palm_r', 'hand_palm_l', 'hand_back_l', 'hand_back_r']); assert.equal(P.figIdsOf(hf).length, 8);
+  assert.deepEqual(P.figIdsOf({ type: 'part', parts: ['nazo'] }), ['front', 'back'], '知らない部位だけなら全身');
+  assert.equal(P.scopeText(st, hf), '手・足 だけ'); assert.equal(P.scopeText(st, { type: 'whole' }), '全身');
+  assert.equal(P.areaForScope(st, { type: 'whole' }), 'a_body'); assert.equal(P.areaForScope(st, hand), 'a_part');
+  assert.equal(P.areaForScope(st, { type: 'part', parts: ['back', 'head'] }), 'a_face', 'いくつかあるときは、目安のいちばん低いもの');
+  st.parts.find((p) => p.id === 'hand').areaId = ''; assert.equal(P.areaForScope(st, hand), '', '決めていなければ、そのまま');
+  assert.ok(P.symsForScope(st, { type: 'part', parts: ['foot'] }).includes('s_ashi')); assert.deepEqual(P.symsForScope(st, { type: 'whole' }), []);
+  for (const p of st.parts) for (const s of p.syms) assert.ok(st.symptoms.some((x) => x.id === s), `${p.name} の ${s}`);
+  for (const p of st.parts) assert.ok(!p.areaId || st.areas.some((a) => a.id === p.areaId));
+  // メニューから
+  assert.equal(P.scopeFromMenus([{ id: 'a' }, { id: 'b', scope: null }]), null, '決めていないメニューだけなら、変えない');
+  assert.deepEqual(P.scopeFromMenus([{ scope: { type: 'part', parts: ['foot'] } }, { scope: hand }]), hf, '部位の合わせたもの（決まった並び）');
+  assert.deepEqual(P.scopeFromMenus([{ scope: hand }, { scope: { type: 'whole' } }]), { type: 'whole' }, 'どれかが全身なら全身');
+  // 図の番号は保存に使うので、そろっていること
+  for (const ids of Object.values(P.PART_FIGS)) for (const id of ids) { assert.ok(P.FIGS[id].box && P.FIGS[id].svg && P.FIGS[id].name, id); }
+});
+test('経過：回ごとの行（古い順）と、ブレンドごとのまとめ', async () => {
+  const { progressRows, blendGroups } = await import('../js/logic.js');
+  const mk = (date, b, a, oils, ml = 30) => ({ id: date, date, createdAt: 1, status: 'done', interview: { symptoms: [{ id: 's_kata', level: b }] }, after: { levels: a == null ? {} : { s_kata: a } },
+    blend: { oils: oils.map(([oilId, drops]) => ({ oilId, name: oilId, drops })), carriers: [{ carrierId: 'c', name: 'c', ml }] }, menus: [] });
+  const rows = progressRows([mk('2026-03-01', 6, 2, [['lav', 3], ['ora', 3]]), mk('2026-01-01', 8, 7, [['tea', 6]]), mk('2026-02-01', 7, 4, [['ora', 2], ['lav', 2]]), mk('2026-04-01', 5, null, [['lav', 1], ['ora', 1]])]);
+  assert.deepEqual(rows.map((r) => [r.date, r.nth, r.drop]), [['2026-01-01', 1, 1], ['2026-02-01', 2, 3], ['2026-03-01', 3, 4], ['2026-04-01', 4, null]]);
+  assert.equal(rows[0].pct.toFixed(1), '1.0'); assert.deepEqual(rows[3].syms, [{ id: 's_kata', before: 5, after: null }]);
+  const g = blendGroups(rows);
+  assert.deepEqual(g.map((x) => [x.key, x.n, x.rated, x.avg]), [['lav+ora', 3, 2, 3.5], ['tea', 1, 1, 1]], '同じ組み合わせ（順番・滴数がちがっても）でまとまる。後が未記入の回は平均に入れない');
+  assert.equal(g[0].last, '2026-04-01'); assert.deepEqual(blendGroups(progressRows([{ id: 'x', date: '2026-01-01', interview: {}, after: {}, blend: {} }])), []);
+});
+test('予定の一覧：今日・今週・その先・過ぎた人。予定の入れ物（あとの取りこみ用）もいっしょに並ぶ', async () => {
+  const { schedule } = await import('../js/logic.js'); const T = '2026-11-15';
+  const people = [{ id: 'a', name: 'あ', nextDate: '2026-11-15', nextTime: '14:00' }, { id: 'b', name: 'い', nextDate: '2026-11-15', nextTime: '' }, { id: 'c', name: 'う', nextDate: '2026-11-15', nextTime: '09:30' },
+    { id: 'd', name: 'え', nextDate: '2026-11-21' }, { id: 'e', name: 'お', nextDate: '2026-11-22' }, { id: 'f', name: 'か', nextDate: '2026-11-10' }, { id: 'g', name: 'き', nextDate: '2026-10-01' }, { id: 'h', name: 'く', nextDate: '' }];
+  const s = schedule(people, [], T);
+  assert.deepEqual(s.today.map((x) => x.person.id), ['c', 'a', 'b'], '今日は時間の早い順。時間のない人はうしろ');
+  assert.deepEqual(s.week.map((x) => x.person.id), ['d'], '今週＝あした〜6日後'); assert.deepEqual(s.later.map((x) => x.person.id), ['e']);
+  assert.deepEqual(s.overdue.map((x) => [x.person.id, x.late]), [['f', 5], ['g', 45]], '過ぎたばかりの人が上');
+  // 予定の入れ物（Google カレンダーの取りこみが足す行）
+  const ap = [{ id: '1', date: '2026-11-16', time: '10:00', customerId: 'h', source: 'gcal', confirmed: true }, { id: '2', date: '2026-11-16', time: '11:00', customerId: '', title: '山田さま', source: 'gcal' },
+    { id: '3', date: '2026-11-21', customerId: 'd', source: 'gcal' }, { id: '4', date: '2026-11-17', customerId: 'h', done: true }];
+  const w = schedule(people, ap, T).week;
+  assert.deepEqual(w.map((x) => [x.key, x.title, !!x.unsure]), [['a:1', 'く', false], ['a:2', '山田さま', true], ['p:d', 'え', false]], '同じ人・同じ日は1つ。お客さんが決まっていない予定は「確かめる」');
+  assert.deepEqual(schedule([], undefined, T), { overdue: [], today: [], week: [], later: [] });
 });

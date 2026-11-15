@@ -1,9 +1,10 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
-import { DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
+import { DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 5;
-export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends'];
-const IDB_VERSION = 1;
+export const DATA_VERSION = 6;
+export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
+// IDB_VERSION＝入れ物そのものを足すときに上げる（2：予定の入れ物 appts。Google カレンダーの取りこみ用・いまは空）
+const IDB_VERSION = 2;
 let DB_NAME = 'salon-karte';
 let _db = null;
 
@@ -57,6 +58,15 @@ export const MIGRATIONS = [
     stores: {
       visits: (r) => ({ guestFigures: { front: [], back: [] }, intake: null, ...r, interview: { wish: '', ...(r.interview || {}) } }),
       details: (r) => ({ intakeAt: '', ...r }),
+    },
+  },
+  { // 版6：部位だけのカルテ。設定に「部位」（名前・濃度の目安・関わるつらいところ）、メニューに「施術するところ」（scope）、来店に scope（無ければ全身）。
+    //       これまでの図（前・後ろ）と線は、そのまま。メニューは増やさない（使う人の一覧をさわらない）
+    to: 6,
+    stores: {
+      meta: (r) => (r.key === 'settings' && r.value && !r.value.parts ? { ...r, value: { ...r.value, wholeAreaId: r.value.wholeAreaId || 'a_body', parts: JSON.parse(JSON.stringify(DEFAULT_PARTS)) } } : r),
+      menus: (r) => ('scope' in r ? r : { ...r, scope: null }),
+      visits: (r) => (r.scope && r.scope.type ? r : { ...r, scope: { type: 'whole' } }),
     },
   },
 ];
@@ -120,6 +130,7 @@ export async function openDb() {
       v.createIndex('date', 'date');
       for (const s of ['oils', 'carriers', 'cats', 'menus', 'blends']) db.createObjectStore(s, { keyPath: 'id' });
     }
+    if (e.oldVersion < 2) { const a = db.createObjectStore('appts', { keyPath: 'id' }); a.createIndex('date', 'date'); a.createIndex('customerId', 'customerId'); }
   };
   _db = await req(r);
   _db.onversionchange = () => { _db.close(); _db = null; };

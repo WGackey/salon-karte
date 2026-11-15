@@ -3,7 +3,7 @@ import * as db from './db.js';
 import { DEFAULT_SETTINGS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_CARRIERS, DEFAULT_MENUS } from './seed.js';
 import { todayStr, noTouchOf } from './logic.js';
 
-export const S = { settings: null, people: [], oils: [], cats: [], carriers: [], menus: [], blends: [], newer: false, guest: null };
+export const S = { settings: null, people: [], oils: [], cats: [], carriers: [], menus: [], blends: [], appts: [], newer: false, guest: null };
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 export async function boot() {
@@ -27,7 +27,7 @@ export async function boot() {
 export async function reload() {
   S.settings = { ...clone(DEFAULT_SETTINGS), ...(await db.getMeta('settings')) };
   const t = performance.now();
-  [S.people, S.oils, S.cats, S.carriers, S.menus, S.blends] = await Promise.all(['customers', 'oils', 'cats', 'carriers', 'menus', 'blends'].map((s) => db.all(s)));
+  [S.people, S.oils, S.cats, S.carriers, S.menus, S.blends, S.appts] = await Promise.all(['customers', 'oils', 'cats', 'carriers', 'menus', 'blends', 'appts'].map((s) => db.all(s)));
   S.listMs = performance.now() - t;
   const ja = (a, b) => a.name.localeCompare(b.name, 'ja');
   S.carriers.sort(ja);
@@ -59,8 +59,9 @@ export async function saveCustomer(slim, det) {
   if (i < 0) S.people.push(slim); else S.people[i] = slim;
 }
 export async function deleteCustomer(id) {
-  const vs = await db.byIndex('visits', 'customerId', id);
-  await db.batch(['customers', 'details', 'visits'], (os) => { os.customers.delete(id); os.details.delete(id); for (const v of vs) os.visits.delete(v.id); });
+  const vs = await db.byIndex('visits', 'customerId', id); const ap = S.appts.filter((a) => a.customerId === id);
+  await db.batch(['customers', 'details', 'visits', 'appts'], (os) => { os.customers.delete(id); os.details.delete(id); for (const v of vs) os.visits.delete(v.id); for (const a of ap) os.appts.delete(a.id); });
+  S.appts = S.appts.filter((a) => a.customerId !== id);
   S.people = S.people.filter((p) => p.id !== id);
 }
 export const person = (id) => S.people.find((p) => p.id === id);
@@ -75,7 +76,7 @@ export async function newVisit(customerId) {
   const prev = (await visitsOf(customerId))[0];
   const v = {
     id: db.uid(), customerId, date: todayStr(), status: 'draft',
-    scope: { type: 'whole' }, // 第2段で「部分（手・足など）」を足すための入れ物
+    scope: { type: 'whole' }, // 施術するところ。全身＝{type:'whole'}／部分＝{type:'part', parts:['hand','foot']}。毎回 全身から始めて、メニューか部位をえらぶと変わる
     conds: prev ? prev.conds.filter((c) => !['c_sun', 'c_drive', 'c_drink'].includes(c)) : [], // その日だけのもの（屋外・運転・お酒）は写さない。妊娠の月数も写さない
     interview: prev ? { ...clone(prev.interview), memo: '', wish: '' } : { life: '', purposes: [], moods: [], symptoms: [], skins: [], memo: '', wish: '' },
     // 図は2つ。guestFigures＝お客さんの「気になるところ」／figures＝施術する人の「所見」。図の名前 → なぞった線（第2段で手・足の図を足せる）
@@ -90,7 +91,7 @@ export async function newVisit(customerId) {
   };
   await db.put('visits', v);
   const p = person(customerId);
-  if (p && p.nextDate && p.nextDate <= v.date) p.nextDate = ''; // 予定どおり来たので、予定を消す
+  if (p && p.nextDate && p.nextDate <= v.date) { p.nextDate = ''; p.nextTime = ''; } // 予定どおり来たので、予定を消す
   await recount(customerId);
   return v;
 }
