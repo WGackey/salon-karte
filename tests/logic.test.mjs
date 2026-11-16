@@ -80,12 +80,13 @@ test('妊娠の時期：月数から初期・中期・後期。月数がなけ�
 });
 test('年齢：区切りを入れると、生年月日から乳幼児・子ども・高齢が自動でつく', () => {
   const ec = (birth, settings = { ...DEFAULT_SETTINGS, ageRules: { infant: 6, child: 15, old: 65 } }) => effectiveConds({ settings, det: { birth, conds: [] }, visit: { conds: [] }, today: '2026-11-15' }).ids;
-  assert.deepEqual(ec('2023-01-01').sort(), ['c_child', 'c_infant']); assert.deepEqual(ec('2016-01-01'), ['c_child']);
+  assert.deepEqual(ec('2023-01-01'), ['c_infant'], '乳幼児に子どもは重ねない（がっき〜：0〜6歳＝乳幼児、7〜17歳＝子ども）'); assert.deepEqual(ec('2016-01-01'), ['c_child']);
+  assert.deepEqual(ec('2023-01-01', { ...DEFAULT_SETTINGS, ageRules: { infant: null, child: 15, old: null } }), ['c_child'], '乳幼児の区切りが空なら、子ども');
   assert.deepEqual(ec('1950-01-01'), ['c_old']); assert.deepEqual(ec('1990-01-01'), []); assert.deepEqual(ec(''), []);
   // 0.12.0：はじめから 乳幼児 6歳まで・子ども 17歳まで・高齢 60歳から（がっき〜が決めた）。空けると自動でつけない
   assert.deepEqual(DEFAULT_SETTINGS.ageRules, { infant: 6, child: 17, old: 60 });
   const d0 = (birth) => ec(birth, DEFAULT_SETTINGS).sort(); // 今日は 2026-11-15
-  assert.deepEqual(d0('2020-11-15'), ['c_child', 'c_infant'], '6歳は乳幼児（子どもにもなる）'); assert.deepEqual(d0('2019-11-15'), ['c_child'], '7歳は子ども');
+  assert.deepEqual(d0('2020-11-15'), ['c_infant'], '6歳は乳幼児だけ'); assert.deepEqual(d0('2026-01-01'), ['c_infant'], '0歳は乳幼児'); assert.deepEqual(d0('2019-11-15'), ['c_child'], '7歳は子ども');
   assert.deepEqual(d0('2009-11-15'), ['c_child'], '17歳は子ども'); assert.deepEqual(d0('2008-11-15'), [], '18歳はつかない');
   assert.deepEqual(d0('1966-11-16'), [], '59歳はつかない'); assert.deepEqual(d0('1966-11-15'), ['c_old'], '60歳から高齢');
   assert.deepEqual(ec('2023-01-01', { ...DEFAULT_SETTINGS, ageRules: { infant: null, child: null, old: null } }), [], '空けると、自動でつけない');

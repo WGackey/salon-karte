@@ -65,7 +65,8 @@ export function effectiveConds({ settings, det = {}, visit = {}, today = todaySt
   const r = settings.ageRules || {}; const age = ageOf(det.birth, today);
   if (age != null) {
     if (r.infant != null && age <= r.infant) addAuto('c_infant', `${age}歳`);
-    if (r.child != null && age <= r.child) addAuto('c_child', `${age}歳`);
+    // 子ども＝乳幼児の区切りより上〜子どもの区切りまで（2026-11-16 がっき〜：0〜6歳＝乳幼児、7〜17歳＝子ども、18歳から大人。乳幼児に子どもは重ねない）
+    if (r.child != null && age <= r.child && !(r.infant != null && age <= r.infant)) addAuto('c_child', `${age}歳`);
     if (r.old != null && age >= r.old) addAuto('c_old', `${age}歳`);
   }
   // 敏感肌は1つのこととして見る（0.11.0）：問診の「肌の状態」で今日えらんでも、「お客さんの情報」でいつもの状態にしていても同じ

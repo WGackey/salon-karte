@@ -355,7 +355,7 @@ export function rulesView() {
         group('割合が分からないとき（資料に「入っている」とだけある）', chips([{ id: 'block', name: '外す（安全側）' }, { id: 'warn', name: '外さずに ⚠ をつける' }], st.unknownPct || 'block', { multi: false, onChange: (v) => { st.unknownPct = v || 'block'; save(); } }),
           'はじめは「外す」。資料に割合がない精油が多いので、⚠ にすると候補に残るものが増えます'),
         h('p', { class: 'hint' }, '「微量」と書いた成分では外しません。')),
-      card(h('h2', null, '年齢で自動でつける状態'), h('p', { class: 'hint' }, 'お客さんの生年月日から、その日の年齢でつけます。はじめは「乳幼児 6歳まで・子ども 17歳まで・高齢 60歳から」を入れてあります。自分の資料・お店に合わせて直せます（空けると、自動ではつけません）。乳幼児にあてはまる人は、子どもにもなります。'),
+      card(h('h2', null, '年齢で自動でつける状態'), h('p', { class: 'hint' }, 'お客さんの生年月日から、その日の年齢でつけます。はじめは「乳幼児 6歳まで・子ども 17歳まで・高齢 60歳から」を入れてあります。自分の資料・お店に合わせて直せます（空けると、自動ではつけません）。乳幼児（0〜6歳）と子ども（7〜17歳）は別々につきます。乳幼児の区切りを空けると、子どもの区切りまでの人は子どもになります。'),
         h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '乳幼児'), h('span', { class: 'row tight' }, numIn(ar, 'infant', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳まで')),
         h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '子ども'), h('span', { class: 'row tight' }, numIn(ar, 'child', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳まで')),
         h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '高齢'), h('span', { class: 'row tight' }, numIn(ar, 'old', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳から')),
