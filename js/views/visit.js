@@ -1,4 +1,5 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone, saveBadge } from '../ui.js';
+import { closeNudge } from '../nudge.js';
 import { S, saveSettings, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
 import { jpDate, todayStr, addDays, blendCalc, limitFor, isFirstBlend, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchAll } from '../logic.js';
@@ -339,7 +340,8 @@ export async function visitView(id, step) {
 
   const finish = async () => {
     v.status = 'done'; v.copied = false; saveSoon(null); await saveVisit(v); await recount(p.id);
-    toast('カルテをとじました（保存済み）'); go(`#/c/${p.id}`);
+    toast('カルテをとじました（保存済み）');
+    closeNudge(() => go(`#/c/${p.id}`)); // 7日以上バックアップしていなければ「バックアップしますか？」
   };
   const phase = STEPS[idx][2];
   const stepBtn = ([k, name], i) => h('a', { class: 'stepbtn' + (k === step ? ' on' : ''), href: `#/v/${id}/${k}` }, h('span', { class: 'num' }, String(i + 1)), name);

@@ -32,8 +32,8 @@ export function toast(msg) {
   setTimeout(() => t.remove(), 2600);
 }
 // 下から出るパネル。close() で閉じる
-export function sheet(title, content, { wide = false } = {}) {
-  const close = () => wrap.remove();
+export function sheet(title, content, { wide = false, onClose } = {}) {
+  const close = () => { if (!wrap.isConnected) return; wrap.remove(); onClose && onClose(); };
   const wrap = h('div', { class: 'overlay', onclick: (e) => { if (e.target === wrap) close(); } },
     h('div', { class: 'sheet' + (wide ? ' wide' : '') },
       h('div', { class: 'sheet-head' }, h('h2', null, title), btn('とじる', close, 'ghost')),

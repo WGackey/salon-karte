@@ -154,7 +154,15 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await tap('次へ：施術後 ›'); await p.waitForSelector('text=つらさの変化');
   await p.locator('.symrow').nth(0).getByText('3', { exact: true }).tap(); await tap('とても好き'); await tap('2週間後');
   await shot('09-after');
-  await tap('できた（カルテをとじる）'); await p.waitForSelector('text=情報を直す');
+  await tap('できた（カルテをとじる）');
+  // 0.13.0：一度もバックアップしていないので、とじるときに聞く。「あとで」→ その日は聞かない
+  await p.waitForSelector('text=バックアップしますか？'); assert.ok(await p.getByText('まだ一度もバックアップしていません', { exact: false }).count(), 'とじるとき：何日していないかが出る');
+  await shot('09b-close-nudge'); await tap('あとで'); await p.waitForSelector('text=情報を直す');
+  await p.goto(BASE + '#/'); await p.waitForSelector('.bkband.red'); assert.ok((await p.locator('.bkband').textContent()).includes('まだ一度もバックアップしていません'), 'ホームのいちばん上に赤い知らせ');
+  assert.equal(await p.locator('.homeadd').count(), 0, 'iPad・iPhone でないときは「ホーム画面に追加」の案内を出さない'); await shot('09c-home-band');
+  await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() - 10 * 86400000); }); await p.reload(); await p.waitForSelector('.bkband.amber');
+  assert.ok((await p.locator('.bkband').textContent()).includes('10日バックアップしていません'), '7日以上は橙');
+  await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', null); }); await p.goBack(); await p.waitForSelector('text=情報を直す');
   const pageText = await p.locator('.main').textContent();
   assert.ok(pageText.includes('肩こり 8→3'), 'つらさの変化が残る：' + pageText.slice(0, 300)); assert.ok(pageText.includes('ラベンダー・アングスティフォリア 3滴'), 'ブレンドが残る');
   assert.ok(pageText.includes('1回'), '回数を自動で数える'); assert.ok(pageText.includes('妊娠中（前回）'), '注意のしるし'); assert.ok(pageText.includes('ナッツ類（木の実）／ティートリー'), 'アレルギーのしるし');
@@ -544,7 +552,22 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await ph.tap('次へ：施術 ›'); await q.waitForSelector('text=施術メニュー'); await q.getByText('整体 60分').tap(); await ph.noOverflow('施術'); await ph.shot('08-sejutsu');
   await ph.tap('次へ：施術後 ›'); await q.waitForSelector('text=つらさの変化');
   await q.locator('.symrow').nth(0).getByText('2', { exact: true }).tap(); await ph.tap('好き'); await ph.tap('1週間後'); await ph.noOverflow('施術後'); await ph.shot('09-after');
-  await ph.tap('できた（カルテをとじる）'); await q.waitForSelector('text=情報を直す');
+  await ph.tap('できた（カルテをとじる）');
+  // 0.13.0：とじるときの「いまする」→ はじめては合言葉をつけるかえらぶ → 保存先をえらぶ → お客さんのページへ
+  await q.waitForSelector('text=バックアップしますか？'); await ph.tap('いまする'); await q.waitForSelector('.quickbk'); await ph.noOverflow('いまバックアップ'); await ph.shot('09b-quickbk');
+  await ph.tap('合言葉なしで作る'); await ph.tap('合言葉なしで書き出す'); await q.waitForSelector('text=保存先をえらぶ');
+  await Promise.all([q.waitForEvent('download'), ph.tap('保存先をえらぶ')]); await q.waitForSelector('text=情報を直す');
+  assert.equal(await q.evaluate(async () => (await import('./js/db.js')).getMeta('backupMode')), 'open', '合言葉なしをえらんだことを覚える（合言葉そのものは覚えない）');
+  // ホーム：今日したので知らせは出ない。Safari のタブで開いているので「ホーム画面に追加」の案内が出る → とじると出ない
+  await q.goto(BASE + '#/'); await q.waitForSelector('.home-top'); assert.equal(await q.locator('.bkband').count(), 0, '今日バックアップしたので知らせは出ない');
+  await q.waitForSelector('.homeadd'); assert.ok((await q.locator('.homeadd').textContent()).includes('アイコンの方には入りません'), 'タブのデータはアイコンの方に入らないことも伝える');
+  await ph.noOverflow('ホーム画面に追加の案内'); await ph.shot('09c-homeadd');
+  await q.locator('.homeadd').getByText('とじる', { exact: true }).tap(); await q.waitForSelector('.homeadd', { state: 'detached' }); await q.reload(); await q.waitForSelector('.home-top'); assert.equal(await q.locator('.homeadd').count(), 0, 'とじたら出ない');
+  // 合言葉なしの人は、知らせから1回押すだけで共有（ここでは保存）になる
+  await q.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() - 8 * 86400000); }); await q.reload(); await q.waitForSelector('.bkband.amber'); await q.waitForTimeout(500);
+  await Promise.all([q.waitForEvent('download'), q.locator('.bkband').getByText('いまバックアップ').tap()]); await q.waitForSelector('text=今日バックアップしました');
+  assert.equal(await q.locator('.quickbk').count(), 0, '合言葉なしの人は、パネルを出さずにそのまま書き出す');
+  await q.goBack(); await q.waitForSelector('text=情報を直す');
   const t2 = await q.locator('.main').textContent();
   assert.ok(t2.includes('腰のつらさ 7→2') && t2.includes('サイプレス 4滴') && t2.includes('ホホバオイル 20ml'), 'iPhone で最後まで通って残る：' + t2.slice(0, 200));
   await ph.noOverflow('お客さん（来店のあと）'); await ph.shot('10-customer-after');
@@ -556,8 +579,8 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   const [dl2] = await Promise.all([q.waitForEvent('download'), ph.tap('保存先をえらぶ')]);
   const file2 = path.join(require('os').tmpdir(), 'karte-e2e-iphone.json'); await dl2.saveAs(file2);
   // iPad で書き出したもの（合言葉つき）を iPhone に戻す
-  await q.waitForSelector('text=今日バックアップ済み');
-  await q.locator('input[type=file]').setInputFiles(file); await q.waitForSelector('text=合言葉つき');
+  await q.waitForURL(/backup\?/); await q.waitForSelector('text=今日バックアップ済み'); // 0.13.0：この日はもうバックアップしているので、書き出しのあと画面が開き直るのを待つ
+  await q.locator('input[type=file]').setInputFiles(file); await q.waitForSelector('text=合言葉つき。');
   await q.locator('input[type=password]').nth(2).fill('あいことば123'); await ph.tap('このバックアップに入れ替える'); await ph.tap('入れ替える'); await q.waitForSelector('.home-top');
   assert.deepEqual(await ph.counts(), { c: 1, v: 2, b: 1 }, 'iPad → iPhone に移せる');
   await q.getByLabel('お客さんをさがす').fill('しけん'); await q.locator('.home-top + .list .row-link', { hasText: '試験 みほ' }).tap(); await q.waitForSelector('text=来店の記録');
