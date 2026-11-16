@@ -278,7 +278,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     return { ver: await db.getMeta('dataVersion'), sun: cn.c_sun, mens: cn.c_mens, jojoba: [cs.k_jojoba.name, cs.k_jojoba.fatty.wax, cs.k_jojoba.draft], tsubakiOwned: cs.k_avocado.owned, argan: !!cs.k_argan, n: Object.keys(cs).length,
       tags: (await db.all('details'))[0].allergyTags, skins: (await db.all('visits')).map((v) => v.interview.skins.length), syms: (await db.all('visits')).map((v) => v.interview.symptoms.length) };
   });
-  assert.deepEqual(mig, { ver: 10, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', null, true], tsubakiOwned: true, argan: true, n: 23, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 11, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', null, true], tsubakiOwned: true, argan: false, n: 20, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
   await p.goto(BASE + '#/set/carriers'); await p.waitForSelector('text=ホホバ（自分で直した名前）');
   // --- 版3（0.4.0 のころ）の精油のデータから、版4（資料の30本）へ。手持ち・確かめた精油は残る・資料にない精油は「資料にない」で残る ---
   await p.evaluate(async () => {
@@ -302,7 +302,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     return { ver: await db.getMeta('dataVersion'), n: Object.keys(os).length, lav: [os.o_lavender.name, os.o_lavender.owned], ginger: [os.o_ginger.ref, os.o_ginger.owned, os.o_ginger.components.hyd], clary: [os.o_clary.name, os.o_clary.family, os.o_clary.components.est],
       cats: (await db.all('cats')).map((c) => c.id).sort().join(), fam: st.families.map((f) => f.name).join(), drive: st.conds.some((c) => c.id === 'c_drive'), acts: st.symptoms[0].acts.a_relax, iv: (await db.all('visits')).every((v) => Array.isArray(v.interview.famLikes)) };
   });
-  assert.deepEqual(mig4, { ver: 10, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
+  assert.deepEqual(mig4, { ver: 11, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
     cats: 'alc,ald,est,hyd,ket,oxi,phe', fam: '樹木系,花穂系,柑橘系', drive: true, acts: 2, iv: true }, '版3 → 版4 の移し替え：' + JSON.stringify(mig4));
   await p.goto(BASE + '#/set/oils'); await p.waitForSelector('text=ラベンダー・アングスティフォリア'); assert.ok(await p.getByText('資料にない').count(), '資料にない精油のしるし');
   // 移し替えたあとのカルテで、精油の候補の画面が開ける
@@ -319,19 +319,39 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
   const mig5 = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); const v = await db.get('visits', id);
     return { ver: await db.getMeta('dataVersion'), n: v.figures.front.length + v.figures.back.length, g: v.guestFigures, intake: v.intake, wish: v.interview.wish, hand: st.S.settings.handover, pin: st.hasPin(), all: (await db.all('visits')).every((x) => x.guestFigures && x.figures) }; }, v4.id);
-  assert.deepEqual(mig5, { ver: 10, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
+  assert.deepEqual(mig5, { ver: 11, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
   await p.goto(BASE + `#/v/${v4.id}/shoken`); await p.waitForSelector('.zu.staff .bodypad'); assert.equal(await p.locator('.zu .strokes.own.staff > *').count(), v4.n, '0.5.0 の図が、施術する人の「所見」の図として出る');
   await p.goto(BASE + `#/v/${v4.id}/kininaru`); await p.waitForSelector('.zu.guest .bodypad'); assert.equal(await p.locator('.zu .strokes.own > *').count(), 0, 'お客さんの図は空で始まる');
   await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
   // 移し替えのしくみそのもの（次の版を足すとき用）
   const mig3 = await p.evaluate(async () => {
     const db = await import('./js/db.js');
-    const r = await db.migrateDb([{ to: 11, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 11);
+    const r = await db.migrateDb([{ to: 12, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 12);
     const ok = (await db.all('visits')).every((x) => x._test === 'moved'); const ver = await db.getMeta('dataVersion');
-    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 10);
+    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 11);
     return { r, ok, ver };
   });
-  assert.deepEqual(mig3, { r: { from: 10, to: 11 }, ok: true, ver: 11 }, '版の移し替え');
+  assert.deepEqual(mig3, { r: { from: 11, to: 12 }, ok: true, ver: 12 }, '版の移し替え');
+  // --- 版10（0.11.0）→ 版11（0.12.0）：資料にない精油・オイルは、さわっていないものだけ消える。濃度の「下書き」が外れる。年齢の区切りは空欄だけ埋まる ---
+  await p.evaluate(async () => {
+    const db = await import('./js/db.js'); const seed = await import('./js/seed.js'); const C = (o) => JSON.parse(JSON.stringify(o));
+    const oo = Object.fromEntries(seed.OLD_ONLY_OILS_V4.map((o) => [o.id, C(o)])); const kk = Object.fromEntries(seed.OLD_ONLY_CARRIERS.map((o) => [o.id, C(o)]));
+    oo.o_grapefruit.owned = true; oo.o_bergamot.note = '自分のメモ'; kk.k_argan.name = 'アルガン（うちの）';
+    const vs = await db.all('visits'); vs[0].blend.oils.push({ oilId: 'o_jasmine', name: 'ジャスミン', drops: 1 }); vs[0]._mark11 = true;
+    const st = await db.getMeta('settings'); st.areas = st.areas.map((a) => (['a_body', 'a_face', 'a_spot'].includes(a.id) ? { ...a, draft: true } : a)); st.ageRules = { infant: null, child: 12, old: null };
+    await db.batch(['oils', 'carriers', 'visits', 'meta'], (os) => { Object.values(oo).forEach((o) => os.oils.put(o)); Object.values(kk).forEach((o) => os.carriers.put(o)); os.visits.put(vs[0]); os.meta.put({ key: 'settings', value: st }); os.meta.put({ key: 'dataVersion', value: 10 }); });
+  });
+  await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
+  const mig11 = await p.evaluate(async () => {
+    const db = await import('./js/db.js'); const seed = await import('./js/seed.js'); const st = await db.getMeta('settings');
+    const os = (await db.all('oils')).map((o) => o.id); const cs = (await db.all('carriers')).map((o) => o.id);
+    const vs = await db.all('visits'); const v = vs.find((x) => x._mark11); v.blend.oils = v.blend.oils.filter((o) => o.oilId !== 'o_jasmine'); delete v._mark11; await db.put('visits', v);
+    for (const id of ['o_grapefruit', 'o_bergamot', 'o_jasmine']) await db.del('oils', id); await db.del('carriers', 'k_argan'); // あとのテストのために、足した分を片づける
+    return { ver: await db.getMeta('dataVersion'), oldOils: os.filter((id) => id in seed.OLD_ONLY_OILS).sort().join(), oldCars: cs.filter((id) => seed.OLD_ONLY_CARRIERS.some((k) => k.id === id)).join(),
+      drafts: st.areas.filter((a) => a.draft).length, age: st.ageRules, body: st.areas.find((a) => a.id === 'a_body').max, nv: vs.length };
+  });
+  assert.deepEqual({ ...mig11, nv: mig11.nv > 0 }, { ver: 11, oldOils: 'o_bergamot,o_grapefruit,o_jasmine', oldCars: 'k_argan', drafts: 0, age: { infant: 6, child: 12, old: 60 }, body: 5, nv: true }, '版10 → 版11：' + JSON.stringify(mig11));
+  await p.reload(); await p.waitForSelector('.home-top');
 
   // --- 見本 1,000人で速さを見る ---
   await p.goto(BASE + '#/set/sample'); await tap('見本を 1,000人 入れる'); await p.waitForSelector('text=入れました', { timeout: 120000 });

@@ -3,7 +3,7 @@ import { PART_FIGS, FIGS, REFLEX_SHAPES, REFLEX_FIGS, reflexSvg } from '../parts
 import { bodyPad } from '../bodymap.js';
 import { DEFAULT_REFLEX } from '../seed.js';
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, HERE, AUTO_NOTE } from '../ui.js';
-import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin } from '../state.js';
+import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin, askPersist } from '../state.js';
 import { choosePin, askPin } from './guest.js';
 import * as db from '../db.js';
 import { todayStr, daysBetween, ymd, jpDate, TRAITS, backupName } from '../logic.js';
@@ -287,7 +287,7 @@ export function limitsView() {
   return page({
     title: '濃度の目安・1滴の量', back: '#/set', body: [
       AUTO_NOTE(),
-      h('div', { class: 'notice draft' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 5％・顔 3％・部分ぬり 10％」は、アロマテラピーを学んだときの資料の数字です（下書き）。手・足だけのトリートメントは体と同じ 5％。はじめての人（1回目の来店）は「体 1％・顔 0.5％・手・足 1％」で、ブレンドの画面ではじめからこちらで色が変わります（1タップでふつうの目安と切りかえ）。子ども・高齢・妊娠中の数字は資料にないので空けてあります。自分の資料で確かめて直してください（数字を直すと「下書き」のしるしが外れます）。空けたところは「目安なし」になります。'),
+      h('div', { class: 'notice' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 5％・顔 3％・部分ぬり 10％」は、アロマテラピーを学んだときの資料の数字です。手・足だけのトリートメントは体と同じ 5％。はじめての人（1回目の来店）は「体 1％・顔 0.5％・手・足 1％」で、ブレンドの画面ではじめからこちらで色が変わります（1タップでふつうの目安と切りかえ）。子ども・高齢・妊娠中の数字は資料にないので空けてあります。自分の資料・お店に合わせて、いつでも直せます。空けたところは「目安なし」になります。'),
       card(h('h2', null, '濃度の出し方'), h('p', null, '濃度（％）＝ 精油の量 ÷ キャリアオイルの量 × 100'), h('p', { class: 'hint' }, '例：キャリアオイル 30ml に、精油 6滴（1滴 0.05ml なら 0.3ml）→ 1％。「この量なら○滴まで」も同じ式で出しています。')),
       card(h('h2', null, '部位ごとの上限'), areaBox, h('div', { class: 'row' }, btn('＋ 部位を足す', () => { st.areas.push({ id: db.uid(), name: '', max: null }); save(); drawAreas(); }))),
       card(h('h2', null, 'お客さんの状態ごとの上限'), h('p', { class: 'hint' }, 'あてはまるお客さんでは、部位の上限とくらべて低いほうを使います。はじめは空けてあります。'),
@@ -355,7 +355,7 @@ export function rulesView() {
         group('割合が分からないとき（資料に「入っている」とだけある）', chips([{ id: 'block', name: '外す（安全側）' }, { id: 'warn', name: '外さずに ⚠ をつける' }], st.unknownPct || 'block', { multi: false, onChange: (v) => { st.unknownPct = v || 'block'; save(); } }),
           'はじめは「外す」。資料に割合がない精油が多いので、⚠ にすると候補に残るものが増えます'),
         h('p', { class: 'hint' }, '「微量」と書いた成分では外しません。')),
-      card(h('h2', null, '年齢で自動でつける状態'), h('p', { class: 'hint' }, 'お客さんの生年月日から、その日の年齢でつけます。資料に数字がないので、はじめは未記入（自動でつけない）です。入れると自動でつきます。'),
+      card(h('h2', null, '年齢で自動でつける状態'), h('p', { class: 'hint' }, 'お客さんの生年月日から、その日の年齢でつけます。はじめは「乳幼児 6歳まで・子ども 17歳まで・高齢 60歳から」を入れてあります。自分の資料・お店に合わせて直せます（空けると、自動ではつけません）。乳幼児にあてはまる人は、子どもにもなります。'),
         h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '乳幼児'), h('span', { class: 'row tight' }, numIn(ar, 'infant', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳まで')),
         h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '子ども'), h('span', { class: 'row tight' }, numIn(ar, 'child', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳まで')),
         h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, '高齢'), h('span', { class: 'row tight' }, numIn(ar, 'old', { onInput: () => { delete ar.draft; save(); }, placeholder: '未記入' }), '歳から')),
@@ -455,6 +455,11 @@ export function handoverView() {
 }
 
 // ---- バックアップ ----
+// Safari のデータを消すと、このアプリのデータも消えることがある（ホーム画面のアプリまで消えるかは、Apple・WebKit の説明では確かめられなかった → 「消えることがある」と書く）
+export const SAFARI_WARN = 'Safari の「履歴と Web サイトデータを消去」をすると、このアプリのデータも消えることがあります。消去する前に、かならずバックアップを取ってください。';
+// 「消されにくい保存」（端末が自分でデータを片づけるときに、あとまわしにしてもらう）。効いているかどうかを1行で。自分で「消去」したときは守れない
+export const persistLine = (on) => (on ? '✓ この端末は、データを「消されにくい保存」にできています（端末が自分で片づけることを防ぐもので、自分で消去したときは守れません）。'
+  : '△ この端末では、まだ「消されにくい保存」になっていません。ホーム画面のアイコンから開くと、なりやすくなります。バックアップをこまめに。');
 export async function backupView() {
   const last = await db.getMeta('lastBackupAt');
   const o = { pass: '', pass2: '', rpass: '' };
@@ -491,13 +496,16 @@ export async function backupView() {
     catch (e) { toast(e.message); }
   };
   const days = last ? daysBetween(ymd(new Date(last)), todayStr()) : null;
+  const persisted = await askPersist();
   return page({
     title: 'バックアップ', back: '#/set', body: [
+      h('div', { class: 'notice amber' }, '⚠ ' + SAFARI_WARN),
       h('div', { class: 'notice ' + (days == null || days >= 30 ? 'red' : days >= 7 ? 'amber' : 'ok') }, days == null ? 'まだバックアップしていません' : days === 0 ? '今日バックアップ済み' : `前のバックアップから ${days} 日`),
       card(h('h2', null, '書き出す'), h('p', { class: 'hint' }, `お客さん・カルテ・設定をまるごと1つのファイルにします。iPad・iPhone では「ファイルに保存」をえらんで、iCloud Drive など ${DEVICE} の外にも置いておくと安心です。`),
         h('div', { class: 'grid2' }, field('合言葉（カギ）', input(o, 'pass', { type: 'password' })), field('合言葉（もう一度）', input(o, 'pass2', { type: 'password' }))),
         h('p', { class: 'hint' }, '⚠ 合言葉を忘れると、そのファイルは二度と開けません。どこにも送らないので、こちらで調べることもできません。'),
-        btn('バックアップを作る', doExport, 'big wide'), ready),
+        btn('バックアップを作る', doExport, 'big wide'), ready,
+        h('p', { class: 'hint persistline' }, persistLine(persisted))),
       card(h('h2', null, '戻す'), h('p', { class: 'hint' }, '書き出したファイルをえらぶと、中身を確かめてから入れ替えます。古い版で書き出したファイルも、いまの形に直して読みこみます。'), file, info),
       card(h('h2', null, 'iPad と iPhone のあいだで移す'),
         h('p', { class: 'hint' }, 'データは端末ごとに別々です。iPad と iPhone で自動的にそろうことはありません。移したいときは、バックアップを使います。'),
@@ -528,7 +536,7 @@ export function sampleView() {
 }
 export async function aboutView() {
   let est = ''; try { const e = await navigator.storage.estimate(); est = `${(e.usage / 1048576).toFixed(1)} MB`; } catch { /* 出せない端末もある */ }
-  const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false;
+  const persisted = await askPersist();
   return page({
     title: 'このアプリについて', back: '#/set', body: [
       (() => {
@@ -539,10 +547,10 @@ export async function aboutView() {
           h('p', { class: 'hint' }, 'アプリを閉じなくても、ときどき自分で新しい版をさがします。ホームの画面のいちばん上で、下に引っぱってもさがせます。新しい版にするのは、案内を押したときだけです。入れたデータはそのまま残ります。'));
       })(),
       card(h('p', null, `版 ${APP_VERSION}（データの形 ${db.DATA_VERSION}）`), est ? h('p', null, `使っている容量：${est}`) : null,
-        h('p', null, persisted ? 'データは「消されにくい保存」になっています。' : 'ホーム画面に追加したアイコンから開くと、データが消されにくくなります。')),
+        h('p', null, persistLine(persisted))),
       card(h('h2', null, 'データについて'), h('ul', { class: 'plain' },
         h('li', null, `お客さんのデータは、${HERE} の中だけに保存します。インターネットのどこにも送りません。`),
-        h('li', null, 'Safari の「履歴とWebサイトデータを消去」をすると、カルテも消えます。バックアップをこまめに。'),
+        h('li', null, SAFARI_WARN),
         h('li', null, 'Safari で開いたときと、ホーム画面のアイコンから開いたときでは、データの置き場がちがいます。いつもホーム画面のアイコンから開いてください。'),
         h('li', null, 'iPad と iPhone の両方で使えますが、データは端末ごとに別々です。移すときは 設定 → バックアップ の「iPad と iPhone のあいだで移す」を見てね。'))),
       card(h('h2', null, '精油のデータについて'), h('ul', { class: 'plain' },

@@ -3,7 +3,7 @@
 import { h, fill, page, card, btn, badge, go, chips, input, confirmDlg, HERE } from '../ui.js';
 import { S, saveSettings, saveMaster, deleteMaster, hasPin } from '../state.js';
 import { choosePin } from './guest.js';
-import { salonFields } from './settings.js';
+import { salonFields, SAFARI_WARN } from './settings.js';
 import * as db from '../db.js';
 import { todayStr } from '../logic.js';
 
@@ -50,7 +50,7 @@ export function guideView() {
           '合言葉は書きとめておいてください。忘れると、お客さん用の画面から戻れなくなります')),
       sec('⑤ バックアップ（大事）',
         ul('設定 → バックアップ →「バックアップを作る」→「保存先をえらぶ」→「ファイルに保存」', 'iCloud Drive など、端末の外にも置いておくと安心です',
-          'ファイルに合言葉をかけられます。忘れると二度と開けないので、書きとめておいてください', 'ホームの下に「前のバックアップから○日」が出ます。週に1回が目安です')),
+          'ファイルに合言葉をかけられます。忘れると二度と開けないので、書きとめておいてください', SAFARI_WARN, 'ホームの下に「前のバックアップから○日」が出ます。週に1回が目安です')),
       sec('⑥ 新しい版にするには',
         ul('新しい版が出ると、画面の上に「新しい版があります。ここを押すと新しくなります」と出ます。押すと新しくなります。入れたデータはそのまま残ります',
           'アプリは、ときどき自分で新しい版をさがします（ネットにつながっているとき）。何もしなくてだいじょうぶです',
@@ -62,7 +62,7 @@ export function guideView() {
         ol('もとの端末で、設定 → バックアップ → 書き出して、iCloud Drive に置く（AirDrop でもよい）', '移す先の端末でアプリを開き、設定 → バックアップ →「戻す」でそのファイルをえらぶ', '合言葉つきなら同じ合言葉を入れて「入れ替える」'),
         h('div', { class: 'notice amber' }, '戻すと、移す先に入っていたデータは消えて入れ替わります（2台の中身を混ぜることはできません）。カルテを書く端末は1台に決めておくのがおすすめです。')),
       sec('⑧ こまったとき',
-        ul('データが消えた：Safari の「履歴とWebサイトデータを消去」をすると、カルテも消えます。バックアップから戻してください',
+        ul('データが消えた：' + SAFARI_WARN + ' 消えてしまったときは、バックアップから戻してください',
           '合言葉を忘れてお客さん用の画面から戻れない：アプリを消して入れ直し、バックアップから戻すことになります',
           '候補に出てほしい精油が出ない：設定で「手持ち」になっているか、「外した理由」に出ていないかを見てください')),
       h('a', { class: 'btn wide', href: '#/set/kangae' }, 'この考え方で作っています'),
@@ -100,7 +100,7 @@ export function startView() {
     { title: 'ようこそ', body: () => [
       h('p', { class: 'lead' }, '整体とアロマのカルテです。はじめに、いくつか決めておくと、すぐ使いはじめられます。'),
       ul('どれも、とばせます', 'あとから「設定」でぜんぶ直せます', `データは、${HERE} の中だけに保存します（どこにも送りません）`),
-      h('div', { class: 'notice draft' }, 'はじめから入っている精油・濃度の目安・同意書の文は「下書き」です。候補は目安で、医療ではありません。最後に決めるのは施術する人です。'),
+      h('div', { class: 'notice draft' }, 'はじめから入っている精油・キャリアオイル・同意書の文は「下書き」です。濃度の目安も、自分の資料で確かめてください。候補は目安で、医療ではありません。最後に決めるのは施術する人です。'),
       h('a', { class: 'btn ghost', href: '#/set/kangae' }, 'くわしく：この考え方で作っています')] },
     { title: 'お店の名前・施術する人の名前', body: () => salonFields() },
     { title: '合言葉（数字4けた）', body: () => {
@@ -121,8 +121,8 @@ export function startView() {
       const ackBox = h('div');
       const draw = () => fill(ackBox, chips([{ id: 'ok', name: '下書きだと分かりました。自分で確かめて直します' }], ob.ack ? ['ok'] : [], { cls: 'col', onChange: (x) => { ob.ack = x.length ? todayStr() : ''; saveSettings(); } }));
       draw();
-      return [h('p', null, '次の2つは、とくに大事な「下書き」です。そのまま使わず、自分の資料・お店に合わせて直してください。'),
-        h('div', { class: 'idea' }, h('h3', null, '濃度の目安 ', badge('下書き', 'draft')),
+      return [h('p', null, '次の2つは、とくに大事です。そのまま使わず、自分の資料・お店に合わせて確かめて、ちがうところは直してください。'),
+        h('div', { class: 'idea' }, h('h3', null, '濃度の目安 ', (st.areas || []).some((a) => a.draft) ? badge('下書き', 'draft') : null),
           ul(...(st.areas || []).map((a) => `${a.name}：${pct(a.max)}${a.firstMax != null ? `（はじめての人 ${pct(a.firstMax)}）` : ''}`)), h('p', { class: 'hint' }, 'はじめの数字は、アロマテラピーを学んだときの資料のもの（精油 ÷ キャリアオイル）。流派や資料によってちがいます。はじめての人・敏感肌の人は、うすめに。妊娠中・高齢・子どもなど、状態ごとの目安は資料にないので空です（自分で入れます）。'),
           h('a', { class: 'btn', href: '#/set/limits' }, '濃度の目安を直す')),
         h('div', { class: 'idea' }, h('h3', null, '同意書と注意事項の文 ', badge('下書き', 'draft')),
@@ -131,7 +131,8 @@ export function startView() {
         h('p', { class: 'hint' }, '直す画面から戻るときは、設定 →「はじめの案内をもう一度」で、この続きから開けます。'), ackBox];
     } },
     { title: 'バックアップと、ホーム画面', body: () => [
-      h('div', { class: 'idea' }, h('h3', null, 'バックアップは自分で'), h('p', null, `データは ${HERE} の中だけにあります。こわれたり、なくしたりすると、データもなくなります。お客さんを登録したら、設定 → バックアップ から、こまめに書き出してください（週に1回が目安）。`)),
+      h('div', { class: 'idea' }, h('h3', null, 'バックアップは自分で'), h('p', null, `データは ${HERE} の中だけにあります。こわれたり、なくしたりすると、データもなくなります。お客さんを登録したら、設定 → バックアップ から、こまめに書き出してください（週に1回が目安）。`),
+        h('div', { class: 'notice amber' }, '⚠ ' + SAFARI_WARN)),
       h('div', { class: 'idea' }, h('h3', null, 'ホーム画面に追加'), h('p', null, 'Safari の「共有」→「ホーム画面に追加」で、アイコンから開けるようになります。データが消されにくくなるので、いつもアイコンから開いてください。')),
       h('p', { class: 'hint' }, '使い方は、設定 →「使い方の手引き」でいつでも読めます。')] },
   ];
