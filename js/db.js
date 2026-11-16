@@ -1,7 +1,7 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
-import { CARRIERS_V8, DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
+import { AGE_RULES, CARRIERS_V8, OLD_ONLY_CARRIERS, DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 10;
+export const DATA_VERSION = 11;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
 // IDB_VERSION＝入れ物そのものを足すときに上げる（2：予定の入れ物 appts。Google カレンダーの取りこみ用・いまは空）
 const IDB_VERSION = 2;
@@ -12,7 +12,9 @@ let _db = null;
 //   stores：入れ物ごとに、1件ずつ新しい形に直す
 //   stores の関数が null を返したら、その1件を消す
 //   add   ：入れ物ごとに、まだ無いもの（同じ番号が無いもの）だけ足す
-const CAR = Object.fromEntries(DEFAULT_CARRIERS.map((c) => [c.id, c]));
+// 版2・版9 のころの「はじめのキャリアオイル」（資料にない3つも入っていた）。古い版からの移し替えは、そのころと同じに動かす
+const ALL_CAR = [...DEFAULT_CARRIERS, ...OLD_ONLY_CARRIERS];
+const CAR = Object.fromEntries(ALL_CAR.map((c) => [c.id, c]));
 const BLANK_CAR = { fatty: {}, traits: {}, skins: [], purposes: [], allergens: [], cautions: [], draft: false };
 export const MIGRATIONS = [
   { // 版2：キャリアオイルを精油と同じ作りに（成分・特徴・候補）。問診に「肌の状態」、お客さんに「アレルギーのしるし」
@@ -23,7 +25,7 @@ export const MIGRATIONS = [
       details: (r) => ({ allergyTags: [], avoidCarrierIds: [], ...r }),
       visits: (r) => ({ ...r, interview: { skins: [], ...(r.interview || {}) } }),
     },
-    add: { carriers: DEFAULT_CARRIERS },
+    add: { carriers: ALL_CAR },
   },
   { // 版3：問診の言葉「このあと日に当たる」を分かりやすく。使う人が自分で直していたら、さわらない
     to: 3,
@@ -101,7 +103,7 @@ export const MIGRATIONS = [
       },
       meta: (r) => (r.key === 'settings' && r.value ? { ...r, value: settingsV9(r.value) } : r),
     },
-    add: { carriers: DEFAULT_CARRIERS },
+    add: { carriers: ALL_CAR },
   },
   { // 版10：がっき〜の答え（11/16）。濃度の目安に「はじめての人」（体 1％・顔 0.5％・手足 1％）、手・足だけに 5％（体と同じ）を入れる。問診の「肌の状態」に「敏感肌」を足し、
     //   資料で敏感肌向きのオイル（アプリコット・ピーチ・カレンデュラ）にしるしをつける。使う人が直した・確かめたものはさわらない
@@ -111,7 +113,34 @@ export const MIGRATIONS = [
       meta: (r) => (r.key === 'settings' && r.value ? { ...r, value: settingsV10(r.value) } : r),
     },
   },
+  { // 版11：がっき〜の答え（11/16・その2）。
+    //   ① 精油・キャリアオイルの一覧を「資料にあるものだけ」に。はじめから入っていた「資料にないもの」（精油11本・キャリアオイル3つ）は、★使っている端末でもぜんぶ消す
+    //      （2026-11-16 がっき〜：「資料に無いものは全部消してOK」。手持ちにした・直した・使ったものも消える）。番号（o_ginger など）で見分けるので、使う人が自分で足したものは消さない。
+    //      過去の来店・名前つきのブレンドは、名前と量を自分で持っているのでそのまま読める（さわらない）。お客さんの「避ける精油／キャリアオイル」からは、消したものの番号を外す
+    //   ② 濃度の目安：体 5％・顔 3％・部分ぬり 10％ の「下書き」のしるしを外す（数字はさわらない）
+    //   ③ 年齢の区切り：空欄のところだけ 乳幼児 6歳まで・子ども 17歳まで・高齢 60歳から を入れる（入っている数字はさわらない）
+    to: 11,
+    stores: {
+      oils: (r) => (r.id in OLD_ONLY_OILS ? null : r),
+      carriers: (r) => (OLD_CAR.has(r.id) ? null : r),
+      details: (r) => {
+        const ao = r.avoidOilIds || [], ac = r.avoidCarrierIds || [];
+        return ao.some((id) => id in OLD_ONLY_OILS) || ac.some((id) => OLD_CAR.has(id)) ? { ...r, avoidOilIds: ao.filter((id) => !(id in OLD_ONLY_OILS)), avoidCarrierIds: ac.filter((id) => !OLD_CAR.has(id)) } : r;
+      },
+      meta: (r) => (r.key === 'settings' && r.value ? { ...r, value: settingsV11(r.value) } : r),
+    },
+  },
 ];
+// ---- 版11 の移し替えで使う部品 ----
+const OLD_CAR = new Set(OLD_ONLY_CARRIERS.map((c) => c.id));
+function settingsV11(v) {
+  const n = { ...v };
+  const KEEP = { a_body: 5, a_face: 3, a_spot: 10 }; // がっき〜が「そのまま」と決めた数字。しるしだけ外す
+  n.areas = (v.areas || []).map((a) => { if (!(a.id in KEEP) || !a.draft || a.max !== KEEP[a.id]) return a; const { draft, ...rest } = a; return rest; });
+  const ar = v.ageRules || {};
+  n.ageRules = { ...ar }; for (const k of Object.keys(AGE_RULES)) if (ar[k] == null || ar[k] === '') n.ageRules[k] = AGE_RULES[k];
+  return n;
+}
 const SENS10 = ['k_apricot', 'k_peach', 'k_calendula'];
 function settingsV10(v) {
   const n = { ...v };
@@ -132,7 +161,7 @@ function settingsV10(v) {
 }
 
 // ---- 版9 の移し替えで使う部品 ----
-const CAR9 = Object.fromEntries(DEFAULT_CARRIERS.map((c) => [c.id, c]));
+const CAR9 = CAR;
 const CAR8 = Object.fromEntries(CARRIERS_V8.map((c) => [c.id, c]));
 const CAR_FIELDS = ['fatty', 'traits', 'skins', 'purposes', 'allergens', 'cautions', 'note'];
 function settingsV9(v) {
@@ -245,7 +274,7 @@ export function migrateDump(dump, list = MIGRATIONS, target = DATA_VERSION) {
   const stores = { ...dump.stores };
   for (const m of [...list].sort((a, b) => a.to - b.to)) {
     if (m.to <= ver || m.to > target) continue;
-    for (const [name, fn] of Object.entries(m.stores || {})) stores[name] = (stores[name] || []).map(fn).filter((x) => x != null);
+    for (const [name, fn] of Object.entries(m.stores || {})) stores[name] = (stores[name] || []).map((r) => fn(r)).filter((x) => x != null);
     for (const [name, rows] of Object.entries(m.add || {})) {
       const have = new Set((stores[name] || []).map((r) => r.id));
       stores[name] = [...(stores[name] || []), ...rows.filter((r) => !have.has(r.id)).map((r) => JSON.parse(JSON.stringify(r)))];

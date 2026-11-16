@@ -45,13 +45,14 @@ const SOLE = detail('<path d="M78 172C116 198 196 192 236 160M204 244C190 276 18
 const FOOTTOP = union([blob(SOLE_D), ...TOES])
   + detail('<path d="M202 58q12 -12 24 0M162 58q8 -10 16 0M130 66q8 -9 15 0M103 82q7 -8 13 0M79 104q6 -7 11 1"/><path d="M110 334C134 350 168 350 194 332" opacity=".7"/>');
 // ---- 頭 ----
+// 0.12.0 がっき〜：頭（前・後ろ）の肩の線も、首・肩や背中と同じように直す → りんかくの下にずれて重なっていた肩の線を消した（肩はりんかくの線だけ）。りんかくは前と同じ
 const HEAD_SHAPES = [
   blob('M118 236L118 290C100 306 52 314 14 334L-10 350L-10 420L310 420L310 350L286 334C248 314 200 306 182 290L182 236Z'),
   oval(70, 152, 11, 25), oval(230, 152, 11, 25),
   blob('M150 38C202 38 230 80 230 134C230 192 202 254 150 260C98 254 70 192 70 134C70 80 98 38 150 38Z'),
 ];
-const HEADF = union(HEAD_SHAPES) + detail('<path d="M78 112C96 70 204 70 222 112" opacity=".6"/><path d="M104 140q16 -9 32 -1M164 139q16 -8 32 1M108 156q13 -7 26 0M166 156q13 -7 26 0M150 162L146 196q4 5 10 1M130 222q20 9 40 0"/><path d="M124 324C104 320 76 324 50 336M176 324C196 320 224 324 250 336" opacity=".7"/>');
-const HEADB = union(HEAD_SHAPES) + detail('<path d="M96 226C116 250 184 250 204 226"/><path d="M150 44V250" stroke-dasharray="5 7" opacity=".6"/><path d="M150 262V352" stroke-dasharray="5 6"/><path d="M130 296C112 322 76 330 40 340M170 296C188 322 224 330 260 340" opacity=".7"/>');
+const HEADF = union(HEAD_SHAPES) + detail('<path d="M78 112C96 70 204 70 222 112" opacity=".6"/><path d="M104 140q16 -9 32 -1M164 139q16 -8 32 1M108 156q13 -7 26 0M166 156q13 -7 26 0M150 162L146 196q4 5 10 1M130 222q20 9 40 0"/>');
+const HEADB = union(HEAD_SHAPES) + detail('<path d="M96 226C116 250 184 250 204 226"/><path d="M150 44V250" stroke-dasharray="5 7" opacity=".6"/><path d="M150 262V352" stroke-dasharray="5 6"/>');
 const HEADT = union([oval(150, 62, 12, 15), oval(63, 196, 9, 23), oval(237, 196, 9, 23),
   blob('M150 62C204 62 236 118 236 190C236 262 200 316 150 316C100 316 64 262 64 190C64 118 96 62 150 62Z')])
   + detail('<path d="M150 70V310" stroke-dasharray="5 7" opacity=".6"/><path d="M70 196H230" stroke-dasharray="5 7" opacity=".6"/><path d="M144 228q6 -8 13 -1q3 8 -6 9"/>');
@@ -66,10 +67,12 @@ const NECKF = union(NECK_SHAPES) + detail('<path d="M172 152C140 146 100 150 64 
 const scapula = (cx, top, s) => { const X = (x) => cx + x * s; return `<path d="M${X(38)} ${top}C${X(36)} ${top + 34} ${X(36)} ${top + 72} ${X(40)} ${top + 104}C${X(56)} ${top + 92} ${X(72)} ${top + 70} ${X(84)} ${top + 44}"/><path d="M${X(38)} ${top + 12}C${X(56)} ${top + 4} ${X(78)} ${top - 2} ${X(100)} ${top - 4}" opacity=".8"/>`; };
 const NECKB = union(NECK_SHAPES) + detail('<path d="M180 60V320" stroke-dasharray="5 6"/>' + scapula(180, 192, -1) + scapula(180, 192, 1) + '<path d="M64 320C60 290 62 264 72 240M296 320C300 290 298 264 288 240"/><path d="M134 56C150 74 210 74 226 56" opacity=".7"/>');
 // ---- 背中・腰 ----
+// 0.12.0 がっき〜：「背中・腰の図と 全身（後ろ）の図で、腰のデザインが違う → 全身（後ろ）に統一」→ 腰は全身（後ろ）と同じ描き方に（背骨の点線は腰の上まで・おしりの上の「w」の線だけ。
+// 前の、ウエストの横すじ・小さなくぼみ2つ・1本のまるい線は消した）。中の線だけの直しで、りんかくの座標は変えていない（前の来店の線はずれない）
 // 背中・腰：首・肩（後ろ）と同じ直し（0.11.0）。りんかくの下にずれて重なっていた肩の線を消し、肩甲骨を同じ描き方に。りんかくは前と同じ
 const BACK = union([
   blob('M126 -20L126 26C112 44 72 50 50 62C30 74 22 98 14 132L-24 250L14 262L60 168C64 214 72 246 76 276C78 304 64 344 60 384L58 460L242 460L240 384C236 344 222 304 224 276C228 246 236 214 240 168L286 262L324 250L286 132C278 98 270 74 250 62C228 50 188 44 174 26L174 -20Z'),
-]) + detail('<path d="M150 10V396" stroke-dasharray="5 6"/>' + scapula(150, 88, -0.82) + scapula(150, 88, 0.82) + '<path d="M78 282q30 12 60 4M222 282q-30 12 -60 4" opacity=".7"/><path d="M118 372q32 26 64 0M112 344h14M174 344h14"/><path d="M60 168q4 -22 -4 -40M240 168q-4 -22 4 -40" opacity=".7"/>');
+]) + detail('<path d="M150 10V352" stroke-dasharray="5 6"/>' + scapula(150, 88, -0.82) + scapula(150, 88, 0.82) + '<path d="M92 376q30 30 58 0q28 30 58 0"/><path d="M60 168q4 -22 -4 -40M240 168q-4 -22 4 -40" opacity=".7"/>');
 
 const HB = [10, 0, 280, 400], FB = [20, 20, 260, 400], HDB = [0, 10, 300, 360], NB = [0, 0, 360, 320], BB = [0, 0, 300, 420];
 // 図の一覧。id は保存する名前（visits の figures／guestFigures のキー）。変えない

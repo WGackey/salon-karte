@@ -278,7 +278,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     return { ver: await db.getMeta('dataVersion'), sun: cn.c_sun, mens: cn.c_mens, jojoba: [cs.k_jojoba.name, cs.k_jojoba.fatty.wax, cs.k_jojoba.draft], tsubakiOwned: cs.k_avocado.owned, argan: !!cs.k_argan, n: Object.keys(cs).length,
       tags: (await db.all('details'))[0].allergyTags, skins: (await db.all('visits')).map((v) => v.interview.skins.length), syms: (await db.all('visits')).map((v) => v.interview.symptoms.length) };
   });
-  assert.deepEqual(mig, { ver: 10, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', null, true], tsubakiOwned: true, argan: true, n: 23, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 11, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', null, true], tsubakiOwned: true, argan: false, n: 20, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
   await p.goto(BASE + '#/set/carriers'); await p.waitForSelector('text=ホホバ（自分で直した名前）');
   // --- 版3（0.4.0 のころ）の精油のデータから、版4（資料の30本）へ。手持ち・確かめた精油は残る・資料にない精油は「資料にない」で残る ---
   await p.evaluate(async () => {
@@ -299,10 +299,10 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
   const mig4 = await p.evaluate(async () => {
     const db = await import('./js/db.js'); const os = Object.fromEntries((await db.all('oils')).map((o) => [o.id, o])); const st = await db.getMeta('settings');
-    return { ver: await db.getMeta('dataVersion'), n: Object.keys(os).length, lav: [os.o_lavender.name, os.o_lavender.owned], ginger: [os.o_ginger.ref, os.o_ginger.owned, os.o_ginger.components.hyd], clary: [os.o_clary.name, os.o_clary.family, os.o_clary.components.est],
+    return { ver: await db.getMeta('dataVersion'), n: Object.keys(os).length, lav: [os.o_lavender.name, os.o_lavender.owned], ginger: !!os.o_ginger, clary: [os.o_clary.name, os.o_clary.family, os.o_clary.components.est],
       cats: (await db.all('cats')).map((c) => c.id).sort().join(), fam: st.families.map((f) => f.name).join(), drive: st.conds.some((c) => c.id === 'c_drive'), acts: st.symptoms[0].acts.a_relax, iv: (await db.all('visits')).every((v) => Array.isArray(v.interview.famLikes)) };
   });
-  assert.deepEqual(mig4, { ver: 10, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
+  assert.deepEqual(mig4, { ver: 11, n: 30, lav: ['ラベンダー・アングスティフォリア', true], ginger: false /* 資料にない精油は、手持ちでも版11で消える */, clary: ['クラリセージ（確かめた）', 'f_flower', 65],
     cats: 'alc,ald,est,hyd,ket,oxi,phe', fam: '樹木系,花穂系,柑橘系', drive: true, acts: 2, iv: true }, '版3 → 版4 の移し替え：' + JSON.stringify(mig4));
   await p.goto(BASE + '#/set/oils'); await p.waitForSelector('text=ラベンダー・アングスティフォリア'); assert.ok(await p.getByText('資料にない').count(), '資料にない精油のしるし');
   // 移し替えたあとのカルテで、精油の候補の画面が開ける
@@ -319,19 +319,54 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
   const mig5 = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); const v = await db.get('visits', id);
     return { ver: await db.getMeta('dataVersion'), n: v.figures.front.length + v.figures.back.length, g: v.guestFigures, intake: v.intake, wish: v.interview.wish, hand: st.S.settings.handover, pin: st.hasPin(), all: (await db.all('visits')).every((x) => x.guestFigures && x.figures) }; }, v4.id);
-  assert.deepEqual(mig5, { ver: 10, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
+  assert.deepEqual(mig5, { ver: 11, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
   await p.goto(BASE + `#/v/${v4.id}/shoken`); await p.waitForSelector('.zu.staff .bodypad'); assert.equal(await p.locator('.zu .strokes.own.staff > *').count(), v4.n, '0.5.0 の図が、施術する人の「所見」の図として出る');
   await p.goto(BASE + `#/v/${v4.id}/kininaru`); await p.waitForSelector('.zu.guest .bodypad'); assert.equal(await p.locator('.zu .strokes.own > *').count(), 0, 'お客さんの図は空で始まる');
   await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
   // 移し替えのしくみそのもの（次の版を足すとき用）
   const mig3 = await p.evaluate(async () => {
     const db = await import('./js/db.js');
-    const r = await db.migrateDb([{ to: 11, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 11);
+    const r = await db.migrateDb([{ to: 12, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 12);
     const ok = (await db.all('visits')).every((x) => x._test === 'moved'); const ver = await db.getMeta('dataVersion');
-    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 10);
+    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 11);
     return { r, ok, ver };
   });
-  assert.deepEqual(mig3, { r: { from: 10, to: 11 }, ok: true, ver: 11 }, '版の移し替え');
+  assert.deepEqual(mig3, { r: { from: 11, to: 12 }, ok: true, ver: 12 }, '版の移し替え');
+  // --- 版10（0.11.0）→ 版11（0.12.0）：資料にない精油・オイルは、使っていてもぜんぶ消える（自分で足したものは残る）。濃度の「下書き」が外れる。年齢の区切りは空欄だけ埋まる ---
+  //     消した精油・オイルが入った過去の来店も、画面がこわれずに開ける（名前と量はそのまま出る）
+  const pageErrs = []; const onErr = (e) => pageErrs.push(e.message); p.on('pageerror', onErr);
+  const used = await p.evaluate(async () => {
+    const db = await import('./js/db.js'); const seed = await import('./js/seed.js'); const C = (o) => JSON.parse(JSON.stringify(o));
+    const oo = Object.keys(seed.OLD_ONLY_OILS).map((id) => ({ id, name: id === 'o_jasmine' ? 'ジャスミン' : id, family: seed.OLD_ONLY_OILS[id], plant: '', components: {}, subs: [], actions: [], uses: [], okConds: [], cautions: ['c_preg'], warns: [], allergens: [], note: '', owned: id !== 'o_clove', draft: id === 'o_yuzu' ? false : true, ref: false }));
+    const kk = seed.OLD_ONLY_CARRIERS.map((o) => ({ ...C(o), owned: true }));
+    const vs = (await db.all('visits')).filter((x) => x.blend); const v = vs[0]; const before = C(v.blend);
+    v.blend.oils.push({ oilId: 'o_jasmine', name: 'ジャスミン', drops: 2 }); v.blend.carriers.push({ carrierId: 'k_argan', name: 'アルガンオイル', ml: 10 });
+    const det = await db.get('details', v.customerId); const avoidBefore = [C(det.avoidOilIds || []), C(det.avoidCarrierIds || [])]; det.avoidOilIds = [...(det.avoidOilIds || []), 'o_ginger']; det.avoidCarrierIds = [...(det.avoidCarrierIds || []), 'k_rice'];
+    const st = await db.getMeta('settings'); st.areas = st.areas.map((a) => (['a_body', 'a_face', 'a_spot'].includes(a.id) ? { ...a, draft: true } : a)); st.ageRules = { infant: null, child: 12, old: null };
+    await db.batch(['oils', 'carriers', 'visits', 'details', 'blends', 'meta'], (os) => { oo.forEach((o) => os.oils.put(o)); kk.forEach((o) => os.carriers.put(o)); os.oils.put({ id: 'mine11', name: '自分で足した精油', components: {}, uses: [], cautions: [], owned: true, draft: false, ref: false }); os.visits.put(v); os.details.put(det);
+      os.blends.put({ id: 'b11', name: '消える精油のブレンド', areaId: 'a_body', oils: [{ oilId: 'o_vetiver', name: 'ベチバー', drops: 3 }], carriers: [{ carrierId: 'k_mct', name: 'ココナッツ', ml: 20 }], memo: '' }); os.meta.put({ key: 'settings', value: st }); os.meta.put({ key: 'dataVersion', value: 10 }); });
+    return { vid: v.id, cid: v.customerId, before, avoidBefore };
+  });
+  await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
+  const mig11 = await p.evaluate(async (u) => {
+    const db = await import('./js/db.js'); const seed = await import('./js/seed.js'); const st = await db.getMeta('settings');
+    const os = (await db.all('oils')).map((o) => o.id); const cs = (await db.all('carriers')).map((o) => o.id); const det = await db.get('details', u.cid); const v = await db.get('visits', u.vid);
+    return { ver: await db.getMeta('dataVersion'), oldOils: os.filter((id) => id in seed.OLD_ONLY_OILS).join(), oldCars: cs.filter((id) => seed.OLD_ONLY_CARRIERS.some((k) => k.id === id)).join(), mine: os.includes('mine11'), nOils: os.length, nCars: cs.length,
+      avoid: [det.avoidOilIds.includes('o_ginger'), det.avoidCarrierIds.includes('k_rice')], inBlend: [v.blend.oils.some((o) => o.oilId === 'o_jasmine' && o.name === 'ジャスミン' && o.drops === 2), v.blend.carriers.some((c) => c.carrierId === 'k_argan' && c.ml === 10)],
+      saved: ((await db.get('blends', 'b11')) || {}).name, drafts: st.areas.filter((a) => a.draft).length, age: st.ageRules, body: st.areas.find((a) => a.id === 'a_body').max };
+  }, used);
+  assert.deepEqual(mig11, { ver: 11, oldOils: '', oldCars: '', mine: true, nOils: 31, nCars: 20, avoid: [false, false], inBlend: [true, true], saved: '消える精油のブレンド', drafts: 0, age: { infant: 6, child: 12, old: 60 }, body: 5 }, '版10 → 版11：' + JSON.stringify(mig11));
+  // 消した精油・オイルが入った来店を開く：お客さんのページ・これまでの記録・ブレンドの画面・経過のページ・避ける精油の画面
+  await p.goto(BASE + '#/c/' + used.cid); await p.waitForSelector('.keikabtn'); assert.ok(await p.getByText('ジャスミン').count() > 0, 'これまでの記録に、消した精油の名前がそのまま出る');
+  await p.goto(BASE + '#/v/' + used.vid + '/blend'); await p.waitForSelector('.brow'); assert.equal(await p.locator('.brow', { hasText: 'ジャスミン' }).count(), 1, 'ブレンドの画面に、消した精油が名前と滴数つきで出る');
+  assert.equal(await p.locator('.brow.car', { hasText: 'アルガンオイル' }).count(), 1, '消したキャリアオイルも名前と量つきで出る'); await shot('mig11-blend');
+  await p.goto(BASE + '#/v/' + used.vid + '/seiyu'); await p.waitForTimeout(400); await p.goto(BASE + '#/c/' + used.cid + '/keika'); await p.waitForTimeout(500); await shot('mig11-keika');
+  await p.goto(BASE + '#/c/' + used.cid + '/edit'); await p.waitForTimeout(400); await p.goto(BASE + '#/set/oils'); await p.waitForSelector('text=自分で足した精油');
+  assert.equal(await p.getByText('うまく開けませんでした').count(), 0); assert.deepEqual(pageErrs, [], '消した精油が入った来店でも、画面のまちがいは出ない');
+  // あとのテストのために、足した分を片づける
+  await p.evaluate(async (u) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); const v = await db.get('visits', u.vid); v.blend = u.before; await db.put('visits', v); await db.del('oils', 'mine11'); await db.del('blends', 'b11'); await st.reload(); }, used);
+  p.off('pageerror', onErr);
+  await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
 
   // --- 見本 1,000人で速さを見る ---
   await p.goto(BASE + '#/set/sample'); await tap('見本を 1,000人 入れる'); await p.waitForSelector('text=入れました', { timeout: 120000 });

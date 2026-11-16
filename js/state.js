@@ -22,7 +22,15 @@ export async function boot() {
   S.settings = { ...clone(DEFAULT_SETTINGS), ...settings };
   await reload();
   S.guest = await db.getMeta('guest'); // お客さんに渡している途中なら、開き直してもお客さん用の画面のまま
-  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  askPersist(); // 開くたびに頼む（端末が、頼まれたことを覚えていないことがあるため）
+}
+// 「消されにくい保存」を頼んで、いま効いているかどうかを返す（頼めない端末・ことわられたときは false）
+export async function askPersist() {
+  try {
+    const st = navigator.storage; if (!st) return false;
+    if (st.persisted && await st.persisted()) return true;
+    return st.persist ? !!(await st.persist()) : false;
+  } catch { return false; }
 }
 export async function reload() {
   S.settings = { ...clone(DEFAULT_SETTINGS), ...(await db.getMeta('settings')) };
