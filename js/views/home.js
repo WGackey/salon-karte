@@ -3,6 +3,7 @@ import { S } from '../state.js';
 import { startView } from './guide.js';
 import { pullToCheck } from '../update.js';
 import * as db from '../db.js';
+import { backupBand, homeAddBand } from '../nudge.js';
 import { todayStr, daysBetween, jpDate, searchPeople, ymd, schedule } from '../logic.js';
 
 export function personRow(p, extra) {
@@ -56,11 +57,13 @@ export async function homeView() {
       list.length ? box : h('p', { class: 'muted' }, empty));
   };
 
+  const [band, addBand] = await Promise.all([backupBand(), homeAddBand()]);
   const pg = page({
     title: S.settings.salonName || 'カルテ', sub: jpDate(today),
     actions: h('a', { class: 'btn ghost', href: '#/set' }, '設定'),
     body: [
       S.newer ? h('div', { class: 'notice red' }, 'このデータは新しい版のアプリで作られています。アプリを新しくしてください。') : null,
+      band, addBand,
       h('div', { class: 'home-top' }, search, h('a', { class: 'btn primary big', href: '#/new' }, '＋ 新しいお客さん')),
       results,
       sc.overdue.length ? sched('予定日を過ぎた人', sc.overdue, 'overdue', { first: 5, hint: '予定日を過ぎて、来店の記録がない人です。名前を押して、来店をはじめるか、予定日を直す・消すかしてね。' }) : null,

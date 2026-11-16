@@ -457,7 +457,8 @@ export function handoverView() {
 // ---- バックアップ ----
 // 2026-11-16 がっき〜の iPad で試した：ホーム画面のアイコンから開いたアプリのデータは、Safari の「履歴と Web サイトデータを消去」で消えなかった。
 // Safari のタブで開いて使っているときは消える（Apple の説明）。1台・1回の試しなので、「念のため」バックアップはすすめる
-export const SAFARI_WARN = 'Safari のタブで開いて使っていると、Safari の「履歴と Web サイトデータを消去」で、このアプリのデータも消えます。ホーム画面のアイコンから開いて使ってください（消去しても消えないことを確かめています）。念のため、消去する前にバックアップを取っておくと安心です。';
+// 同じ日に、もう2つ確かめた：ホーム画面のアイコンを消すと、データも消えた／消去のあと Safari のタブで開くと、データは消えていた（タブとアイコンは置き場が別）
+export const SAFARI_WARN = 'Safari のタブで開いて使っていると、Safari の「履歴と Web サイトデータを消去」で、このアプリのデータも消えます。ホーム画面のアイコンから開いて使ってください（消去しても消えないことを確かめています）。ただし、ホーム画面のアイコンを消すと、データもいっしょに消えます。アイコンを消す前・消去する前には、かならずバックアップを取ってください。';
 // 「消されにくい保存」（端末が自分でデータを片づけるときに、あとまわしにしてもらう）。効いているかどうかを1行で。自分で「消去」したときは守れない
 export const persistLine = (on) => (on ? '✓ この端末は、データを「消されにくい保存」にできています（端末が自分で片づけることを防ぐもので、自分で消去したときは守れません）。'
   : '△ この端末では、まだ「消されにくい保存」になっていません。ホーム画面のアイコンから開くと、なりやすくなります。バックアップをこまめに。');
@@ -473,7 +474,7 @@ export async function backupView() {
       // iPad・iPhone の「共有」の画面は、ボタンを押したその場でしか出せないので、できあがってからもう一度押してもらう
       fill(ready, h('div', { class: 'notice ok' }, 'バックアップができました。下のボタンで保存先をえらんでね。'),
         btn('保存先をえらぶ', async () => {
-          if (await handOver(text, backupName(S.settings.salonName, todayStr()))) { await db.setMeta('lastBackupAt', Date.now()); toast('書き出しました'); go('#/set/backup?' + Date.now()); }
+          if (await handOver(text, backupName(S.settings.salonName, todayStr()))) { await db.setMeta('lastBackupAt', Date.now()); await db.setMeta('backupMode', o.pass ? 'lock' : 'open'); toast('書き出しました'); go('#/set/backup?' + Date.now()); }
         }, 'primary big wide'));
     } catch (e) { fill(ready); toast('書き出せませんでした：' + e.message); }
   };
@@ -552,7 +553,7 @@ export async function aboutView() {
       card(h('h2', null, 'データについて'), h('ul', { class: 'plain' },
         h('li', null, `お客さんのデータは、${HERE} の中だけに保存します。インターネットのどこにも送りません。`),
         h('li', null, SAFARI_WARN),
-        h('li', null, 'Safari で開いたときと、ホーム画面のアイコンから開いたときでは、データの置き場がちがいます。いつもホーム画面のアイコンから開いてください。'),
+        h('li', null, 'Safari のタブで開いたときと、ホーム画面のアイコンから開いたときでは、データの置き場がちがいます（タブで入れたデータは、アイコンの方には出てきません）。いつもホーム画面のアイコンから開いてください。タブのデータをアイコンの方へ移すときは、バックアップの書き出し → 戻しで。'),
         h('li', null, 'iPad と iPhone の両方で使えますが、データは端末ごとに別々です。移すときは 設定 → バックアップ の「iPad と iPhone のあいだで移す」を見てね。'))),
       card(h('h2', null, '精油のデータについて'), h('ul', { class: 'plain' },
         h('li', null, '精油・成分の分類・作用・気をつける状態は、アロマテラピーを学んだときの資料をもとに入れたものです。キャリアオイル・濃度の目安・つらいところと作用の重みは「下書き」です。自分の資料で確かめてから使ってください。'),

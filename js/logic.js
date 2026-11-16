@@ -284,3 +284,18 @@ export function backupName(salon, date) {
   const s = String(salon || '').replace(/[\\/:*?"<>|\s.]+/g, ' ').trim().replace(/ /g, '_').slice(0, 30);
   return `${s ? s + '_' : ''}カルテのバックアップ_${date}.json`;
 }
+
+// ---- バックアップの知らせ（0.13.0） ----
+// 知らせの強さ。null＝出さない／'amber'＝7日以上／'red'＝30日以上か、お客さんがいるのに一度もしていない
+export function backupLevel(days, people) {
+  if (!people) return null;
+  if (days == null || days >= 30) return 'red';
+  return days >= 7 ? 'amber' : null;
+}
+// カルテをとじるときに「バックアップしますか？」を聞くか。「あとで」を押した日は聞かない
+export const askBackupOnClose = (days, people, laterDay, today) => !!backupLevel(days, people) && laterDay !== today;
+// 「ホーム画面に追加」の案内を出すか。アイコンから開いているときは出さない。とじたら 30日出さない
+export function showHomeAdd(standalone, hiddenDay, today) {
+  if (standalone) return false;
+  return !hiddenDay || daysBetween(hiddenDay, today) >= 30;
+}

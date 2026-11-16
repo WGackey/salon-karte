@@ -394,3 +394,7 @@ button.thumbs { border: 0; background: none; padding: 0; margin: 0; font: inheri
 .arearow { border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 4px; } .arearow:last-child { border-bottom: 0; }
 .edit-row.firstrow { padding-top: 0; color: var(--muted); }
 @media (max-width: 700px) { .firstbox { flex: 1 0 100%; } .firstbox .small { display: none; } }
+/* 0.13.0 バックアップの知らせ・ホーム画面に追加の案内 */
+.bkband, .homeadd { align-items: center; flex-wrap: wrap; } .bkband .grow, .homeadd .grow { min-width: 220px; }
+.bkband .btn, .homeadd .btn { flex-shrink: 0; } .homeadd { align-items: flex-start; } .homeadd ol { margin: 6px 0; padding-left: 1.4em; }
+.homeadd .grow > * + * { margin-top: 4px; } .quickbk { display: flex; flex-direction: column; gap: 10px; }

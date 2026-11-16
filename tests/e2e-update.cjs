@@ -13,7 +13,8 @@ const OUT = process.argv[2] || null; const PORT = 8091; const BASE = `http://loc
     const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(e.message));
     const shot = async (n) => { if (OUT) { fs.mkdirSync(OUT, { recursive: true }); await p.screenshot({ path: path.join(OUT, n + '.png') }); } };
     const cdp = await ctx.newCDPSession(p);
-    const pull = async (dy) => { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 190, y: 300 }] }); for (let y = 20; y <= dy; y += 20) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 190, y: 300 + y }] }); await p.waitForTimeout(100); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
+    // 0.13.0：ホームの上に知らせの帯が出るようになったので、引っぱりはじめる場所を いちばん上の見出しに（検索のらんの上からだと、引っぱりにならない）
+    const pull = async (dy) => { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 190, y: 30 }] }); for (let y = 20; y <= dy; y += 20) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 190, y: 30 + y }] }); await p.waitForTimeout(100); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
     await p.goto(BASE); await p.waitForSelector('.startskip'); await p.locator('.startskip').tap(); await p.waitForSelector('.home-top');
     await p.evaluate(() => navigator.serviceWorker.ready); await p.reload(); await p.waitForSelector('.home-top'); await p.waitForFunction(() => !!navigator.serviceWorker.controller);
     // 少しだけ引く → さがさない／しっかり引く → 「いちばん新しい」
