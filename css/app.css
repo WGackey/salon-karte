@@ -173,12 +173,19 @@ html.noscroll, html.noscroll body { overflow: hidden; }
 
 .facts { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
 .sec { margin-top: 4px; }
-.oil { display: flex; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--line); border-left: 8px solid var(--fam, #ccc); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; }
+.oil { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-left: 8px solid var(--fam, #ccc); border-radius: 14px; padding: 6px 10px 6px 4px; margin-bottom: 6px; }
+.oil-row { display: flex; gap: 8px; align-items: center; }
+.oil-head { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: center; min-height: 52px; padding: 4px 6px; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; border-radius: 10px; }
+.oil-head:active { background: #f1ece3; }
+.oil-head .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .oil-head .name { font-weight: 700; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.oil-head .tri { flex: none; width: 1.2em; color: var(--muted); font-size: 1.1rem; text-align: center; }
+.peek { font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .peek.out { color: var(--red); } .peek.warn { color: #9a5b00; }
+.oil-use { flex: none; min-width: 104px; min-height: 52px; }
+.oil-body { padding: 4px 8px 8px 34px; } .oil-body .row { margin-top: 8px; }
 .oil.picked { border-color: var(--accent); border-left-color: var(--fam); box-shadow: 0 0 0 2px var(--accent-soft); }
 .oil.out { background: #faf5f3; } .oil.buy, .oil.rest { background: #fbf9f5; }
 .famtag { font-size: .8rem; font-weight: 500; color: var(--muted); margin-right: 6px; }
 .why { margin: 4px 0 0; padding-left: 1.1em; font-size: .9rem; color: #4d6a5b; } .why.out { color: var(--red); } .why.warn { color: #9a5b00; } details.more summary { font-size: .85rem; color: #6b7b72; cursor: pointer; }
-.oil-act { display: flex; flex-direction: column; gap: 6px; align-items: stretch; flex: none; width: 128px; } .oil-act .btn { min-height: 48px; padding: 0 8px; }
 .chosen { position: sticky; bottom: 84px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 14px; padding: 10px 14px; font-weight: 600; }
 
 .sticky { position: sticky; top: calc(123px + env(safe-area-inset-top)); z-index: 11; }
@@ -236,7 +243,7 @@ html.noscroll, html.noscroll body { overflow: hidden; }
   .symname { flex-basis: 100%; }
   .levels { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; flex: 1 1 100%; } .levels.zero { grid-template-columns: repeat(6, 1fr); } .lv { height: 44px; }
   .last { flex-direction: column; } .hbody { flex-direction: column; align-items: stretch; gap: 8px; } .hist .thumbs { justify-content: center; } .hist .thumbs .bodypad { height: 170px; width: 73px; } .hrow { grid-template-columns: 6.5em 1fr; } .hhead { min-height: 64px; align-content: flex-start; } .hact .btn { flex: 1 1 100%; } .slide { min-height: 420px; }
-  .oil { flex-wrap: wrap; padding: 12px; } .oil-act { flex-direction: row; width: 100%; } .oil-act > * { flex: 1; }
+  .oil-use { min-width: 84px; padding: 0 8px; } .oil-body { padding-left: 12px; }
   .meter { gap: 10px; padding: 10px 12px; } .meter .pct { min-width: 84px; font-size: 2rem; } .meter .muted { font-size: .8rem; }
   .brow { flex-wrap: wrap; padding-left: 8px; } .brow > .grow { flex: 1 1 100%; } .brow .stepper { margin-left: auto; }
   .edit-row .input.grow { flex: 1 1 0; min-width: 120px; } .edit-row .input.grow2 { flex: 1 1 100%; order: 3; }

@@ -33,6 +33,7 @@ export async function askPersist() {
   } catch { return false; }
 }
 export async function reload() {
+  changedSet = null; // バックアップから戻したときなどは、入れ物から読みなおす
   S.settings = { ...clone(DEFAULT_SETTINGS), ...(await db.getMeta('settings')) };
   const t = performance.now();
   [S.people, S.oils, S.cats, S.carriers, S.menus, S.blends, S.appts] = await Promise.all(['customers', 'oils', 'cats', 'carriers', 'menus', 'blends', 'appts'].map((s) => db.all(s)));
@@ -51,6 +52,20 @@ export async function saveMaster(store, obj) {
 }
 export async function deleteMaster(store, id) { await db.del(store, id); S[store] = S[store].filter((x) => x.id !== id); }
 
+// ---- バックアップのあとに記録が変わったお客さん（0.14.0） ----
+// ホームの知らせ「そのあと お客さん○人分の記録が変わっています」のため。meta の changedPeople にお客さんの番号を残す（meta なので「変わった」には数えない）
+let changedSet = null;
+export async function noteChange(cid) {
+  if (!cid) return;
+  if (!changedSet) changedSet = new Set(await db.getMeta('changedPeople', []) || []);
+  if (changedSet.has(cid)) return;
+  changedSet.add(cid); await db.setMeta('changedPeople', [...changedSet]);
+}
+// 書き出せたとき：最後のバックアップの時刻を残し、変わったお客さんの一覧を空にする
+export async function markBackedUp() {
+  changedSet = new Set(); await db.setMeta('changedPeople', []); await db.setMeta('lastBackupAt', Date.now());
+}
+
 // ---- お客さん ----
 export function blankCustomer() {
   return {
@@ -62,14 +77,14 @@ export async function saveCustomer(slim, det) {
   if (!slim.no) { slim.no = (await db.getMeta('nextNo', 1)); await db.setMeta('nextNo', slim.no + 1); }
   const { _k, ...clean } = slim; clean.updatedAt = Date.now();
   await db.batch(['customers', 'details'], (os) => { os.customers.put(clean); if (det) os.details.put({ ...det, id: slim.id }); });
-  delete slim._k;
+  delete slim._k; await noteChange(slim.id);
   const i = S.people.findIndex((p) => p.id === slim.id);
   if (i < 0) S.people.push(slim); else S.people[i] = slim;
 }
 export async function deleteCustomer(id) {
   const vs = await db.byIndex('visits', 'customerId', id); const ap = S.appts.filter((a) => a.customerId === id);
   await db.batch(['customers', 'details', 'visits', 'appts'], (os) => { os.customers.delete(id); os.details.delete(id); for (const v of vs) os.visits.delete(v.id); for (const a of ap) os.appts.delete(a.id); });
-  S.appts = S.appts.filter((a) => a.customerId !== id);
+  S.appts = S.appts.filter((a) => a.customerId !== id); await noteChange(id);
   S.people = S.people.filter((p) => p.id !== id);
 }
 export const person = (id) => S.people.find((p) => p.id === id);
@@ -98,14 +113,14 @@ export async function newVisit(customerId, { by = '' } = {}) {
     after: { levels: {}, scent: '', note: '' }, nextDate: '',
     copied: !!prev, createdAt: Date.now(), updatedAt: Date.now(),
   };
-  await db.put('visits', v);
+  await db.put('visits', v); await noteChange(customerId);
   const p = person(customerId);
   if (p && p.nextDate && p.nextDate <= v.date) { p.nextDate = ''; p.nextTime = ''; } // 予定どおり来たので、予定を消す
   await recount(customerId);
   return v;
 }
-export async function saveVisit(v) { v.updatedAt = Date.now(); await db.put('visits', v); }
-export async function deleteVisit(v) { await db.del('visits', v.id); await recount(v.customerId); }
+export async function saveVisit(v) { v.updatedAt = Date.now(); await db.put('visits', v); await noteChange(v.customerId); }
+export async function deleteVisit(v) { await db.del('visits', v.id); await noteChange(v.customerId); await recount(v.customerId); }
 // 回数と最後の来店日を数え直す
 export async function recount(customerId) {
   const p = person(customerId); if (!p) return;

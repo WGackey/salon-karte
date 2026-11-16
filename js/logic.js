@@ -285,7 +285,7 @@ export function backupName(salon, date) {
   return `${s ? s + '_' : ''}カルテのバックアップ_${date}.json`;
 }
 
-// ---- バックアップの知らせ（0.13.0・0.13.1 で「毎日」に） ----
+// ---- バックアップの知らせ（0.13.0・0.13.1 で「毎日」に・0.14.0 でホームの上だけに） ----
 // 11/16 がっき〜：仕事で使うので毎日バックアップしたい。ただし、何も変えていない日は知らせない（うるさくしない）
 // changed＝前のバックアップのあとに、記録や設定が変わった。知らせの強さ：null＝出さない／'amber'＝変わったものがある／'red'＝3日以上たった・一度もしていない
 export function backupLevel(days, people, changed) {
@@ -294,8 +294,14 @@ export function backupLevel(days, people, changed) {
   if (!changed) return null;
   return days >= 3 ? 'red' : 'amber';
 }
-// カルテをとじるときに「バックアップしますか？」を聞くか。「あとで」を押した日は聞かない
-export const askBackupOnClose = (days, people, changed, laterDay, today) => !!backupLevel(days, people, changed) && laterDay !== today;
+// ホームのいちばん上の知らせの言葉（0.14.0）。last＝最後のバックアップの日（'2026-11-15'）・days＝何日前・n＝そのあと記録を変えたお客さんの人数（null＝数えていない）
+// 0.14.0：カルテをとじるたびに聞くのはやめた（11/17 がっき〜：多い。お客さんごとにする人・まとめてする人がいる）
+export function backupLine(last, days, n) {
+  if (!last) return 'まだ一度もバックアップしていません';
+  const when = `最後のバックアップ：${jpDate(last, false)}${days === 0 ? '（今日）' : days === 1 ? '（きのう）' : `（${days}日前）`}`;
+  const what = n > 0 ? `そのあと お客さん${n}人分の記録が変わっています` : n === 0 ? 'そのあと 設定などが変わっています' : 'そのあと 記録が変わっています';
+  return `${when}・${what}`;
+}
 // 前のバックアップのあとに変わったか
 export const changedSince = (lastChangeAt, lastBackupAt) => !lastBackupAt || (lastChangeAt || 0) > lastBackupAt;
 // 「ホーム画面に追加」の案内を出すか。アイコンから開いているときは出さない。とじたら 30日出さない

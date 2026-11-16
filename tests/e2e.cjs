@@ -102,10 +102,19 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   const out3 = await p.locator('.oil.out').allTextContents();
   assert.ok(out3.some((t) => t.includes('サイプレス') && t.includes('妊娠3か月')), '3か月 → 初期の注意：' + out3.join('|').slice(0, 300));
   assert.ok(!out3.some((t) => t.includes('月数が入っていない')));
+  // 0.14.0：はじめは名前の1行だけ（説明はとじている）。名前を押すと開く・もう一度でとじる。「使う」を押しても説明は開かない
   const lav = p.locator('.oil', { hasText: 'ラベンダー・アングスティフォリア' });
+  assert.equal(await p.locator('.oil-body:visible').count(), 0, 'はじめは説明がぜんぶとじている');
+  assert.ok(await p.locator('.oil.out .peek.out').count(), '外したものは、とじていても理由の1つめが見える');
+  await shot('06a-seiyu-list');
+  await lav.locator('.oil-head').tap(); assert.ok(await lav.locator('.oil-body').isVisible(), '名前を押すと説明が開く');
+  await lav.locator('.oil-head').tap(); assert.ok(!(await lav.locator('.oil-body').isVisible()), 'もう一度押すととじる');
+  await lav.locator('.oil-head').tap();
   await lav.getByText('手持ちにする').tap(); await p.locator('.oil.hit', { hasText: 'ラベンダー・アングスティフォリア' }).waitFor();
   await p.locator('.oil.hit', { hasText: 'ラベンダー・アングスティフォリア' }).getByText('使う', { exact: true }).tap();
   await p.locator('.oil', { hasText: 'マンダリン' }).getByText('使う', { exact: true }).tap();
+  assert.ok(!(await p.locator('.oil', { hasText: 'マンダリン' }).locator('.oil-body').isVisible()), '「使う」を押しても説明は開かない');
+  assert.ok(await p.locator('.oil.hit', { hasText: 'ラベンダー・アングスティフォリア' }).locator('.oil-body').isVisible(), '開いた説明は、えらんだあとも開いたまま');
   await shot('06-seiyu');
   await tap('花穂系'); assert.equal(await p.locator('.oil', { hasText: 'マンダリン' }).count(), 0, '香りの系統でしぼれる'); await tap('花穂系');
   // キャリアオイルの候補（精油と同じ作り）
@@ -116,7 +125,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   const tsubaki = p.locator('.oil', { hasText: 'アボカドオイル' });
   assert.ok((await tsubaki.textContent()).includes('「乾燥しやすい」← このオイルの特徴として登録'), '「なぜ出たか」が出る');
   assert.equal(await p.locator('.oil.buy', { hasText: 'アボカドオイル' }).count(), 1, '持っていないが合うものは「次に買う候補」');
-  await tsubaki.getByText('手持ちにする').tap(); await p.locator('.oil.hit', { hasText: 'アボカドオイル' }).waitFor();
+  await tsubaki.locator('.oil-head').tap(); await tsubaki.getByText('手持ちにする').tap(); await p.locator('.oil.hit', { hasText: 'アボカドオイル' }).waitFor();
   await p.locator('.oil.hit', { hasText: 'アボカドオイル' }).getByText('使う', { exact: true }).tap();
   assert.ok((await p.locator('.chosen').textContent()).includes('キャリアオイル：アボカドオイル'));
   assert.ok((await p.locator('.oil', { hasText: 'セサミオイル' }).textContent()).includes('オレイン酸'), '成分の名前が出る（割合は資料にないので数字なし）');
@@ -155,14 +164,14 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.locator('.symrow').nth(0).getByText('3', { exact: true }).tap(); await tap('とても好き'); await tap('2週間後');
   await shot('09-after');
   await tap('できた（カルテをとじる）');
-  // 0.13.0：一度もバックアップしていないので、とじるときに聞く。「あとで」→ その日は聞かない
-  await p.waitForSelector('text=バックアップしますか？'); assert.ok(await p.getByText('まだ一度もバックアップしていません', { exact: false }).count(), 'とじるとき：何日していないかが出る');
-  await shot('09b-close-nudge'); await tap('あとで'); await p.waitForSelector('text=情報を直す');
+  // 0.14.0：とじるときには聞かない（そのままお客さんのページへ）。知らせはホームのいちばん上だけ
+  await p.waitForSelector('text=情報を直す'); assert.equal(await p.getByText('バックアップしますか？').count(), 0, 'とじるときに聞かない');
   await p.goto(BASE + '#/'); await p.waitForSelector('.bkband.red'); assert.ok((await p.locator('.bkband').textContent()).includes('まだ一度もバックアップしていません'), 'ホームのいちばん上に赤い知らせ');
   assert.equal(await p.locator('.homeadd').count(), 0, 'iPad・iPhone でないときは「ホーム画面に追加」の案内を出さない'); await shot('09c-home-band');
-  // 0.13.1（毎日）：バックアップのあとに変わったものがあれば橙・3日以上で赤。何も変えていなければ出さない
+  // バックアップのあとに変わったものがあれば橙（いつ・何人分）・3日以上で赤。何も変えていなければ出さない
   await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() - 2 * 86400000); }); await p.reload(); await p.waitForSelector('.bkband.amber');
-  assert.ok((await p.locator('.bkband').textContent()).includes('2日バックアップしていません'), '変えたものがあって2日 → 橙');
+  const bt = await p.locator('.bkband').textContent();
+  assert.ok(bt.includes('最後のバックアップ：') && bt.includes('（2日前）') && bt.includes('お客さん1人分の記録が変わっています'), '変えたものがあって2日 → 橙・いつ・何人分：' + bt);
   await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() - 4 * 86400000); }); await p.reload(); await p.waitForSelector('.bkband.red');
   await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() + 60000); }); await p.reload(); await p.waitForSelector('.home-top');
   assert.equal(await p.locator('.bkband').count(), 0, 'バックアップのあと何も変えていなければ出さない');
@@ -557,21 +566,23 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await ph.tap('次へ：施術後 ›'); await q.waitForSelector('text=つらさの変化');
   await q.locator('.symrow').nth(0).getByText('2', { exact: true }).tap(); await ph.tap('好き'); await ph.tap('1週間後'); await ph.noOverflow('施術後'); await ph.shot('09-after');
   await ph.tap('できた（カルテをとじる）');
-  // 0.13.0：とじるときの「いまする」→ はじめては合言葉をつけるかえらぶ → 保存先をえらぶ → お客さんのページへ
-  await q.waitForSelector('text=バックアップしますか？'); await ph.tap('いまする'); await q.waitForSelector('.quickbk'); await ph.noOverflow('いまバックアップ'); await ph.shot('09b-quickbk');
+  // 0.14.0：とじるときは聞かずにお客さんのページへ。ホームの帯の「いまバックアップ」→ はじめては合言葉をつけるかえらぶ → 保存先をえらぶ
+  await q.waitForSelector('text=情報を直す'); assert.equal(await q.getByText('バックアップしますか？').count(), 0, 'とじるときに聞かない');
+  await q.goto(BASE + '#/'); await q.waitForSelector('.bkband.red'); await ph.noOverflow('ホームの帯'); await ph.shot('09a-home-band');
+  await q.locator('.bkband').getByText('いまバックアップ').tap(); await q.waitForSelector('.quickbk'); await ph.noOverflow('いまバックアップ'); await ph.shot('09b-quickbk');
   await ph.tap('合言葉なしで作る'); await ph.tap('合言葉なしで書き出す'); await q.waitForSelector('text=保存先をえらぶ');
-  await Promise.all([q.waitForEvent('download'), ph.tap('保存先をえらぶ')]); await q.waitForSelector('text=情報を直す');
+  await Promise.all([q.waitForEvent('download'), ph.tap('保存先をえらぶ')]); await q.waitForSelector('text=バックアップしました');
   assert.equal(await q.evaluate(async () => (await import('./js/db.js')).getMeta('backupMode')), 'open', '合言葉なしをえらんだことを覚える（合言葉そのものは覚えない）');
-  // ホーム：今日したので知らせは出ない。Safari のタブで開いているので「ホーム画面に追加」の案内が出る → とじると出ない
-  await q.goto(BASE + '#/'); await q.waitForSelector('.home-top'); assert.equal(await q.locator('.bkband').count(), 0, '今日バックアップしたので知らせは出ない');
+  assert.deepEqual(await q.evaluate(async () => (await import('./js/db.js')).getMeta('changedPeople')), [], 'バックアップしたら、変わったお客さんの一覧は空に');
+  // ホーム：いましたので知らせは出ない。Safari のタブで開いているので「ホーム画面に追加」の案内が出る → とじると出ない
+  await q.reload(); await q.waitForSelector('.home-top'); assert.equal(await q.locator('.bkband').count(), 0, 'バックアップしたので知らせは出ない');
   await q.waitForSelector('.homeadd'); assert.ok((await q.locator('.homeadd').textContent()).includes('アイコンの方には入りません'), 'タブのデータはアイコンの方に入らないことも伝える');
   await ph.noOverflow('ホーム画面に追加の案内'); await ph.shot('09c-homeadd');
   await q.locator('.homeadd').getByText('とじる', { exact: true }).tap(); await q.waitForSelector('.homeadd', { state: 'detached' }); await q.reload(); await q.waitForSelector('.home-top'); assert.equal(await q.locator('.homeadd').count(), 0, 'とじたら出ない');
-  // 合言葉なしの人は、知らせから1回押すだけで共有（ここでは保存）になる
-  // 0.13.1：バックアップのあとに記録を直すと、その日のうちに橙の帯が出る
+  // バックアップのあとに設定だけ直すと「設定などが変わっています」。合言葉なしの人は、帯のボタン1回で共有（ここでは保存）になる
   await q.evaluate(async () => { const s = await import('./js/state.js'); s.S.settings.salonName = (s.S.settings.salonName || '') + ''; await s.saveSettings(); }); await q.reload(); await q.waitForSelector('.bkband.amber');
-  assert.ok((await q.locator('.bkband').textContent()).includes('今日のバックアップのあとに'), '同じ日に変えたら知らせる'); await q.waitForTimeout(500);
-  await Promise.all([q.waitForEvent('download'), q.locator('.bkband').getByText('いまバックアップ').tap()]); await q.waitForSelector('text=今日バックアップしました');
+  const bt2 = await q.locator('.bkband').textContent(); assert.ok(bt2.includes('（今日）') && bt2.includes('設定などが変わっています'), '同じ日に変えたら知らせる：' + bt2); await q.waitForTimeout(500);
+  await Promise.all([q.waitForEvent('download'), q.locator('.bkband').getByText('いまバックアップ').tap()]); await q.waitForSelector('text=バックアップしました');
   assert.equal(await q.locator('.quickbk').count(), 0, '合言葉なしの人は、パネルを出さずにそのまま書き出す');
   await q.goBack(); await q.waitForSelector('text=情報を直す');
   const t2 = await q.locator('.main').textContent();
