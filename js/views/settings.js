@@ -3,7 +3,7 @@ import { PART_FIGS, FIGS, REFLEX_SHAPES, REFLEX_FIGS, reflexSvg } from '../parts
 import { bodyPad } from '../bodymap.js';
 import { DEFAULT_REFLEX } from '../seed.js';
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, DEVICE, HERE, AUTO_NOTE } from '../ui.js';
-import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin, askPersist } from '../state.js';
+import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin, askPersist, markBackedUp } from '../state.js';
 import { choosePin, askPin } from './guest.js';
 import * as db from '../db.js';
 import { todayStr, daysBetween, ymd, jpDate, TRAITS, backupName } from '../logic.js';
@@ -474,7 +474,7 @@ export async function backupView() {
       // iPad・iPhone の「共有」の画面は、ボタンを押したその場でしか出せないので、できあがってからもう一度押してもらう
       fill(ready, h('div', { class: 'notice ok' }, 'バックアップができました。下のボタンで保存先をえらんでね。'),
         btn('保存先をえらぶ', async () => {
-          if (await handOver(text, backupName(S.settings.salonName, todayStr()))) { await db.setMeta('lastBackupAt', Date.now()); await db.setMeta('backupMode', o.pass ? 'lock' : 'open'); toast('書き出しました'); go('#/set/backup?' + Date.now()); }
+          if (await handOver(text, backupName(S.settings.salonName, todayStr()))) { await markBackedUp(); await db.setMeta('backupMode', o.pass ? 'lock' : 'open'); toast('書き出しました'); go('#/set/backup?' + Date.now()); }
         }, 'primary big wide'));
     } catch (e) { fill(ready); toast('書き出せませんでした：' + e.message); }
   };

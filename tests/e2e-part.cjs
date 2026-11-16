@@ -27,8 +27,6 @@ async function kit(b, opt, prefix) {
   return { skipStart, ctx, p, shot, tap, touchLine, noOverflow, drawOn, pin };
 }
 const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db.js'); await (await import('./js/state.js')).flush(); const id = location.hash.split('/')[2]; return db.get('visits', id); });
-// 0.13.0：とじるときに「バックアップしますか？」が出たら「あとで」
-const later = async (p) => { const d = p.getByText('あとで', { exact: true }); try { await d.waitFor({ timeout: 3000 }); await d.tap(); } catch { /* 出ないとき */ } };
 
 (async () => {
   const b = await chromium.launch();
@@ -69,7 +67,7 @@ const later = async (p) => { const d = p.getByText('あとで', { exact: true })
   assert.ok(await p.locator('.chip.on', { hasText: '手・足だけ' }).count(), 'ブレンドの目安が部位のもの'); assert.ok((await p.locator('.meter').textContent()).includes('手・足だけ（はじめての人） 1％まで'), '手・足だけ：1回目は はじめての人 1％（11/16 がっき〜：体と同じ）'); await shot('07-blend-hand');
   await p.goto(p.url().replace(/\/[^/]+$/, '/sejutsu')); await p.waitForSelector('text=施術するところ：');
   assert.ok(await p.locator('.warnbox .bodypad.pt').count(), '触れないで（×）が、施術の画面に部位の図で出る'); await shot('08-sejutsu-hand');
-  await p.goto(p.url().replace(/\/[^/]+$/, '/after')); await tap('できた（カルテをとじる）'); await later(p); await p.waitForSelector('.hist');
+  await p.goto(p.url().replace(/\/[^/]+$/, '/after')); await tap('できた（カルテをとじる）'); await p.waitForSelector('.hist');
   // お客さんのページ：これまでの記録に、部位の図
   assert.equal(await p.locator('.hist .slide').first().locator('.thumbs.pt .bodypad.pt').count(), 4); assert.ok(await p.locator('.hist .badge.part', { hasText: '手 だけ' }).count());
   assert.ok(await p.locator('.warnbox .notouchfig .bodypad.pt').count(), '触れないで（×）が、お客さんのページに出る'); await shot('09-customer-hand');
@@ -161,7 +159,7 @@ const later = async (p) => { const d = p.getByText('あとで', { exact: true })
   await ph.tap('次へ：気になるところ ›'); await q.waitForSelector('.zu.guest .bodypad.pt'); await ph.shot('02-kininaru-foot'); await ph.noOverflow('iPhone 図');
   await q.locator('.zuprev').tap(); await q.waitForSelector('.zu.full'); assert.equal(await q.locator('.zu .bodypad').count(), 1, 'iPhone は図を1つずつ'); await ph.drawOn('.zu .bodypad', 0); await ph.shot('03-full-foot');
   await q.locator('.fullview .chip', { hasText: '左足の甲' }).scrollIntoViewIfNeeded(); await q.locator('.fullview .chip', { hasText: '左足の甲' }).tap(); await ph.drawOn('.zu .bodypad', 0); await ph.shot('04-full-foot-top'); await ph.tap('‹ もどる（とじる）');
-  await q.goto(q.url().replace(/\/[^/]+$/, '/after')); await ph.tap('できた（カルテをとじる）'); await later(q); await q.waitForSelector('.hist'); await q.locator('.hist').scrollIntoViewIfNeeded(); await ph.shot('05-customer-foot'); await ph.noOverflow('iPhone お客さんのページ');
+  await q.goto(q.url().replace(/\/[^/]+$/, '/after')); await ph.tap('できた（カルテをとじる）'); await q.waitForSelector('.hist'); await q.locator('.hist').scrollIntoViewIfNeeded(); await ph.shot('05-customer-foot'); await ph.noOverflow('iPhone お客さんのページ');
   await q.locator('.hist button.thumbs').first().tap(); await q.waitForSelector('.bigfigs'); await ph.shot('06-bigfigs'); await ph.noOverflow('iPhone 図を大きく');
   await q.goto(BASE + '#/list'); await q.waitForSelector('.list'); assert.equal(await q.locator('.overlay').count(), 0, '開いたままのパネルは、画面を移ると閉じる');
 

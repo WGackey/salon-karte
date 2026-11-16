@@ -1,5 +1,4 @@
 import { h, fill, page, card, btn, badge, go, chips, field, group, input, textarea, toast, confirmDlg, sheet, isPhone, saveBadge } from '../ui.js';
-import { closeNudge } from '../nudge.js';
 import { S, saveSettings, person, visitsOf, saveVisit, deleteVisit, saveSoon, saveCustomer, saveMaster, recount, blankCustomer } from '../state.js';
 import * as db from '../db.js';
 import { jpDate, todayStr, addDays, blendCalc, limitFor, isFirstBlend, limitLevel, maxDrops, pickOils, pickCarriers, traitText, allergyHits, effectiveConds, noTouchAll } from '../logic.js';
@@ -140,27 +139,44 @@ export async function visitView(id, step) {
       let tab = 'oil', famSel = [...(v.interview.famLikes || [])].filter((id) => S.settings.families.some((f) => f.id === id)), ownedOnly = false;
       const listBox = h('div'); const headBox = h('div', { class: 'step' });
       // 精油とキャリアオイルで同じ形のカードを使う。kind：hit 候補／buy 次に買う／out 外した／rest そのほか
+      // 0.14.0（11/17 がっき〜）：はじめは名前の1行だけ。名前を押すと説明が開く（もう一度押すととじる）。「使う」は右のボタンだけ（説明を見るのと混ざらない）
+      const openIds = new Set();
       const itemCard = (r, kind) => {
         const isOil = tab === 'oil'; const it = r.oil; const f = isOil ? fam(it.family) : null; const on = isOil ? hasOil(it.id) : hasCar(it.id);
+        const open = openIds.has(it.id);
         const own = h('button', { type: 'button', class: 'mini' + (it.owned ? ' on' : '') }, it.owned ? '✓ 手持ち' : '手持ちにする');
         own.onclick = async () => { it.owned = !it.owned; await saveMaster(isOil ? 'oils' : 'carriers', it); draw(); };
         const use = btn(on ? '✓ 使う' : kind === 'out' ? 'それでも使う' : '使う', async () => {
           if (!on && kind === 'out' && !(await confirmDlg(`${it.name} は、次の理由で外してあります。\n\n・${r.blocks.join('\n・')}\n\nそれでも使いますか？（決めるのは施術する人です）`, '使う', true))) return;
           isOil ? toggleOil(it) : toggleCar(it); draw();
-        }, on ? 'primary' : kind === 'out' ? 'ghost' : '');
+        }, 'oil-use ' + (on ? 'primary' : kind === 'out' ? 'ghost' : ''));
         // キャリアオイルは、特徴と成分（割合が資料にないものは名前だけ）
         const traits = isOil ? [] : [...traitText(it), ...Object.entries(it.fatty || {}).map(([fid, n]) => { const f = (S.settings.fats || []).find((x) => x.id === fid); return f ? f.name + (typeof n === 'number' ? ` 約${n}％` : '') : ''; }).filter(Boolean)];
-        return h('div', { class: 'oil ' + kind + (on ? ' picked' : ''), style: { '--fam': f ? f.color : '#c9b98f' } },
-          h('div', { class: 'grow' },
-            h('div', { class: 'name' }, it.name, ' ', f && f.name ? h('span', { class: 'famtag' }, f.name) : null, it.ref === false ? badge('資料にない', 'amber') : it.draft ? badge('下書き', 'draft') : null),
-            traits.length ? h('div', { class: 'traits' }, traits.map((t) => h('span', { class: 'trait' }, t))) : null,
-            r.blocks.length ? h('ul', { class: 'why out' }, r.blocks.map((t) => h('li', null, '外した理由：' + t))) : null,
-            (r.warns || []).length ? h('ul', { class: 'why warn' }, r.warns.map((t) => h('li', null, '⚠ ' + t))) : null,
-            r.reasons.length ? h('ul', { class: 'why' }, r.reasons.slice(0, 3).map((t) => h('li', null, t))) : null,
-            r.reasons.length > 3 ? h('details', { class: 'more' }, h('summary', null, `ほかの理由（${r.reasons.length - 3}）`), h('ul', { class: 'why' }, r.reasons.slice(3).map((t) => h('li', null, t)))) : null,
-            it.ref === false ? h('div', { class: 'muted small' }, `はじめの資料にない${isOil ? '精油' : 'オイル'}なので、候補の点数には入れていません（気をつける点は見ています）。`) : null,
-            it.note ? h('div', { class: 'muted small' }, it.note) : null),
-          h('div', { class: 'oil-act' }, use, own));
+        // とじているときも見せる短い1行：外した理由（安全のため、とじていても1つめは見せる）・気をつける点があるか・手持ちか
+        const peek = r.blocks.length ? h('div', { class: 'peek out' }, '外した理由：' + r.blocks[0] + (r.blocks.length > 1 ? ` ほか${r.blocks.length - 1}つ` : ''))
+          : (r.warns || []).length ? h('div', { class: 'peek warn' }, `⚠ 気をつける点が${r.warns.length}つあります`) : null;
+        const body = h('div', { class: 'oil-body' },
+          traits.length ? h('div', { class: 'traits' }, traits.map((t) => h('span', { class: 'trait' }, t))) : null,
+          r.blocks.length ? h('ul', { class: 'why out' }, r.blocks.map((t) => h('li', null, '外した理由：' + t))) : null,
+          (r.warns || []).length ? h('ul', { class: 'why warn' }, r.warns.map((t) => h('li', null, '⚠ ' + t))) : null,
+          r.reasons.length ? h('ul', { class: 'why' }, r.reasons.map((t) => h('li', null, t))) : null,
+          it.ref === false ? h('div', { class: 'muted small' }, `はじめの資料にない${isOil ? '精油' : 'オイル'}なので、候補の点数には入れていません（気をつける点は見ています）。`) : null,
+          it.note ? h('div', { class: 'muted small' }, it.note) : null,
+          h('div', { class: 'row' }, own));
+        body.hidden = !open;
+        const head = h('button', { type: 'button', class: 'oil-head', 'aria-expanded': String(open) },
+          h('span', { class: 'tri' }, open ? '▾' : '▸'),
+          h('span', { class: 'grow' },
+            h('span', { class: 'name' }, it.name, ' ', f && f.name ? h('span', { class: 'famtag' }, f.name) : null, it.owned ? badge('手持ち', '') : null, it.ref === false ? badge('資料にない', 'amber') : it.draft ? badge('下書き', 'draft') : null),
+            peek, h('span', { class: 'muted small opentext' }, open ? 'とじる' : '説明を見る')));
+        const box = h('div', { class: 'oil ' + kind + (on ? ' picked' : '') + (open ? ' open' : ''), style: { '--fam': f ? f.color : '#c9b98f' } },
+          h('div', { class: 'oil-row' }, head, use), body);
+        head.onclick = () => {
+          const now = !openIds.has(it.id); if (now) openIds.add(it.id); else openIds.delete(it.id);
+          body.hidden = !now; box.classList.toggle('open', now); head.setAttribute('aria-expanded', String(now));
+          head.querySelector('.tri').textContent = now ? '▾' : '▸'; head.querySelector('.opentext').textContent = now ? 'とじる' : '説明を見る';
+        };
+        return box;
       };
       const draw = () => {
         const isOil = tab === 'oil'; const word = isOil ? '精油' : 'キャリアオイル';
@@ -341,7 +357,7 @@ export async function visitView(id, step) {
   const finish = async () => {
     v.status = 'done'; v.copied = false; saveSoon(null); await saveVisit(v); await recount(p.id);
     toast('カルテをとじました（保存済み）');
-    closeNudge(() => go(`#/c/${p.id}`)); // 7日以上バックアップしていなければ「バックアップしますか？」
+    go(`#/c/${p.id}`); // 0.14.0：とじるときの「バックアップしますか？」はやめた（ホームのいちばん上で知らせる）
   };
   const phase = STEPS[idx][2];
   const stepBtn = ([k, name], i) => h('a', { class: 'stepbtn' + (k === step ? ' on' : ''), href: `#/v/${id}/${k}` }, h('span', { class: 'num' }, String(i + 1)), name);
