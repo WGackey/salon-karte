@@ -246,20 +246,25 @@ export async function count(store) { const db = await openDb(); return req(db.tr
 export async function byIndex(store, index, key) {
   const db = await openDb(); return req(db.transaction(store).objectStore(store).index(index).getAll(key));
 }
+// 0.13.1：データを書くたびに「最後に変えたとき」（meta の lastChangeAt）を同じ書きこみの中で残す。
+// バックアップのあとに変わったものがあるかを見るため（毎日バックアップの知らせ）。meta は設定（settings）だけを数える
+const counts = (store, key) => store !== 'meta' || key === 'settings';
+const mark = (tx) => tx.objectStore('meta').put({ key: 'lastChangeAt', value: Date.now() });
+const wtx = (db, stores) => db.transaction([...new Set([...stores, 'meta'])], 'readwrite');
 export async function put(store, obj) {
-  const db = await openDb(); const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).put(obj); return done(tx);
+  const db = await openDb(); const tx = wtx(db, [store]); tx.objectStore(store).put(obj); if (counts(store, obj && obj.key)) mark(tx); return done(tx);
 }
 export async function bulkPut(store, arr) {
-  const db = await openDb(); const tx = db.transaction(store, 'readwrite'); const os = tx.objectStore(store);
-  for (const o of arr) os.put(o); return done(tx);
+  const db = await openDb(); const tx = wtx(db, [store]); const os = tx.objectStore(store);
+  for (const o of arr) os.put(o); if (store !== 'meta' && arr.length) mark(tx); return done(tx);
 }
 export async function del(store, id) {
-  const db = await openDb(); const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).delete(id); return done(tx);
+  const db = await openDb(); const tx = wtx(db, [store]); tx.objectStore(store).delete(id); if (counts(store, id)) mark(tx); return done(tx);
 }
 // いくつかの入れ物をまとめて書く（途中で失敗したら全部なかったことになる）
 export async function batch(stores, fn) {
-  const db = await openDb(); const tx = db.transaction(stores, 'readwrite');
-  fn(Object.fromEntries(stores.map((s) => [s, tx.objectStore(s)]))); return done(tx);
+  const db = await openDb(); const tx = wtx(db, stores);
+  fn(Object.fromEntries(stores.map((s) => [s, tx.objectStore(s)]))); if (stores.some((s) => s !== 'meta')) mark(tx); return done(tx);
 }
 export async function getMeta(key, fallback = null) { const r = await get('meta', key); return r ? r.value : fallback; }
 export async function setMeta(key, value) { return put('meta', { key, value }); }
