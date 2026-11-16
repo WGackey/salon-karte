@@ -60,7 +60,7 @@ if (require.main === module) (async () => {
     await p.evaluate(async () => { const db = await import('./js/db.js'); const st = await db.getMeta('settings'); delete st.onboard; delete st.staffName; delete st.reflex; await db.setMeta('settings', st); await db.setMeta('dataVersion', 6);
       });
     await p.reload(); await p.waitForSelector('.home-top'); const s6 = await k.settings();
-    assert.equal(await p.evaluate(async () => (await import('./js/db.js')).getMeta('dataVersion')), 9); assert.equal(s6.onboard.done, true); assert.equal(s6.staffName, ''); assert.equal(s6.reflex.show, false); assert.equal(s6.salonName, 'みほん/サロン');
+    assert.equal(await p.evaluate(async () => (await import('./js/db.js')).getMeta('dataVersion')), 10); assert.equal(s6.onboard.done, true); assert.equal(s6.staffName, ''); assert.equal(s6.reflex.show, false); assert.equal(s6.salonName, 'みほん/サロン');
     // --- 反射区：はじめは出さない → 所見の足の裏で切りかえ → 名前・色を直す → お客さんの図には出ない ---
     await tap('＋ 新しいお客さん'); await p.getByPlaceholder('山田 花子').fill('見本 あしつぼ'); await tap('保存する'); await p.waitForSelector('.handbtn');
     await tap('今日の来店をはじめる'); await p.waitForSelector('.scopepick');

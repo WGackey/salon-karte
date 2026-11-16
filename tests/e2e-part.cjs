@@ -64,7 +64,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   v = await visitOf(p); assert.equal(v.guestFigures.hand_palm_r.length, 1); assert.equal(v.guestFigures.hand_back_l.length, 1); assert.equal(v.figures.hand_palm_l.length, 1); assert.equal(v.figures.hand_back_l.length, 1); assert.equal(v.figures.front.length, 0);
   // ブレンド：目安が「手・足だけ」
   await p.goto(p.url().replace(/\/[^/]+$/, '/blend')); await p.waitForSelector('.meter');
-  assert.ok(await p.locator('.chip.on', { hasText: '手・足だけ' }).count(), 'ブレンドの目安が部位のもの'); await shot('07-blend-hand');
+  assert.ok(await p.locator('.chip.on', { hasText: '手・足だけ' }).count(), 'ブレンドの目安が部位のもの'); assert.ok((await p.locator('.meter').textContent()).includes('手・足だけ（はじめての人） 1％まで'), '手・足だけ：1回目は はじめての人 1％（11/16 がっき〜：体と同じ）'); await shot('07-blend-hand');
   await p.goto(p.url().replace(/\/[^/]+$/, '/sejutsu')); await p.waitForSelector('text=施術するところ：');
   assert.ok(await p.locator('.warnbox .bodypad.pt').count(), '触れないで（×）が、施術の画面に部位の図で出る'); await shot('08-sejutsu-hand');
   await p.goto(p.url().replace(/\/[^/]+$/, '/after')); await tap('できた（カルテをとじる）'); await p.waitForSelector('.hist');
@@ -100,7 +100,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
     await db.batch(['menus', 'visits', 'meta'], (os) => { ms.forEach((m) => os.menus.put(m)); vs.forEach((x) => os.visits.put(x)); os.meta.put({ key: 'settings', value: st }); os.meta.put({ key: 'dataVersion', value: 5 }); }); });
   await p.reload(); await p.waitForSelector('.home-top');
   const mig = await p.evaluate(async () => { const db = await import('./js/db.js'); const st = await db.getMeta('settings'); return { ver: await db.getMeta('dataVersion'), parts: st.parts.length, menus: (await db.all('menus')).map((m) => m.scope), n: (await db.all('visits')).length }; });
-  assert.deepEqual(mig, { ver: 9, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 10, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
   await p.goto(BASE + `#/v/${vid}/monshin`); await p.waitForSelector('.scopepick'); assert.ok(await p.locator('.scopesel .wholechip.on').count(), '0.6.0 のカルテは全身として開く');
 
   // ---------- ② 経過のページ ----------

@@ -1,7 +1,7 @@
 // 計算の部品のテスト。動かし方： node --test tests/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ageOf, addDays, daysBetween, blendCalc, maxDrops, limitFor, limitLevel, pickOils, pickCarriers, allergyHits, searchPeople, effectiveConds, noTouchOf, consentState } from '../js/logic.js';
+import { ageOf, addDays, daysBetween, blendCalc, maxDrops, limitFor, limitLevel, isFirstBlend, pickOils, pickCarriers, allergyHits, searchPeople, effectiveConds, noTouchOf, consentState } from '../js/logic.js';
 import { migrateDump, MIGRATIONS, DATA_VERSION } from '../js/db.js';
 import { DEFAULT_SETTINGS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_CARRIERS, OLD_ONLY_OILS } from '../js/seed.js';
 
@@ -35,7 +35,7 @@ test('目安：部位と状態のうち低いほう。未設定なら「目安�
   const st = { ...DEFAULT_SETTINGS, stateLimits: { c_old: 0.5 } };
   assert.equal(limitFor(st, 'a_body', []).max, 5, '資料：全身 5％まで'); assert.equal(limitFor(st, 'a_face', []).max, 3, '資料：顔 3％まで'); assert.equal(limitFor(st, 'a_spot', []).max, 10, '資料：部分ぬり 10％まで');
   assert.equal(limitFor(st, 'a_body', ['c_old']).max, 0.5);
-  assert.equal(limitFor(st, 'a_part', []).max, null);
+  assert.equal(limitFor(st, 'a_part', []).max, 5, '手・足だけは体と同じ（11/16 がっき〜）');
   assert.equal(limitLevel(1.2, 1), 'over'); assert.equal(limitLevel(0.95, 1), 'near'); assert.equal(limitLevel(0.5, 1), 'ok'); assert.equal(limitLevel(0.5, null), 'unknown');
 });
 const pick = (o) => pickOils({ oils: DEFAULT_OILS, cats: DEFAULT_CATS, settings: DEFAULT_SETTINGS, symptoms: [], condIds: [], avoidOilIds: [], allergyText: '', ...o });
@@ -371,23 +371,67 @@ test('バックアップのファイル名：お店の名前が頭につく・�
   assert.equal(backupName(' みほん/サロン: A ', '2026-11-15'), 'みほん_サロン_A_カルテのバックアップ_2026-11-15.json');
 });
 
-test('版8への移し替え：来店に staffEdits の入れ物。だれが書いたか（intake）はさわらない（無い回は「記録なし」）', async () => {
-  const { intakeInfo } = await import('../js/logic.js');
+test('版8への移し替え：来店に staffEdits の入れ物。だれが書いたか（intake）・前の線はさわらない', async () => {
   const v7 = { dataVersion: 7, stores: { visits: [{ id: 'a', intake: null, guestFigures: { front: [{ m: 'm_pain', w: 6, p: [1, 2] }] } }, { id: 'b', intake: { by: 'guest', at: '2026-11-15T01:00:00Z' } }] } };
   const d = migrateDump(v7, MIGRATIONS, DATA_VERSION);
   assert.equal(d.dataVersion, DATA_VERSION);
   assert.deepEqual(d.stores.visits[0].staffEdits, {}); assert.equal(d.stores.visits[0].intake, null, 'うその印をつけない');
   assert.equal(d.stores.visits[0].guestFigures.front[0].by, undefined, '前の線に by を足さない');
-  assert.equal(intakeInfo(d.stores.visits[0]).kind, 'unknown'); assert.equal(intakeInfo(d.stores.visits[0]).text, 'だれが書いたかの記録なし');
-  assert.equal(intakeInfo(d.stores.visits[1]).text, 'お客さんが自分で書いた');
+  assert.deepEqual(d.stores.visits[1].intake, { by: 'guest', at: '2026-11-15T01:00:00Z' }, '入っているデータは壊さない（0.11.0 から画面には出さない）');
 });
-test('だれが書いたか：お客さんが書いた回に、施術する人が直したらん・足した×が出る／聞き取った回', async () => {
-  const { intakeInfo } = await import('../js/logic.js');
-  const g = intakeInfo({ intake: { by: 'guest' }, staffEdits: { symptoms: 'x', wish: 'y', bogus: 'z' }, guestFigures: { back: [{ m: 'm_notouch', by: 'staff', p: [] }, { m: 'm_pain', p: [] }] } });
-  assert.deepEqual(g.edits, ['つらいところ', 'お客さんから伝えたいこと']); assert.equal(g.xByStaff, 1);
-  assert.match(g.text, /施術者が書き足した：つらいところ・お客さんから伝えたいこと/); assert.match(g.text, /施術者が1つ足した/);
-  assert.equal(intakeInfo({ intake: { by: 'staff' } }).text, '施術者が聞き取って書いた');
-  assert.equal(intakeInfo(null).kind, 'unknown');
+test('だれが書いたかは画面に出さない（11/16 がっき〜：お客さんの所見と施術者の所見の2通りだけ）', async () => {
+  const L = await import('../js/logic.js');
+  assert.equal(L.intakeInfo, undefined); assert.equal(L.EDIT_LABELS, undefined);
+});
+test('はじめての人の目安：体 1％・顔 0.5％（下書き）。1回目の来店は、はじめからこちら。施術する人が切りかえられる', () => {
+  const st = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  const a = Object.fromEntries(st.areas.map((x) => [x.id, x]));
+  assert.equal(a.a_body.firstMax, 1); assert.equal(a.a_face.firstMax, 0.5); assert.ok(!a.a_body.firstDraft && !a.a_face.firstDraft, '決まった数字（下書きではない）');
+  assert.equal(a.a_part.max, 5, '手・足だけは体と同じ 5％'); assert.equal(a.a_part.firstMax, 1, 'はじめての人も体と同じ 1％');
+  assert.equal(limitFor(st, 'a_body', [], { first: true }).max, 1); assert.equal(limitFor(st, 'a_body', [], { first: true }).by, '体（はじめての人）');
+  assert.equal(limitFor(st, 'a_body', []).max, 5, 'ふつうは 5％');
+  assert.equal(limitFor(st, 'a_face', [], { first: true }).max, 0.5);
+  assert.equal(limitFor(st, 'a_spot', [], { first: true }).max, 10, 'はじめての人の数字がない部位は、ふつうの目安');
+  assert.equal(limitFor(st, 'a_part', [], { first: true }).max, 1);
+  st.stateLimits.c_old = 0.5; assert.equal(limitFor(st, 'a_body', ['c_old'], { first: true }).max, 0.5, '状態ごとの目安と、低いほう');
+  assert.equal(isFirstBlend({}, 1), true, '1回目は、はじめての人'); assert.equal(isFirstBlend({}, 2), false);
+  assert.equal(isFirstBlend({ first: false }, 1), false, '施術する人が切りかえたら、それ'); assert.equal(isFirstBlend({ first: true }, 3), true);
+  // 1回目のブレンド：30ml に 8滴（約1.3％）は、はじめての人の目安をこえる・2回目からなら目安の中
+  const c = blendCalc({ oils: [{ drops: 8 }], carriers: [{ ml: 30 }] }, 0.05);
+  assert.equal(limitLevel(c.pct, limitFor(st, 'a_body', [], { first: isFirstBlend({}, 1) }).max), 'over'); assert.equal(limitLevel(c.pct, limitFor(st, 'a_body', [], { first: isFirstBlend({}, 2) }).max), 'ok');
+});
+test('敏感肌：問診の「肌の状態」でも「お客さんの情報」でも、同じに扱う（アルニカを外す・アプリコットなどを候補に）', () => {
+  const st = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  assert.ok(st.skins.some((x) => x.id === 'sk_sensitive' && x.name === '敏感肌'));
+  const today = effectiveConds({ settings: st, det: {}, visit: { conds: [], interview: { skins: ['sk_sensitive'] } } });
+  assert.ok(today.ids.includes('c_skin')); assert.equal(today.auto.c_skin, '今日の肌の状態');
+  const always = effectiveConds({ settings: st, det: { conds: ['c_skin'] }, visit: { conds: [], interview: { skins: [] } } });
+  assert.ok(always.ids.includes('c_skin')); assert.equal(always.auto.c_skin, undefined);
+  const pick = (skins, condIds) => Object.fromEntries(pickCarriers({ carriers: DEFAULT_CARRIERS, skins, purposes: [], condIds, allergyTags: [], allergyText: '', avoidIds: [], settings: st }).map((r) => [r.oil.id, r]));
+  for (const e of [pick(['sk_sensitive'], today.ids), pick([], always.ids)]) {
+    for (const id of ['k_apricot', 'k_peach', 'k_calendula']) assert.ok(e[id].score > 0 && e[id].reasons.some((t) => t.includes('敏感肌')), id);
+    assert.ok(e.k_arnica.blocks.length > 0, 'アルニカは外す'); assert.equal(e.k_jojoba.reasons.some((t) => t.includes('敏感肌')), false);
+  }
+  assert.equal(pick([], []).k_apricot.reasons.some((t) => t.includes('敏感肌')), false, '敏感肌でなければ理由に出ない');
+});
+test('版10への移し替え：はじめての人の目安と、肌の状態の敏感肌を足す。直した・確かめたものはさわらない', () => {
+  const v9 = { dataVersion: 9, stores: {
+    carriers: [
+      { id: 'k_apricot', skins: ['sk_dry'], draft: true }, { id: 'k_peach', skins: ['sk_dry', 'sk_age'], draft: true },
+      { id: 'k_calendula', skins: ['sk_dry'], draft: false }, { id: 'mine', skins: ['sk_dry'], draft: true },
+    ],
+    meta: [{ key: 'settings', value: { areas: [{ id: 'a_body', name: '体', max: 5, draft: true }, { id: 'a_face', name: '顔', max: 2 }, { id: 'a_part', name: '手・足だけ', max: null }, { id: 'x', name: '自分で足した手', max: 3 }],
+      skins: [{ id: 'sk_dry', name: 'かさかさ' }, { id: 'sk_normal', name: 'ふつう' }] } }],
+  } };
+  const d = migrateDump(v9, MIGRATIONS, DATA_VERSION); const c = Object.fromEntries(d.stores.carriers.map((x) => [x.id, x]));
+  assert.deepEqual(c.k_apricot.skins, ['sk_dry', 'sk_sensitive']); assert.deepEqual(c.k_peach.skins, ['sk_dry', 'sk_age'], '直したオイルはさわらない');
+  assert.deepEqual(c.k_calendula.skins, ['sk_dry'], '確かめたオイルはさわらない'); assert.deepEqual(c.mine.skins, ['sk_dry']);
+  const st = d.stores.meta[0].value; const a = Object.fromEntries(st.areas.map((x) => [x.id, x]));
+  assert.equal(a.a_body.firstMax, 1); assert.equal(a.a_body.firstDraft, undefined); assert.equal(a.a_face.firstMax, 0.5); assert.equal(a.a_face.max, 2, '直した数字は残す');
+  assert.equal(a.a_part.max, 5, '空きのままの手・足だけは 5％（体と同じ）'); assert.equal(a.a_part.firstMax, 1);
+  assert.deepEqual(a.x, { id: 'x', name: '自分で足した手', max: 3 }, '自分で足した部位はさわらない');
+  assert.deepEqual(st.skins.map((x) => x.id), ['sk_dry', 'sk_sensitive', 'sk_normal']); assert.equal(st.skins[0].name, 'かさかさ', '直した言葉は残す');
+  assert.deepEqual(migrateDump(d, MIGRATIONS, DATA_VERSION).stores, d.stores, '2回かけても変わらない');
 });
 
 test('版9への移し替え：キャリアオイルと濃度の目安を資料に。使う人が直したらん・確かめたオイル・直した目安は残す', () => {
@@ -406,7 +450,7 @@ test('版9への移し替え：キャリアオイルと濃度の目安を資料�
   assert.deepEqual(c.k_tsubaki.fatty, { ole: 85 }, '確かめたオイルはさわらない'); assert.equal(c.mine.name, '自分の油');
   assert.ok(c.k_olive && c.k_stjohns, '資料にある新しい油が入る'); assert.equal(c.k_argan.ref, false, '資料にない油はしるし');
   const st = d.stores.meta[0].value; const ar = Object.fromEntries(st.areas.map((a) => [a.id, a.max]));
-  assert.deepEqual(ar, { a_body: 5, a_face: 1, a_part: null, a_spot: 10 }, '下書きのままの「体 1％」は資料の5％に。直した「顔」はそのまま。手・足は空けたまま');
+  assert.deepEqual(ar, { a_body: 5, a_face: 1, a_part: 5, a_spot: 10 }, '下書きのままの「体 1％」は資料の5％に。直した「顔」はそのまま。手・足は版10で体と同じ 5％');
   assert.ok(st.fats.some((f) => f.id === 'gla'));
   assert.deepEqual(migrateDump(d, MIGRATIONS, DATA_VERSION).stores, d.stores, '2回かけても変わらない');
 });

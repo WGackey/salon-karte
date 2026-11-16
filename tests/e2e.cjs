@@ -56,7 +56,8 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
 
   // --- からだの図：指でなぞる ---
   await tap('次へ：気になるところ ›'); await p.waitForSelector('.zu.guest');
-  assert.ok((await p.locator('.whobar').textContent()).includes('施術者が聞き取って書いた'), '「今日の来店をはじめる」で始めた回は「施術者が聞き取って書いた」');
+  assert.equal(await p.locator('.whobar, .bystaff').count(), 0, '0.11.0：「書いた人」の帯は出さない（お客さんの所見／施術者の所見の2つだけ）');
+  assert.ok((await p.locator('.zuprev').textContent()).includes('お客さんの所見'), '気になるところ＝お客さんの所見');
   await tap('後半へ：所見 ›'); await p.waitForSelector('.zu.staff'); await p.waitForSelector('.zuprev .bodypad');
   // 0.9.0：来店の流れの中は小さな図（見るだけ）。小さな図の上ではなぞれない → 押すと画面いっぱいで開いて書ける
   assert.equal(await p.locator('.zuprev .bodypad.ro').count(), 2, '小さな図は見るだけ'); assert.equal(await p.locator('.toolbar:visible').count(), 0, '小さな図のときは道具を出さない');
@@ -122,10 +123,11 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await shot('06b-carrier');
 
   // --- ブレンド ---
-  // 0.10.0：はじめの目安は資料の数字（体 5％・顔 3％・部分ぬり 10％・手足は空き）。ここからは使う人が「体 1％」に直した場合で試す（直した値で動く）
-  assert.deepEqual(await p.evaluate(async () => (await import('./js/state.js')).S.settings.areas.map((a) => [a.id, a.max])), [['a_body', 5], ['a_face', 3], ['a_part', null], ['a_spot', 10]]);
-  await p.evaluate(async () => { const st = await import('./js/state.js'); st.S.settings.areas[0].max = 1; delete st.S.settings.areas[0].draft; await st.saveSettings(); });
+  // 0.10.0：はじめの目安は資料の数字（体 5％・顔 3％・部分ぬり 10％・手足は空き）。0.11.0：はじめての人（体 1％・顔 0.5％・下書き）
+  assert.deepEqual(await p.evaluate(async () => (await import('./js/state.js')).S.settings.areas.map((a) => [a.id, a.max, a.firstMax ?? null])), [['a_body', 5, 1], ['a_face', 3, 0.5], ['a_part', 5, 1], ['a_spot', 10, null]]);
   await tap('次へ：ブレンド ›'); await p.waitForSelector('.meter');
+  // 1回目の来店なので、はじめから「はじめての人の目安（1％）」で見る
+  assert.ok(await p.locator('.firstsel.on').count(), '1回目は、はじめての人の目安'); assert.ok((await p.locator('.meter').textContent()).includes('体（はじめての人） 1％まで'));
   assert.equal((await p.locator('.meter .pct').textContent()).trim(), '0.3％', '30ml に 2滴で 0.3％');
   await tap('＋ キャリアオイルをえらぶ'); assert.ok(await p.getByText('⚠ スイートアーモンドオイル（持っていない）').count(), 'えらぶ一覧でも注意が出る'); await tap('とじる');
   assert.ok(await p.getByText('この量なら 6滴まで', { exact: false }).count(), '目安までの滴数が出る');
@@ -135,6 +137,11 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await plus.tap(); assert.equal((await p.locator('.meter .pct').textContent()).trim(), '1.2％');
   assert.ok(await p.locator('.meter.over').count(), '目安をこえたら色が変わる');
   await shot('07-blend-over');
+  // 施術する人が1タップで、ふつうの目安（5％）に切りかえ → こえていない。もう1タップで戻る
+  await p.locator('.firstsel').tap(); assert.equal(await p.locator('.meter.over').count(), 0, 'ふつうの目安なら 1.2％ はこえない'); assert.ok((await p.locator('.meter').textContent()).includes('体 5％まで'));
+  await shot('07c-blend-normal');
+  await p.locator('.firstsel').tap(); assert.ok(await p.locator('.meter.over').count(), 'はじめての人の目安に戻る');
+  assert.equal(await p.evaluate(async () => { const st = await import('./js/state.js'); await st.flush(); const db = await import('./js/db.js'); return (await db.all('visits')).find((v) => v.blend.oils.length).blend.first; }), true, '切りかえたことが残る');
   const minus = p.locator('.brow:not(.car)').first().getByText('−'); for (let i = 0; i < 3; i++) await minus.tap();
   assert.ok(await p.locator('.meter.ok').count(), '目安の中にもどる');
   await tap('名前をつけて残す'); await p.getByPlaceholder('例：肩こり用・夜のリラックス').fill('夜のリラックス'); await tap('残す');
@@ -271,7 +278,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     return { ver: await db.getMeta('dataVersion'), sun: cn.c_sun, mens: cn.c_mens, jojoba: [cs.k_jojoba.name, cs.k_jojoba.fatty.wax, cs.k_jojoba.draft], tsubakiOwned: cs.k_avocado.owned, argan: !!cs.k_argan, n: Object.keys(cs).length,
       tags: (await db.all('details'))[0].allergyTags, skins: (await db.all('visits')).map((v) => v.interview.skins.length), syms: (await db.all('visits')).map((v) => v.interview.symptoms.length) };
   });
-  assert.deepEqual(mig, { ver: 9, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', null, true], tsubakiOwned: true, argan: true, n: 23, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 10, sun: 'このあと屋外で過ごす予定がある（外出・屋外作業など）', mens: '生理中（自分で直した）', jojoba: ['ホホバ（自分で直した名前）', null, true], tsubakiOwned: true, argan: true, n: 23, tags: [], skins: [0, 0], syms: [3, 3] }, '版1 → 版4 の移し替え：' + JSON.stringify(mig));
   await p.goto(BASE + '#/set/carriers'); await p.waitForSelector('text=ホホバ（自分で直した名前）');
   // --- 版3（0.4.0 のころ）の精油のデータから、版4（資料の30本）へ。手持ち・確かめた精油は残る・資料にない精油は「資料にない」で残る ---
   await p.evaluate(async () => {
@@ -295,7 +302,7 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
     return { ver: await db.getMeta('dataVersion'), n: Object.keys(os).length, lav: [os.o_lavender.name, os.o_lavender.owned], ginger: [os.o_ginger.ref, os.o_ginger.owned, os.o_ginger.components.hyd], clary: [os.o_clary.name, os.o_clary.family, os.o_clary.components.est],
       cats: (await db.all('cats')).map((c) => c.id).sort().join(), fam: st.families.map((f) => f.name).join(), drive: st.conds.some((c) => c.id === 'c_drive'), acts: st.symptoms[0].acts.a_relax, iv: (await db.all('visits')).every((v) => Array.isArray(v.interview.famLikes)) };
   });
-  assert.deepEqual(mig4, { ver: 9, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
+  assert.deepEqual(mig4, { ver: 10, n: 31, lav: ['ラベンダー・アングスティフォリア', true], ginger: [false, true, 80], clary: ['クラリセージ（確かめた）', 'f_flower', 65],
     cats: 'alc,ald,est,hyd,ket,oxi,phe', fam: '樹木系,花穂系,柑橘系', drive: true, acts: 2, iv: true }, '版3 → 版4 の移し替え：' + JSON.stringify(mig4));
   await p.goto(BASE + '#/set/oils'); await p.waitForSelector('text=ラベンダー・アングスティフォリア'); assert.ok(await p.getByText('資料にない').count(), '資料にない精油のしるし');
   // 移し替えたあとのカルテで、精油の候補の画面が開ける
@@ -312,19 +319,19 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await p.goto(BASE + '#/'); await p.reload(); await p.waitForSelector('.home-top');
   const mig5 = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); const v = await db.get('visits', id);
     return { ver: await db.getMeta('dataVersion'), n: v.figures.front.length + v.figures.back.length, g: v.guestFigures, intake: v.intake, wish: v.interview.wish, hand: st.S.settings.handover, pin: st.hasPin(), all: (await db.all('visits')).every((x) => x.guestFigures && x.figures) }; }, v4.id);
-  assert.deepEqual(mig5, { ver: 9, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
+  assert.deepEqual(mig5, { ver: 10, n: v4.n, g: { front: [], back: [] }, intake: null, wish: '', hand: { first: 'guest', repeat: 'staff' }, pin: false, all: true }, '版4 → 版5 の移し替え：' + JSON.stringify(mig5));
   await p.goto(BASE + `#/v/${v4.id}/shoken`); await p.waitForSelector('.zu.staff .bodypad'); assert.equal(await p.locator('.zu .strokes.own.staff > *').count(), v4.n, '0.5.0 の図が、施術する人の「所見」の図として出る');
   await p.goto(BASE + `#/v/${v4.id}/kininaru`); await p.waitForSelector('.zu.guest .bodypad'); assert.equal(await p.locator('.zu .strokes.own > *').count(), 0, 'お客さんの図は空で始まる');
   await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
   // 移し替えのしくみそのもの（次の版を足すとき用）
   const mig3 = await p.evaluate(async () => {
     const db = await import('./js/db.js');
-    const r = await db.migrateDb([{ to: 10, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 10);
+    const r = await db.migrateDb([{ to: 11, stores: { visits: (x) => ({ ...x, _test: 'moved' }) } }], 11);
     const ok = (await db.all('visits')).every((x) => x._test === 'moved'); const ver = await db.getMeta('dataVersion');
-    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 9);
+    const vs = await db.all('visits'); for (const x of vs) delete x._test; await db.bulkPut('visits', vs); await db.setMeta('dataVersion', 10);
     return { r, ok, ver };
   });
-  assert.deepEqual(mig3, { r: { from: 9, to: 10 }, ok: true, ver: 10 }, '版の移し替え');
+  assert.deepEqual(mig3, { r: { from: 10, to: 11 }, ok: true, ver: 11 }, '版の移し替え');
 
   // --- 見本 1,000人で速さを見る ---
   await p.goto(BASE + '#/set/sample'); await tap('見本を 1,000人 入れる'); await p.waitForSelector('text=入れました', { timeout: 120000 });
@@ -392,13 +399,18 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await touchLine([[gb.x + gb.width * 0.4, gb.y + gb.height * 0.25], [gb.x + gb.width * 0.5, gb.y + gb.height * 0.26], [gb.x + gb.width * 0.6, gb.y + gb.height * 0.25]]);
   await p.locator('.markbtn', { hasText: '触れないで（×）' }).tap(); await p.locator('.zu .bodypad').first().scrollIntoViewIfNeeded(); await p.waitForTimeout(300); gb = await p.locator('.zu .bodypad').first().boundingBox();
   await touchLine([[gb.x + gb.width * 0.45, gb.y + gb.height * 0.5], [gb.x + gb.width * 0.5, gb.y + gb.height * 0.52]]);
-  assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, 'お客さんが図をなぞれる（×も）'); assert.equal(await p.getByText('消しゴム', { exact: false }).count(), 0, 'お客さん用の図は道具を少なく'); await shot('35-guest-m2'); await noOthers('図');
+  assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, 'お客さんが図をなぞれる（×も）'); assert.equal(await p.getByText('ぜんぶ消す').count(), 0, 'お客さん用の図は道具を少なく（ぜんぶ消すは出さない）');
+  // 0.11.0：お客さんも、まちがえた線を消しゴムで消せる
+  await p.locator('.markbtn').first().tap(); await touchLine([[gb.x + gb.width * 0.3, gb.y + gb.height * 0.85], [gb.x + gb.width * 0.36, gb.y + gb.height * 0.86]]);
+  assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 3);
+  await p.locator('.zu .fixes').getByText('消しゴム', { exact: false }).tap(); await touchLine([[gb.x + gb.width * 0.32, gb.y + gb.height * 0.85], [gb.x + gb.width * 0.34, gb.y + gb.height * 0.855]]);
+  assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, 'お客さんが、まちがえた線を消せる'); await shot('35-guest-m2'); await noOthers('図');
   await tap('‹ もどる（とじる）'); assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, 'とじると小さな図に出る');
   await gnext(); await tap('リラックスしたい'); await p.locator('.gcard textarea').fill('力は弱めでお願いします'); await shot('36-guest-m3');
   await gnext(); await p.waitForSelector('text=スタッフにお返しください'); await shot('37-guest-done');
   for (const hsh of ['#/', '#/set', '#/list']) { await p.evaluate((x) => { location.hash = x; }, hsh); await locked('書き終えたあと ' + hsh); }
   await tap('スタッフ：合言葉を入れてもどる'); await pin('2580'); await p.waitForSelector('.phasebar.guest');
-  assert.ok((await p.locator('.phasebar').textContent()).includes('お客さんが自分で書きました'), '戻ると、前半の画面に「お客さんが書いた」と出る'); await shot('38-back-to-staff');
+  assert.ok((await p.locator('.phasebar').textContent()).includes('お客さんに書いてもらいました'), '戻ると、前半の画面に「目を通して」と出る'); await shot('38-back-to-staff');
   const got = await p.evaluate(async () => { const db = await import('./js/db.js'); const c = (await db.all('customers')).find((x) => x.name === '渡す ためし'); const d = await db.get('details', c.id); const v = (await db.byIndex('visits', 'customerId', c.id))[0];
     return { id: c.id, vid: v.id, kana: c.kana, gender: d.gender, tel: d.tel, conds: d.conds, tags: d.allergyTags.length, bowel: d.life.bowel, cons: d.consents.length, intakeAt: !!d.intakeAt, sym: v.interview.symptoms, g: v.guestFigures.front.map((x) => x.m), staff: v.figures.front.length + v.figures.back.length, by: v.intake.by, wish: v.interview.wish, purposes: v.interview.purposes }; });
   assert.deepEqual({ ...got, id: 0, vid: 0 }, { id: 0, vid: 0, kana: 'わたす ためし', gender: '女性', tel: '000-0000-0000', conds: ['c_bp'], tags: 1, bowel: '快便', cons: 1, intakeAt: true, sym: [{ id: 's_kata', level: 8 }], g: ['m_pain', 'm_notouch'], staff: 0, by: 'guest', wish: '力は弱めでお願いします', purposes: ['リラックスしたい'] }, 'お客さんが書いた中身が残る：' + JSON.stringify(got));
@@ -412,26 +424,27 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await tap('‹ もどる（とじる）'); await p.waitForTimeout(300);
   const two = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); await st.flush(); const v = await db.get('visits', id); return [v.guestFigures.front.length, v.figures.front.length]; }, got.vid);
   assert.deepEqual(two, [2, 1], '2つの図は別々に残る');
-  // お客さんが書いて返した回：気になるところの図は、施術する人は見るだけ（×だけ足せる・「施術者」の札）。問診は直せて、直したらんに印
+  // 0.11.0：お客さんが書いて返した回でも、気になるところ（お客さんの所見）は施術する人が直せる。まちがえた線は消しゴム・ひとつ戻すで消せる
   await p.goto(BASE + `#/v/${got.vid}/kininaru`); await p.waitForSelector('.zuprev');
-  assert.ok((await p.locator('.whobar').textContent()).includes('お客さんが自分で書いた')); assert.ok(await p.getByText('所見の図に書く ›').count(), '所見に書くよう案内');
-  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full .zu-main .bodypad'); await p.waitForSelector('.locknote');
-  assert.deepEqual(await p.locator('.zu .markbtn').allTextContents(), ['触れないで（×）'], '足せるのは × だけ');
-  assert.equal(await p.getByText('ぜんぶ消す').count(), 0, 'お客さんの図をぜんぶ消せない');
-  await tap('消しゴム（線をえらぶ）'); { const r = await p.locator('.zu .bodypad').nth(0).boundingBox(); await touchLine([[r.x + r.width * 0.4, r.y + r.height * 0.25], [r.x + r.width * 0.5, r.y + r.height * 0.26], [r.x + r.width * 0.6, r.y + r.height * 0.25], [r.x + r.width * 0.47, r.y + r.height * 0.5], [r.x + r.width * 0.5, r.y + r.height * 0.52]]); }
-  assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, '消しゴムでもお客さんの線は消えない');
+  assert.equal(await p.locator('.whobar').count(), 0, '「書いた人」の帯は出さない');
+  await p.locator('.zuprev').tap(); await p.waitForSelector('.zu.full .zu-main .bodypad');
+  assert.equal(await p.locator('.locknote').count(), 0, '見るだけ（lock）はやめた'); assert.ok((await p.locator('.zu .markbtn').count()) > 1, 'どの色でも書ける');
+  assert.ok(await p.getByText('ぜんぶ消す').count(), '施術する人は「ぜんぶ消す」も使える');
+  await tap('消しゴム（線をえらぶ）'); { const r = await p.locator('.zu .bodypad').nth(0).boundingBox(); await touchLine([[r.x + r.width * 0.5, r.y + r.height * 0.26]]); }
+  assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 1, 'お客さんがまちがえた線を、施術する人が消せる');
+  await tap('↩ 戻す'); assert.equal(await p.locator('.zu .strokes.own.guest > *').count(), 2, '「戻す」で消した線が戻る');
   await tap('触れないで（×）'); { const r = await p.locator('.zu .bodypad').nth(1).boundingBox(); await touchLine([[r.x + r.width * 0.45, r.y + r.height * 0.6], [r.x + r.width * 0.5, r.y + r.height * 0.62]]); }
-  assert.equal(await p.locator('.zu .bytag').count(), 1, '施術する人が足した × に「施術者」の札'); await shot('38b-kininaru-lock');
+  assert.equal(await p.locator('.zu .bytag').count(), 0, '線ごとの「施術者」の札は出さない'); await shot('38b-kininaru-edit');
   await tap('‹ もどる（とじる）');
-  await p.goto(BASE + `#/v/${got.vid}/monshin`); await p.waitForSelector('.whobar'); assert.equal(await p.locator('.bystaff:not(:empty)').count(), 0);
-  await tap('乾燥しやすい'); assert.ok((await p.locator('.bystaff[data-k=skins]').textContent()).includes('施術者が書き足した'), '直したらんに印'); await shot('38c-monshin-edited');
-  const ed = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); await st.flush(); const v = await db.get('visits', id); return [Object.keys(v.staffEdits), v.guestFigures.back.map((x) => x.by || '')]; }, got.vid);
-  assert.deepEqual(ed, [['skins'], ['staff']], 'どのらんを直したか・だれが×を足したかが残る');
+  await p.goto(BASE + `#/v/${got.vid}/monshin`); await p.waitForSelector('.steps'); await tap('乾燥しやすい');
+  assert.equal(await p.locator('.bystaff, .whobar').count(), 0, '直したらんに「施術者が書き足した」は出さない'); await shot('38c-monshin-edited');
+  const ed = await p.evaluate(async (id) => { const db = await import('./js/db.js'); const st = await import('./js/state.js'); await st.flush(); const v = await db.get('visits', id); return [v.guestFigures.front.length, v.guestFigures.back.length, v.intake.by]; }, got.vid);
+  assert.deepEqual(ed, [2, 1, 'guest'], '書き足した × も残る・前からのデータ（intake）は壊さない');
   await p.goto(BASE + `#/v/${got.vid}/after`); await p.waitForSelector('text=つらさの変化'); await tap('できた（カルテをとじる）'); await p.waitForSelector('.hist');
   assert.ok(await p.locator('.hist .slide .strokes.under.guest').count() && await p.locator('.hist .slide .strokes.own.staff').count(), 'これまでの記録：両方を重ねて出す'); await shot('40-history-both');
   await p.locator('.figsel .chip', { hasText: '施術者' }).tap(); assert.equal(await p.locator('.hist .slide .strokes.under').count(), 0); assert.equal(await p.locator('.hist .slide .strokes.own.staff > *').count(), 1, '施術者の図だけ');
   await p.locator('.figsel .chip', { hasText: 'お客さん' }).tap(); assert.equal(await p.locator('.hist .slide .strokes.own.guest > *').count(), 3, 'お客さんの図だけ（施術する人が足した × も）');
-  assert.ok((await p.locator('.hist .slide').first().textContent()).includes('施術者が書き足した：肌の状態'), 'これまでの記録で、書いた人と直したらんが分かる'); await shot('40b-history-guest');
+  assert.ok(!(await p.locator('.hist .slide').first().textContent()).includes('書いた人'), 'これまでの記録に「書いた人」の行は出さない'); await shot('40b-history-guest');
   assert.ok(await p.locator('.foot .btn.primary', { hasText: '今日の来店をはじめる' }).count() && await p.locator('.foot .handbtn:not(.primary)').count(), '2回目からは「聞きながら書く」が大きく、「お客さんに渡す」も選べる');
   const nx = await p.evaluate(async (id) => { const st = await import('./js/state.js'); const v = await st.newVisit(id); const r = [v.guestFigures.front.map((x) => x.m), v.figures.front.length]; await st.deleteVisit(v); return r; }, got.id);
   assert.deepEqual(nx, [['m_notouch'], 0], 'お客さんの × は、次の来店のお客さんの図に写る');
@@ -481,7 +494,10 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await ph.noOverflow('オイルの候補'); await ph.shot('06-carrier');
   await ph.tap('次へ：ブレンド ›'); await q.waitForSelector('.meter');
   await q.getByText('20ml', { exact: true }).tap();
-  assert.ok(await q.getByText('この量なら 20滴まで', { exact: false }).count(), '20ml・はじめの目安（資料：体 5％）なら 20滴まで');
+  assert.ok(await q.getByText('この量なら 4滴まで', { exact: false }).count(), '1回目は、はじめての人の目安（体 1％）：20ml なら 4滴まで');
+  await ph.shot('07a-blend-first'); await ph.noOverflow('ブレンド（はじめての人の目安）');
+  await q.locator('.firstsel').tap();
+  assert.ok(await q.getByText('この量なら 20滴まで', { exact: false }).count(), '1タップでふつうの目安（資料：体 5％）に。20ml なら 20滴まで');
   await q.evaluate(async () => { const st = await import('./js/state.js'); await st.flush(); st.S.settings.areas[0].max = 1; delete st.S.settings.areas[0].draft; await st.saveSettings(); }); // ここからは使う人が「体 1％」に直した場合
   await q.reload(); await q.waitForSelector('.meter');
   assert.equal((await q.locator('.meter .pct').textContent()).trim(), '0.3％', '20ml に 1滴で 0.25％');

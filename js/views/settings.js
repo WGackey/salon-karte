@@ -274,16 +274,20 @@ export function partsView() {
 export function limitsView() {
   const st = S.settings; const save = () => saveSettings();
   const areaBox = h('div');
-  const drawAreas = () => fill(areaBox, ...st.areas.map((a) => h('div', { class: 'edit-row' },
+  // 1つの部位に2行：ふつうの目安／はじめての人の目安（0.11.0。空けると、はじめての人も ふつうの目安で見る）
+  const drawAreas = () => fill(areaBox, ...st.areas.map((a) => h('div', { class: 'arearow' }, h('div', { class: 'edit-row' },
     input(a, 'name', { onInput: save, cls: 'grow', placeholder: '部位の名前' }),
     h('span', { class: 'row tight' }, numIn(a, 'max', { onInput: () => { delete a.draft; save(); }, placeholder: '空き' }), '％まで'),
     a.draft ? badge('下書き', 'draft') : null,
-    btn('×', async () => { if (st.areas.length > 1 && await confirmDlg(`「${a.name}」を消します。`, '消す', true)) { st.areas = st.areas.filter((x) => x !== a); save(); drawAreas(); } }, 'ghost round'))));
+    btn('×', async () => { if (st.areas.length > 1 && await confirmDlg(`「${a.name}」を消します。`, '消す', true)) { st.areas = st.areas.filter((x) => x !== a); save(); drawAreas(); } }, 'ghost round')),
+    h('div', { class: 'edit-row firstrow' }, h('span', { class: 'grow small' }, '└ はじめての人'),
+      h('span', { class: 'row tight' }, numIn(a, 'firstMax', { onInput: () => { delete a.firstDraft; save(); }, placeholder: '空き' }), '％まで'),
+      a.firstDraft ? badge('下書き', 'draft') : null))));
   drawAreas();
   return page({
     title: '濃度の目安・1滴の量', back: '#/set', body: [
       AUTO_NOTE(),
-      h('div', { class: 'notice draft' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 5％・顔 3％・部分ぬり 10％」は、アロマテラピーを学んだときの資料の数字です（下書き）。資料のメモ：はじめての人・敏感肌の人は、うすめに。手・足だけ・子ども・高齢・妊娠中の数字は資料にないので空けてあります。自分の資料で確かめて直してください（数字を直すと「下書き」のしるしが外れます）。空けたところは「目安なし」になります。'),
+      h('div', { class: 'notice draft' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 5％・顔 3％・部分ぬり 10％」は、アロマテラピーを学んだときの資料の数字です（下書き）。手・足だけのトリートメントは体と同じ 5％。はじめての人（1回目の来店）は「体 1％・顔 0.5％・手・足 1％」で、ブレンドの画面ではじめからこちらで色が変わります（1タップでふつうの目安と切りかえ）。子ども・高齢・妊娠中の数字は資料にないので空けてあります。自分の資料で確かめて直してください（数字を直すと「下書き」のしるしが外れます）。空けたところは「目安なし」になります。'),
       card(h('h2', null, '濃度の出し方'), h('p', null, '濃度（％）＝ 精油の量 ÷ キャリアオイルの量 × 100'), h('p', { class: 'hint' }, '例：キャリアオイル 30ml に、精油 6滴（1滴 0.05ml なら 0.3ml）→ 1％。「この量なら○滴まで」も同じ式で出しています。')),
       card(h('h2', null, '部位ごとの上限'), areaBox, h('div', { class: 'row' }, btn('＋ 部位を足す', () => { st.areas.push({ id: db.uid(), name: '', max: null }); save(); drawAreas(); }))),
       card(h('h2', null, 'お客さんの状態ごとの上限'), h('p', { class: 'hint' }, 'あてはまるお客さんでは、部位の上限とくらべて低いほうを使います。はじめは空けてあります。'),
