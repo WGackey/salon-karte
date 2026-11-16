@@ -6,17 +6,19 @@ import { h, fill, btn, toast, sheet, field, input, confirmDlg, DEVICE } from './
 import { S } from './state.js';
 import * as db from './db.js';
 import { makeBackupText, handOver } from './backup.js';
-import { todayStr, daysBetween, ymd, backupName, backupLevel, askBackupOnClose, showHomeAdd } from './logic.js';
+import { todayStr, daysBetween, ymd, backupName, backupLevel, askBackupOnClose, showHomeAdd, changedSince } from './logic.js';
 
 // ホーム画面のアイコンから開いているか（Safari のタブではないか）
 export function isStandalone() {
   try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; }
 }
-export async function backupDays() {
-  const last = await db.getMeta('lastBackupAt');
-  return last ? daysBetween(ymd(new Date(last)), todayStr()) : null;
+// 前のバックアップから何日（暦の日）・そのあとに変わったものがあるか
+export async function backupState() {
+  const last = await db.getMeta('lastBackupAt'); const changed = changedSince(await db.getMeta('lastChangeAt'), last);
+  return { days: last ? daysBetween(ymd(new Date(last)), todayStr()) : null, changed };
 }
-export const daysText = (days) => (days == null ? 'まだ一度もバックアップしていません' : `${days}日バックアップしていません`);
+export const daysText = (days) => (days == null ? 'まだ一度もバックアップしていません'
+  : days === 0 ? '今日のバックアップのあとに、記録が変わっています' : days === 1 ? 'きのうからバックアップしていません' : `${days}日バックアップしていません`);
 
 // 合言葉なしで書き出す人のために、中身を先に作っておく（押したその場で共有の画面を出すため）
 let mode = null; let pre = null;
@@ -72,26 +74,26 @@ export function quickBackup(end) {
   if (mode === 'open') build(''); // 中身がまだできていなかったとき：作ってから「保存先をえらぶ」
 }
 
-// ホームのいちばん上の帯（7日以上：橙・30日以上か一度もしていない：赤）
+// ホームのいちばん上の帯。前のバックアップのあとに変わったものがあるときだけ（橙。3日以上たった・一度もしていない：赤）
 export async function backupBand() {
-  const days = await backupDays(); const lv = backupLevel(days, S.people.length);
+  const { days, changed } = await backupState(); const lv = backupLevel(days, S.people.length, changed);
   if (!lv) return null;
   prepare(); // 待たない（できていれば 1回押すだけになる）
   const band = h('div', { class: 'notice bkband ' + lv, role: 'status' },
-    h('div', { class: 'grow' }, h('b', null, '⚠ ' + daysText(days)), h('div', { class: 'small' }, '端末がこわれたり、データが消えたりしたときのために、ファイルに書き出しておいてね。')),
+    h('div', { class: 'grow' }, h('b', null, '⚠ ' + daysText(days)), h('div', { class: 'small' }, '記録を足したり直したりした日は、バックアップしておくと安心です（端末がこわれたり、データが消えたりしたときのため）。')),
     btn('いまバックアップ', () => quickBackup((ok) => { if (ok) band.replaceWith(h('div', { class: 'notice ok' }, '✓ 今日バックアップしました')); }), lv === 'red' ? 'danger' : 'primary'));
   return band;
 }
 
-// カルテをとじるとき。聞かなくてよければ、すぐ next()
+// カルテをとじるとき（その日に記録が変わって、まだバックアップしていなければ聞く）。聞かなくてよければ、すぐ next()
 export async function closeNudge(next) {
   if (S.guest) return next(); // お客さん用の画面では出さない
-  const today = todayStr(); const days = await backupDays();
-  if (!askBackupOnClose(days, S.people.length, await db.getMeta('backupLaterDay'), today)) return next();
+  const today = todayStr(); const { days, changed } = await backupState();
+  if (!askBackupOnClose(days, S.people.length, changed, await db.getMeta('backupLaterDay'), today)) return next();
   prepare();
   const end = () => { wrap.remove(); next(); };
   const wrap = h('div', { class: 'overlay center' },
-    h('div', { class: 'dialog' }, h('h2', null, 'バックアップしますか？'), h('p', null, `（${daysText(days)}）`),
+    h('div', { class: 'dialog' }, h('h2', null, 'バックアップしますか？'), h('p', null, days == null ? '（まだ一度もバックアップしていません）' : '（今日の記録が、まだバックアップされていません）'),
       h('div', { class: 'row end' },
         btn('あとで', async () => { await db.setMeta('backupLaterDay', today); end(); }, 'ghost'),
         btn('いまする', () => { wrap.remove(); quickBackup(() => next()); }, 'primary'))));

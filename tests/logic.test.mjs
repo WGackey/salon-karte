@@ -500,15 +500,18 @@ test('版11への移し替え：資料にない精油・キャリアオイルは
   assert.equal(Math.round(blendCalc({ oils: [{ oilId: 'o_jasmine', name: 'ジャスミン', drops: 6 }], carriers: [{ carrierId: 'k_mct', name: 'ココナッツ', ml: 30 }] }, 0.05).pct * 1000) / 1000, 1);
 });
 
-test('0.13.0 バックアップの知らせ：強さ・とじるときに聞くか・ホーム画面に追加の案内', async () => {
-  const { backupLevel, askBackupOnClose, showHomeAdd } = await import('../js/logic.js');
-  assert.equal(backupLevel(null, 0), null, 'お客さんがいなければ出さない');
-  assert.equal(backupLevel(null, 1), 'red', '一度もしていない＋お客さんあり → 赤');
-  assert.equal(backupLevel(6, 5), null); assert.equal(backupLevel(7, 5), 'amber'); assert.equal(backupLevel(29, 5), 'amber'); assert.equal(backupLevel(30, 5), 'red');
-  assert.equal(askBackupOnClose(8, 1, null, '2026-11-16'), true);
-  assert.equal(askBackupOnClose(8, 1, '2026-11-16', '2026-11-16'), false, '「あとで」を押した日は聞かない');
-  assert.equal(askBackupOnClose(8, 1, '2026-11-15', '2026-11-16'), true, '次の日はまた聞く');
-  assert.equal(askBackupOnClose(3, 1, null, '2026-11-16'), false);
+test('0.13.1 バックアップの知らせ（毎日）：強さ・とじるときに聞くか・ホーム画面に追加の案内', async () => {
+  const { backupLevel, askBackupOnClose, showHomeAdd, changedSince } = await import('../js/logic.js');
+  assert.equal(backupLevel(null, 0, true), null, 'お客さんがいなければ出さない');
+  assert.equal(backupLevel(null, 1, false), 'red', '一度もしていない＋お客さんあり → 赤');
+  assert.equal(backupLevel(40, 5, false), null, '何も変えていなければ、何日たっても出さない');
+  assert.equal(backupLevel(0, 5, true), 'amber', '今日バックアップしたあとに変えた → 橙');
+  assert.equal(backupLevel(2, 5, true), 'amber'); assert.equal(backupLevel(3, 5, true), 'red', '3日以上 → 赤');
+  assert.equal(askBackupOnClose(0, 1, true, null, '2026-11-16'), true, '今日変えて、まだしていない → 聞く');
+  assert.equal(askBackupOnClose(0, 1, false, null, '2026-11-16'), false, 'バックアップのあと変えていない → 聞かない');
+  assert.equal(askBackupOnClose(1, 1, true, '2026-11-16', '2026-11-16'), false, '「あとで」を押した日は聞かない');
+  assert.equal(askBackupOnClose(1, 1, true, '2026-11-15', '2026-11-16'), true, '次の日はまた聞く');
+  assert.equal(changedSince(null, null), true); assert.equal(changedSince(null, 100), false); assert.equal(changedSince(200, 100), true); assert.equal(changedSince(50, 100), false);
   assert.equal(showHomeAdd(true, null, '2026-11-16'), false, 'アイコンから開いているときは出さない');
   assert.equal(showHomeAdd(false, null, '2026-11-16'), true);
   assert.equal(showHomeAdd(false, '2026-11-01', '2026-11-16'), false, 'とじてから 30日は出さない');

@@ -160,8 +160,12 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await shot('09b-close-nudge'); await tap('あとで'); await p.waitForSelector('text=情報を直す');
   await p.goto(BASE + '#/'); await p.waitForSelector('.bkband.red'); assert.ok((await p.locator('.bkband').textContent()).includes('まだ一度もバックアップしていません'), 'ホームのいちばん上に赤い知らせ');
   assert.equal(await p.locator('.homeadd').count(), 0, 'iPad・iPhone でないときは「ホーム画面に追加」の案内を出さない'); await shot('09c-home-band');
-  await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() - 10 * 86400000); }); await p.reload(); await p.waitForSelector('.bkband.amber');
-  assert.ok((await p.locator('.bkband').textContent()).includes('10日バックアップしていません'), '7日以上は橙');
+  // 0.13.1（毎日）：バックアップのあとに変わったものがあれば橙・3日以上で赤。何も変えていなければ出さない
+  await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() - 2 * 86400000); }); await p.reload(); await p.waitForSelector('.bkband.amber');
+  assert.ok((await p.locator('.bkband').textContent()).includes('2日バックアップしていません'), '変えたものがあって2日 → 橙');
+  await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() - 4 * 86400000); }); await p.reload(); await p.waitForSelector('.bkband.red');
+  await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() + 60000); }); await p.reload(); await p.waitForSelector('.home-top');
+  assert.equal(await p.locator('.bkband').count(), 0, 'バックアップのあと何も変えていなければ出さない');
   await p.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', null); }); await p.goBack(); await p.waitForSelector('text=情報を直す');
   const pageText = await p.locator('.main').textContent();
   assert.ok(pageText.includes('肩こり 8→3'), 'つらさの変化が残る：' + pageText.slice(0, 300)); assert.ok(pageText.includes('ラベンダー・アングスティフォリア 3滴'), 'ブレンドが残る');
@@ -564,7 +568,9 @@ const strokes = (p) => p.locator('.zu .bodypad .strokes.own path').count();
   await ph.noOverflow('ホーム画面に追加の案内'); await ph.shot('09c-homeadd');
   await q.locator('.homeadd').getByText('とじる', { exact: true }).tap(); await q.waitForSelector('.homeadd', { state: 'detached' }); await q.reload(); await q.waitForSelector('.home-top'); assert.equal(await q.locator('.homeadd').count(), 0, 'とじたら出ない');
   // 合言葉なしの人は、知らせから1回押すだけで共有（ここでは保存）になる
-  await q.evaluate(async () => { const db = await import('./js/db.js'); await db.setMeta('lastBackupAt', Date.now() - 8 * 86400000); }); await q.reload(); await q.waitForSelector('.bkband.amber'); await q.waitForTimeout(500);
+  // 0.13.1：バックアップのあとに記録を直すと、その日のうちに橙の帯が出る
+  await q.evaluate(async () => { const s = await import('./js/state.js'); s.S.settings.salonName = (s.S.settings.salonName || '') + ''; await s.saveSettings(); }); await q.reload(); await q.waitForSelector('.bkband.amber');
+  assert.ok((await q.locator('.bkband').textContent()).includes('今日のバックアップのあとに'), '同じ日に変えたら知らせる'); await q.waitForTimeout(500);
   await Promise.all([q.waitForEvent('download'), q.locator('.bkband').getByText('いまバックアップ').tap()]); await q.waitForSelector('text=今日バックアップしました');
   assert.equal(await q.locator('.quickbk').count(), 0, '合言葉なしの人は、パネルを出さずにそのまま書き出す');
   await q.goBack(); await q.waitForSelector('text=情報を直す');
