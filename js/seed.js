@@ -254,7 +254,7 @@ export const DEFAULT_OILS = [
   O('o_mandarin', 'マンダリン', 'f_citrus', 'ミカン科', { hyd: 90, est: null, alc: null }, ['sb_limonene', 'sb_linalool', 'sb_est'], ['a_digest', 'a_water', 'a_calm'], ['s_nemuri', 's_tsukare', 's_ichou'], { cautions: ['c_sun'], note: 'アルコール類は「アロマ表」（リナロール）にあり。' }),
 ];
 // 前の下書きにあって、がっき〜の資料にない精油（11本）。新しく入れる端末には入れない。版4への移し替えで「資料にない」（候補の点数に入れない）にして残し、
-// 版11（0.12.0）で、さわっていないものだけ消す（手持ちにした・直した・使ったものは残す）。
+// 版11（0.12.0）で、使っている端末からもぜんぶ消す（がっき〜：「資料に無いものは全部消してOK」）。
 export const OLD_ONLY_OILS = {
   o_eucalyptus: 'f_tree', o_grapefruit: 'f_citrus', o_bergamot: 'f_citrus', o_yuzu: 'f_citrus', o_jasmine: 'f_flower',
   o_vetiver: '', o_ginger: '', o_pepper: '', o_hinoki: 'f_tree', o_petitgrain: '', o_clove: '',
@@ -293,7 +293,7 @@ export const DEFAULT_CARRIERS = [
   K('k_arnica', 'アルニカオイル（浸出油）', {}, {}, [], [], [], '資料：浸出油。スポーツのあとのマッサージ向き。肌への刺激がある → アレルギー・敏感肌の人は、カレンデュラにかえるか、パッチテストのあとに使う。', { cautions: ['c_skin'] }),
 ];
 // 資料にないキャリアオイル（米ぬか・アルガン・分留ココナッツ）。0.12.0 から、新しく入れる端末には入れない（がっき〜：「はじめの一覧は資料にあるものだけ。自分で増やせるから」）。
-// 古い版からの移し替え（版2・版9）と、版11で「さわっていないものだけ消す」ときの見くらべに使う
+// 古い版からの移し替え（版2・版9）に使い、版11でぜんぶ消す
 export const OLD_ONLY_CARRIERS = [
   K('k_rice', 'ライスブランオイル（米ぬか）', { ole: 42, lin: 35, pal: 17 }, { feel: 2, oxid: null, scent: 1 }, [], [HOGUSU], ['al_rice'], '酸化しやすさは空けてある。資料で確かめて入れる。', { ref: false }),
   K('k_argan', 'アルガンオイル', { ole: 46, lin: 33, pal: 13, ste: 5 }, { feel: 2, oxid: 2, scent: 2 }, [], [], ['al_nut'], 'アルガンの木の実の種のオイル。ナッツのアレルギーがある人は、念のため確かめる。', { ref: false }),
@@ -313,22 +313,6 @@ export const CARRIERS_V8 = [
   K('k_tsubaki', '椿オイル', { ole: 85, lin: 4, pal: 8 }, { feel: 3, oxid: 1, scent: 1 }, [], [], []),
   K('k_rosehip', 'ローズヒップオイル', { lin: 44, aln: 33, ole: 14 }, { feel: null, oxid: 3, scent: 2 }, [], [], [], 'とても酸化しやすい。ほかのオイルに少し混ぜて使うことが多い。冷蔵庫で保管し、早めに使い切る。'),
   K('k_avocado', 'アボカドオイル', { ole: 65, pal: 15, lin: 12, pmo: 5 }, { feel: 3, oxid: 2, scent: null }, ['sk_dry'], [], [], '重いので、ほかのオイルに混ぜて使うことが多い。精製したものと、していないもので色・香りが違う。'),
-];
-
-// 資料にない11本の「はじめのままの中身」（版4への移し替えのあとの形）。版11で「使う人が直したか」を見分けるために使う（手持ち owned は見くらべない）
-const OO = (id, name, family, components, uses, cautions = [], note = '') => ({ id, name, family, components, uses, cautions, note, subs: [], actions: [], okConds: [], warns: [], allergens: [], plant: '', owned: false, draft: true, ref: false });
-export const OLD_ONLY_OILS_V4 = [
-  OO('o_eucalyptus', 'ユーカリ・グロブルス', 'f_tree', { oxi: 75, hyd: 20 }, ['s_hana'], ['c_child']),
-  OO('o_grapefruit', 'グレープフルーツ', 'f_citrus', { hyd: 95 }, ['s_mukumi'], ['c_sun'], '皮をしぼった精油は、ぬったあと日に当てない。'),
-  OO('o_bergamot', 'ベルガモット', 'f_citrus', { hyd: 45, est: 30, alc: 15 }, ['s_kibun', 's_stress'], ['c_sun'], '日に当たる前は特に気をつける（ベルガプテンを除いたものは別）。'),
-  OO('o_yuzu', 'ゆず', 'f_citrus', { hyd: 90 }, ['s_hie'], [], '日に当たる前の注意は、作り方（しぼる・蒸す）で違う。資料で確かめる。'),
-  OO('o_jasmine', 'ジャスミン', 'f_flower', {}, ['s_kibun'], ['c_preg'], '成分の割合は空けてある。資料で確かめて入れる。'),
-  OO('o_vetiver', 'ベチバー', '', {}, ['s_nemuri'], [], '成分の割合は空けてある。資料で確かめて入れる。'),
-  OO('o_ginger', 'ジンジャー', '', { hyd: 80 }, ['s_hie', 's_ichou'], ['c_skin']),
-  OO('o_pepper', 'ブラックペッパー', '', { hyd: 85 }, ['s_hie', 's_kinniku'], ['c_skin']),
-  OO('o_hinoki', 'ひのき', 'f_tree', {}, ['s_stress'], [], '成分の割合は空けてある（木・葉で違う）。資料で確かめて入れる。'),
-  OO('o_petitgrain', 'プチグレン', '', { est: 55, alc: 30 }, ['s_stress', 's_nemuri']),
-  OO('o_clove', 'クローブ', '', { phe: 80 }, ['s_hie'], [], '肌への刺激が強い。体に使うならごくうすく。'),
 ];
 
 // メニューは買った人が自分で作る前提。はじめは例を3つだけ。

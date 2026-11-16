@@ -1,5 +1,5 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
-import { AGE_RULES, CARRIERS_V8, OLD_ONLY_CARRIERS, OLD_ONLY_OILS_V4, DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
+import { AGE_RULES, CARRIERS_V8, OLD_ONLY_CARRIERS, DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
 export const DATA_VERSION = 11;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
@@ -12,7 +12,6 @@ let _db = null;
 //   stores：入れ物ごとに、1件ずつ新しい形に直す
 //   stores の関数が null を返したら、その1件を消す
 //   add   ：入れ物ごとに、まだ無いもの（同じ番号が無いもの）だけ足す
-//   needs ＋ ctx：ほかの入れ物の中身を見て決めたいとき。needs の入れ物をぜんぶ読んで ctx に渡し、その答えが stores の関数の2つめに入る（版11）
 // 版2・版9 のころの「はじめのキャリアオイル」（資料にない3つも入っていた）。古い版からの移し替えは、そのころと同じに動かす
 const ALL_CAR = [...DEFAULT_CARRIERS, ...OLD_ONLY_CARRIERS];
 const CAR = Object.fromEntries(ALL_CAR.map((c) => [c.id, c]));
@@ -115,37 +114,25 @@ export const MIGRATIONS = [
     },
   },
   { // 版11：がっき〜の答え（11/16・その2）。
-    //   ① 精油・キャリアオイルの一覧を「資料にあるものだけ」に。資料にないもの（精油11本・キャリアオイル3つ）のうち、★さわっていないものだけ消す。
-    //      さわっていない＝はじめのままの中身（名前・成分・メモ…どれも直していない・「下書き」「資料にない」のまま）／手持ちにしていない／
-    //      どの来店のブレンドにも・名前をつけて残したブレンドにも・お客さんの「避ける」にも入っていない。1つでもあてはまらなければ残す。自分で足したものはさわらない
+    //   ① 精油・キャリアオイルの一覧を「資料にあるものだけ」に。はじめから入っていた「資料にないもの」（精油11本・キャリアオイル3つ）は、★使っている端末でもぜんぶ消す
+    //      （2026-11-16 がっき〜：「資料に無いものは全部消してOK」。手持ちにした・直した・使ったものも消える）。番号（o_ginger など）で見分けるので、使う人が自分で足したものは消さない。
+    //      過去の来店・名前つきのブレンドは、名前と量を自分で持っているのでそのまま読める（さわらない）。お客さんの「避ける精油／キャリアオイル」からは、消したものの番号を外す
     //   ② 濃度の目安：体 5％・顔 3％・部分ぬり 10％ の「下書き」のしるしを外す（数字はさわらない）
     //   ③ 年齢の区切り：空欄のところだけ 乳幼児 6歳まで・子ども 17歳まで・高齢 60歳から を入れる（入っている数字はさわらない）
     to: 11,
-    needs: ['visits', 'blends', 'details'],
-    ctx: usedIds,
     stores: {
-      oils: (r, used) => (untouched(r, OLD_OIL[r.id], used.oils) ? null : r),
-      carriers: (r, used) => (untouched(r, OLD_CAR[r.id], used.carriers) ? null : r),
+      oils: (r) => (r.id in OLD_ONLY_OILS ? null : r),
+      carriers: (r) => (OLD_CAR.has(r.id) ? null : r),
+      details: (r) => {
+        const ao = r.avoidOilIds || [], ac = r.avoidCarrierIds || [];
+        return ao.some((id) => id in OLD_ONLY_OILS) || ac.some((id) => OLD_CAR.has(id)) ? { ...r, avoidOilIds: ao.filter((id) => !(id in OLD_ONLY_OILS)), avoidCarrierIds: ac.filter((id) => !OLD_CAR.has(id)) } : r;
+      },
       meta: (r) => (r.key === 'settings' && r.value ? { ...r, value: settingsV11(r.value) } : r),
     },
   },
 ];
 // ---- 版11 の移し替えで使う部品 ----
-const OLD_OIL = Object.fromEntries(OLD_ONLY_OILS_V4.map((o) => [o.id, o]));
-const OLD_CAR = Object.fromEntries(OLD_ONLY_CARRIERS.map((c) => [c.id, c]));
-// 中身が同じかどうか（らんの並び順と「手持ち」は見ない）
-const canon = (o) => JSON.stringify(Object.keys(o).filter((k) => k !== 'owned' && o[k] !== undefined).sort().map((k) => [k, o[k]]));
-export const untouched = (r, base, used) => !!base && !r.owned && !used.has(r.id) && canon(r) === canon(base);
-// 使われている精油・キャリアオイルの番号（来店のブレンド・名前つきのブレンド・お客さんの「避ける」）
-export function usedIds({ visits = [], blends = [], details = [] }) {
-  const oils = new Set(), carriers = new Set();
-  for (const b of [...visits.map((v) => v.blend), ...blends]) {
-    for (const o of (b && b.oils) || []) oils.add(o.oilId);
-    for (const c of (b && b.carriers) || []) carriers.add(c.carrierId);
-  }
-  for (const d of details) { for (const id of d.avoidOilIds || []) oils.add(id); for (const id of d.avoidCarrierIds || []) carriers.add(id); }
-  return { oils, carriers };
-}
+const OLD_CAR = new Set(OLD_ONLY_CARRIERS.map((c) => c.id));
 function settingsV11(v) {
   const n = { ...v };
   const KEEP = { a_body: 5, a_face: 3, a_spot: 10 }; // がっき〜が「そのまま」と決めた数字。しるしだけ外す
@@ -287,8 +274,7 @@ export function migrateDump(dump, list = MIGRATIONS, target = DATA_VERSION) {
   const stores = { ...dump.stores };
   for (const m of [...list].sort((a, b) => a.to - b.to)) {
     if (m.to <= ver || m.to > target) continue;
-    const ctx = m.ctx ? m.ctx(Object.fromEntries((m.needs || []).map((n) => [n, stores[n] || []]))) : undefined;
-    for (const [name, fn] of Object.entries(m.stores || {})) stores[name] = (stores[name] || []).map((r) => fn(r, ctx)).filter((x) => x != null);
+    for (const [name, fn] of Object.entries(m.stores || {})) stores[name] = (stores[name] || []).map((r) => fn(r)).filter((x) => x != null);
     for (const [name, rows] of Object.entries(m.add || {})) {
       const have = new Set((stores[name] || []).map((r) => r.id));
       stores[name] = [...(stores[name] || []), ...rows.filter((r) => !have.has(r.id)).map((r) => JSON.parse(JSON.stringify(r)))];
@@ -307,10 +293,8 @@ export async function migrateDb(list = MIGRATIONS, target = DATA_VERSION) {
   for (const m of [...list].sort((a, b) => a.to - b.to)) {
     if (m.to <= ver || m.to > target) continue;
     const tx = db.transaction(STORES, 'readwrite');
-    // ほかの入れ物を見て決める移し替え（needs）は、同じ1回のまとまりの中で先に読む
-    const ctx = m.ctx ? m.ctx(Object.fromEntries(await Promise.all((m.needs || []).map(async (n) => [n, await req(tx.objectStore(n).getAll())])))) : undefined;
-    for (const [name, fn0] of Object.entries(m.stores || {})) {
-      const os = tx.objectStore(name); const fn = (r) => fn0(r, ctx);
+    for (const [name, fn] of Object.entries(m.stores || {})) {
+      const os = tx.objectStore(name);
       // 変わらなかったものは書き直さない。版の番号の行にはさわらない（下で書く新しい番号を、古い値で上書きしないため）
       os.openCursor().onsuccess = (e) => { const c = e.target.result; if (!c) return; if (!(name === 'meta' && c.value.key === 'dataVersion')) { const nv = fn(c.value); if (nv == null) c.delete(); else if (nv !== c.value) c.update(nv); } c.continue(); };
     }
