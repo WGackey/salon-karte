@@ -28,15 +28,20 @@ export function maxDrops(limitPct, carrierMl, dropMl) {
   if (limitPct == null || !(limitPct >= 0) || !(carrierMl > 0) || !(dropMl > 0)) return null;
   return Math.floor((limitPct / 100) * carrierMl / dropMl + 1e-9);
 }
-// 部位の目安（体・顔・部分ぬり など）を使う。
-// 0.14.1 がっき〜：「お客さんの状態ごとの上限」はやめた（状態は、精油を外す・⚠ をつけるために確かめるもの。濃度は施術する人がその場で決める）。
-// condIds は前の呼び方のまま受けるが使わない。前に入れた settings.stateLimits は消さずに残っている（使わないだけ）
+// 部位の目安（体・顔・部分ぬり など）と、濃度に使う4つの状態（乳幼児・子ども・高齢・敏感肌）の上限のうち、いちばん低いものを使う。
+// 0.14.1 がっき〜：問診を2つに分けた。濃度を決めるのは この4つだけ。ほかの状態（妊娠・持病など）は精油を外す・⚠ をつける・えらぶためのもの（濃度には使わない）。
+// 前に ほかの状態へ入れた settings.stateLimits の数字は消さずに残っている（使わないだけ）
+export const LIMIT_CONDS = ['c_infant', 'c_child', 'c_old', 'c_skin'];
 // first＝はじめての人の目安で見る（0.11.0）。部位に「はじめての人」の数字（firstMax）があれば、ふつうの数字のかわりにそれを使う
 export function limitFor(settings, areaId, condIds, { first = false } = {}) {
   const parts = [];
   const area = (settings.areas || []).find((a) => a.id === areaId);
   if (area && first && area.firstMax != null) parts.push({ label: area.name + '（はじめての人）', max: area.firstMax, first: true });
   else if (area && area.max != null) parts.push({ label: area.name, max: area.max });
+  for (const id of condIds || []) {
+    if (!LIMIT_CONDS.includes(id)) continue; const m = (settings.stateLimits || {})[id];
+    if (m != null) { const c = settings.conds.find((x) => x.id === id); parts.push({ label: c ? c.name : id, max: m }); }
+  }
   if (!parts.length) return { max: null, parts, area };
   const low = parts.reduce((a, b) => (b.max < a.max ? b : a));
   return { max: low.max, by: low.label, parts, area };

@@ -31,10 +31,13 @@ test('目安におさまる滴数：その滴数は中、1滴足すとこえる'
   }
   assert.equal(maxDrops(null, 30, 0.05), null);
 });
-test('目安：部位の上限だけ（状態ごとの上限は 0.14.1 でやめた）。未設定なら「目安なし」', () => {
+test('目安：部位と、乳幼児・子ども・高齢・敏感肌の上限のうち低いほう（ほかの状態は使わない）。未設定なら「目安なし」', () => {
   const st = { ...DEFAULT_SETTINGS, stateLimits: { c_old: 0.5 } };
   assert.equal(limitFor(st, 'a_body', []).max, 5, '資料：全身 5％まで'); assert.equal(limitFor(st, 'a_face', []).max, 3, '資料：顔 3％まで'); assert.equal(limitFor(st, 'a_spot', []).max, 10, '資料：部分ぬり 10％まで');
-  assert.equal(limitFor(st, 'a_body', ['c_old']).max, 5, '前に入れた状態ごとの上限が残っていても使わない');
+  assert.equal(limitFor(st, 'a_body', ['c_old']).max, 0.5, '高齢の上限は使う');
+  const st2 = { ...DEFAULT_SETTINGS, stateLimits: { c_preg: 1, c_skin: 2 } };
+  assert.equal(limitFor(st2, 'a_body', ['c_preg']).max, 5, '妊娠中など ほかの状態の数字が残っていても濃度には使わない');
+  assert.equal(limitFor(st2, 'a_body', ['c_preg', 'c_skin']).max, 2, '敏感肌の上限は使う');
   assert.equal(limitFor(st, 'a_part', []).max, 5, '手・足だけは体と同じ（11/16 がっき〜）');
   assert.equal(limitLevel(1.2, 1), 'over'); assert.equal(limitLevel(0.95, 1), 'near'); assert.equal(limitLevel(0.5, 1), 'ok'); assert.equal(limitLevel(0.5, null), 'unknown');
 });
@@ -400,7 +403,7 @@ test('はじめての人の目安：体 1％・顔 0.5％（下書き）。1回�
   assert.equal(limitFor(st, 'a_face', [], { first: true }).max, 0.5);
   assert.equal(limitFor(st, 'a_spot', [], { first: true }).max, 10, 'はじめての人の数字がない部位は、ふつうの目安');
   assert.equal(limitFor(st, 'a_part', [], { first: true }).max, 1);
-  st.stateLimits.c_old = 0.5; assert.equal(limitFor(st, 'a_body', ['c_old'], { first: true }).max, 1, '状態ごとの目安は使わない（はじめての人の目安のまま）');
+  st.stateLimits.c_old = 0.5; assert.equal(limitFor(st, 'a_body', ['c_old'], { first: true }).max, 0.5, '高齢の目安と、はじめての人の目安の低いほう');
   assert.equal(isFirstBlend({}, 1), true, '1回目は、はじめての人'); assert.equal(isFirstBlend({}, 2), false);
   assert.equal(isFirstBlend({ first: false }, 1), false, '施術する人が切りかえたら、それ'); assert.equal(isFirstBlend({ first: true }, 3), true);
   // 1回目のブレンド：30ml に 8滴（約1.3％）は、はじめての人の目安をこえる・2回目からなら目安の中

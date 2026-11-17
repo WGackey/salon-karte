@@ -115,7 +115,7 @@ export const DEFAULT_SETTINGS = {
     { id: 'a_part', name: '手・足だけ', max: 5, firstMax: 1 }, // 2026-11-16 がっき〜：手・足だけのトリートメントは体と同じ（部分ぬりの10％とは別）
     { id: 'a_spot', name: '部分ぬり（気になるところに少しだけ）', max: 10 },
   ],
-  stateLimits: {}, // 状態ごとの目安（0.14.1 から使わない。前のデータとの形をそろえるために残す）
+  stateLimits: {}, // 状態ごとの目安（はじめは空）。0.14.1 から使うのは 乳幼児・子ども・高齢・敏感肌 の4つだけ（logic.js の LIMIT_CONDS）
   // 部位だけのカルテ（手だけ・足だけ など）。図は parts.js。名前・濃度の目安（areas のどれを使うか）は設定で直せる
   wholeAreaId: 'a_body', // 全身のときの濃度の目安
   parts: DEFAULT_PARTS,

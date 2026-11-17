@@ -6,7 +6,7 @@ import { h, fill, page, card, btn, badge, go, chips, field, group, input, textar
 import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin, askPersist, markBackedUp } from '../state.js';
 import { choosePin, askPin } from './guest.js';
 import * as db from '../db.js';
-import { todayStr, daysBetween, ymd, jpDate, TRAITS, backupName } from '../logic.js';
+import { todayStr, daysBetween, ymd, jpDate, TRAITS, backupName, LIMIT_CONDS } from '../logic.js';
 import { makeBackupText, readBackupHead, restoreBackup, handOver } from '../backup.js';
 import { addSamples, removeSamples } from '../sample.js';
 import { notFound } from './customer.js';
@@ -34,7 +34,7 @@ export function settingsView() {
       card(h('h2', null, 'アロマ'), h('div', { class: 'list' },
         link('#/set/oils', '精油の一覧と手持ち', `${S.oils.length}本（手持ち ${own}本）`),
         link('#/set/carriers', 'キャリアオイルの一覧と手持ち', `${S.carriers.length}種類（手持ち ${S.carriers.filter((o) => o.owned).length}種類）`),
-        link('#/set/limits', '濃度の目安・1滴の量', '体・顔・部分ぬり などの上限'),
+        link('#/set/limits', '濃度の目安・1滴の量', '部位ごと・乳幼児／子ども／高齢／敏感肌 の上限'),
         link('#/set/symacts', 'つらいところと作用のつながり（重み）', '候補の1段目：つらいところ → 作用。重みに差をつけられる'),
         link('#/set/actions', '作用（働き）の一覧', `${(S.settings.actions || []).length}個。資料の作用の名前をまとめたもの`),
         link('#/set/cats', '精油の成分の分類と成分（作用・気をつける状態）', '候補の2段目：作用 → 成分。分類ごとの注意'),
@@ -289,7 +289,9 @@ export function limitsView() {
       h('div', { class: 'notice' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 5％・顔 3％・部分ぬり 10％」は、アロマテラピーを学んだときの資料の数字です。手・足だけのトリートメントは体と同じ 5％。はじめての人（1回目の来店）は「体 1％・顔 0.5％・手・足 1％」で、ブレンドの画面ではじめからこちらで色が変わります（1タップでふつうの目安と切りかえ）。自分の資料・お店に合わせて、いつでも直せます。空けたところは「目安なし」になります。'),
       card(h('h2', null, '濃度の出し方'), h('p', null, '濃度（％）＝ 精油の量 ÷ キャリアオイルの量 × 100'), h('p', { class: 'hint' }, '例：キャリアオイル 30ml に、精油 6滴（1滴 0.05ml なら 0.3ml）→ 1％。「この量なら○滴まで」も同じ式で出しています。')),
       card(h('h2', null, '部位ごとの上限'), areaBox, h('div', { class: 'row' }, btn('＋ 部位を足す', () => { st.areas.push({ id: db.uid(), name: '', max: null }); save(); drawAreas(); }))),
-      card(h('h2', null, 'お客さんごとの濃度'), h('p', null, 'ここで決めるのは、全体の上限だけです。お客さんごとの濃度は、ブレンドの画面で施術する人がその場で決めます（上限をこえると色が変わります）。'), h('p', { class: 'hint' }, 'お客さんの状態（妊娠中・高齢・敏感肌 など）は、濃度を決めるためではなく、使わない精油を外したり ⚠ をつけたりするために確かめています。')),
+      card(h('h2', null, '乳幼児・子ども・高齢・敏感肌 の上限'), h('p', { class: 'hint' }, 'この4つにあてはまるお客さんは、部位の上限とくらべて低いほうを使います。空けると、部位の上限のままです。はじめは空けてあります（資料に数字がないため）。'),
+        LIMIT_CONDS.map((cid) => st.conds.find((c) => c.id === cid)).filter(Boolean).map((c) => h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, c.name), h('span', { class: 'row tight' }, numIn(st.stateLimits, c.id, { onInput: () => { if (st.stateLimits[c.id] == null) delete st.stateLimits[c.id]; save(); }, placeholder: '空き' }), '％まで'))),
+        h('p', { class: 'hint' }, 'ほかの状態（妊娠中・持病 など）は濃度には使いません。使わない精油を外したり ⚠ をつけたり、合う精油をえらんだりするために確かめています。お客さんごとの濃度は、この上限の中で、ブレンドの画面で施術する人が決めます。')),
       card(h('h2', null, '1滴の量'), h('div', { class: 'row tight' }, numIn(st, 'dropMl', { onInput: () => { if (!(st.dropMl > 0)) return; save(); } }), 'ml'), h('p', { class: 'hint' }, 'びんの口（ドロッパー）によってちがいます。はじめは 0.05ml。')),
     ],
   });
