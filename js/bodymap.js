@@ -22,6 +22,8 @@ const DETAIL = {
   // 後ろの肩甲骨：内側のふち → 下の角 → 外側のふち と、上の骨の出っぱり（0.11.0。前の「（ ）」の形は不自然だったので直した。りんかくは同じ）
   back: '<path d="M150 96V300" stroke-dasharray="5 6"/><path d="M134 132C132 150 132 166 135 182C128 176 120 166 113 152M166 132C168 150 168 166 165 182C172 176 180 166 187 152"/><path d="M134 140C126 135 116 132 106 131M166 140C174 135 184 132 194 131" opacity=".8"/><path d="M112 330q20 22 38 0q18 22 38 0M108 448h18M174 448h18"/>',
 };
+// 頭と体を1つのりんかくに見せる（0.14.1 がっき〜：首と頭を分ける線を消す）：ふち色で太く → 中の色だけ の2回重ね（parts.js の union と同じやり方）
+const HEADBODY = (edge) => `<g${edge ? ' style="stroke-width:4"' : ' style="stroke:none"'}><ellipse cx="150" cy="47" rx="23" ry="34"/><path d="${OUTLINE}"/></g>`;
 export const ZONES = { all: '15 5 270 628', top: '15 5 270 350', bottom: '15 290 270 343' };
 export const FIGURES = [FIGS.front, FIGS.back]; // 全身の図。部位の図は parts.js の FIGS
 function el(tag, attrs) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
@@ -39,7 +41,7 @@ export function bodyPad({ kind, strokes, marks, getTool, onChange, readOnly = fa
     svg.setZone = () => {};
   } else {
     const left = kind === 'front' ? '右' : '左', right = kind === 'front' ? '左' : '右';
-    svg.innerHTML = `<g transform="translate(150 0) scale(1.22 1) translate(-150 0)"><g class="fig"><ellipse cx="150" cy="47" rx="23" ry="34"/><path d="${OUTLINE}"/></g><g class="fig-detail">${DETAIL[kind]}</g></g>
+    svg.innerHTML = `<g transform="translate(150 0) scale(1.22 1) translate(-150 0)"><g class="fig">${HEADBODY(1)}${HEADBODY(0)}</g><g class="fig-detail">${DETAIL[kind]}</g></g>
     <text x="50" y="40" class="fig-lr">${left}</text><text x="250" y="40" class="fig-lr">${right}</text>`;
     // 小さい画面用：上半身・下半身だけを大きく出す（線の位置は図の座標のままなので、ずれない）
     svg.setZone = (z) => svg.setAttribute('viewBox', ZONES[z] || ZONES.all);
