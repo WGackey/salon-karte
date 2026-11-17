@@ -31,10 +31,10 @@ test('目安におさまる滴数：その滴数は中、1滴足すとこえる'
   }
   assert.equal(maxDrops(null, 30, 0.05), null);
 });
-test('目安：部位と状態のうち低いほう。未設定なら「目安なし」', () => {
+test('目安：部位の上限だけ（状態ごとの上限は 0.14.1 でやめた）。未設定なら「目安なし」', () => {
   const st = { ...DEFAULT_SETTINGS, stateLimits: { c_old: 0.5 } };
   assert.equal(limitFor(st, 'a_body', []).max, 5, '資料：全身 5％まで'); assert.equal(limitFor(st, 'a_face', []).max, 3, '資料：顔 3％まで'); assert.equal(limitFor(st, 'a_spot', []).max, 10, '資料：部分ぬり 10％まで');
-  assert.equal(limitFor(st, 'a_body', ['c_old']).max, 0.5);
+  assert.equal(limitFor(st, 'a_body', ['c_old']).max, 5, '前に入れた状態ごとの上限が残っていても使わない');
   assert.equal(limitFor(st, 'a_part', []).max, 5, '手・足だけは体と同じ（11/16 がっき〜）');
   assert.equal(limitLevel(1.2, 1), 'over'); assert.equal(limitLevel(0.95, 1), 'near'); assert.equal(limitLevel(0.5, 1), 'ok'); assert.equal(limitLevel(0.5, null), 'unknown');
 });
@@ -327,8 +327,6 @@ test('全身／部分：出す図・濃度の目安・関わるつらいとこ�
   assert.equal(P.areaForScope(st, { type: 'whole' }), 'a_body'); assert.equal(P.areaForScope(st, hand), 'a_part');
   assert.equal(P.areaForScope(st, { type: 'part', parts: ['back', 'head'] }), 'a_face', 'いくつかあるときは、目安のいちばん低いもの');
   st.parts.find((p) => p.id === 'hand').areaId = ''; assert.equal(P.areaForScope(st, hand), '', '決めていなければ、そのまま');
-  assert.ok(P.symsForScope(st, { type: 'part', parts: ['foot'] }).includes('s_ashi')); assert.deepEqual(P.symsForScope(st, { type: 'whole' }), []);
-  for (const p of st.parts) for (const s of p.syms) assert.ok(st.symptoms.some((x) => x.id === s), `${p.name} の ${s}`);
   for (const p of st.parts) assert.ok(!p.areaId || st.areas.some((a) => a.id === p.areaId));
   // メニューから
   assert.equal(P.scopeFromMenus([{ id: 'a' }, { id: 'b', scope: null }]), null, '決めていないメニューだけなら、変えない');
@@ -402,7 +400,7 @@ test('はじめての人の目安：体 1％・顔 0.5％（下書き）。1回�
   assert.equal(limitFor(st, 'a_face', [], { first: true }).max, 0.5);
   assert.equal(limitFor(st, 'a_spot', [], { first: true }).max, 10, 'はじめての人の数字がない部位は、ふつうの目安');
   assert.equal(limitFor(st, 'a_part', [], { first: true }).max, 1);
-  st.stateLimits.c_old = 0.5; assert.equal(limitFor(st, 'a_body', ['c_old'], { first: true }).max, 0.5, '状態ごとの目安と、低いほう');
+  st.stateLimits.c_old = 0.5; assert.equal(limitFor(st, 'a_body', ['c_old'], { first: true }).max, 1, '状態ごとの目安は使わない（はじめての人の目安のまま）');
   assert.equal(isFirstBlend({}, 1), true, '1回目は、はじめての人'); assert.equal(isFirstBlend({}, 2), false);
   assert.equal(isFirstBlend({ first: false }, 1), false, '施術する人が切りかえたら、それ'); assert.equal(isFirstBlend({ first: true }, 3), true);
   // 1回目のブレンド：30ml に 8滴（約1.3％）は、はじめての人の目安をこえる・2回目からなら目安の中

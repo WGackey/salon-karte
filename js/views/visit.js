@@ -6,7 +6,7 @@ import { figureEditor, hasLines } from '../figedit.js';
 import { notFound, blendText, noTouchFigures } from './customer.js';
 import { handoverSheet } from './guest.js';
 import { scopePicker } from '../scopepick.js';
-import { isPart, figsOf, scopeText, areaForScope, symsForScope } from '../parts.js';
+import { isPart, figsOf, scopeText, areaForScope } from '../parts.js';
 
 // 来店の流れは2つに分かれる。前半（guest）＝お客さんから聞くこと／後半（staff）＝施術する人の記録
 const STEPS = [['monshin', '問診', 'guest'], ['kininaru', '気になるところ', 'guest'],
@@ -78,14 +78,12 @@ export async function visitView(id, step) {
         h('div', { class: 'symname' }, symName(s.id)), levelPicker(s.level, (n) => { s.level = n; save(); }))));
       drawSym();
       const part = isPart(v.scope), short = part && !showAll;
-      // 部分のときは、その部位に関わる「つらいところ」だけ先に出す（えらんであるものは、いつも出す）
-      const rel = symsForScope(S.settings, v.scope); let moreSym = false;
+      // つらいところは、全身でも部分でも いつもぜんぶ出す（0.14.1 がっき〜：前回は全身・今回は手だけ のとき、肩こりが出てこない などが起きるので、部位で分けない）
       const symChipBox = h('div');
       const drawSymChips = () => {
-        const list = short && !moreSym ? S.settings.symptoms.filter((s) => rel.includes(s.id) || iv.symptoms.some((x) => x.id === s.id)) : S.settings.symptoms;
-        fill(symChipBox, chips(list, iv.symptoms.map((s) => s.id), {
+        fill(symChipBox, chips(S.settings.symptoms, iv.symptoms.map((s) => s.id), {
           onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); save(); },
-        }), short && !moreSym && list.length < S.settings.symptoms.length ? btn(`ほかのつらいところも出す（あと ${S.settings.symptoms.length - list.length}）`, () => { moreSym = true; drawSymChips(); }, 'chip ghostchip moresym') : null);
+        }));
       };
       drawSymChips();
       // 気をつける状態・アレルギーの確認は、短い版でも省かない
@@ -102,7 +100,7 @@ export async function visitView(id, step) {
         v.copied && prev && !(v.intake && v.intake.by === 'guest') ? h('div', { class: 'notice ok' }, `前回（${jpDate(prev.date)}）の問診が入っています。変わったところだけ直してね。`) : null,
         card(h('div', { class: 'row' }, field('来店日', input(v, 'date', { type: 'date', onInput: () => { save(); } })), h('span', { class: 'muted' }, `${nth}回目`)),
           group('今日の状態', chips(visitConds, v.conds, { onChange: (x) => { v.conds = x; save(); drawPreg(); } }), condHint()), pregBox, checkBox),
-        card(h('h2', null, 'つらいところ'), h('p', { class: 'hint' }, short ? `${scopeText(S.settings, v.scope)}の施術に関わるものを先に出しています。あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます` : 'あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます'),
+        card(h('h2', null, 'つらいところ'), h('p', { class: 'hint' }, 'あてはまるものを押して、つらさを 1（少し）〜10（とても）でえらびます'),
           symChipBox, symBox),
         card(group('肌の状態', chips(S.settings.skins, iv.skins || [], { onChange: (x) => { iv.skins = x; save(); } }),
           det.conds.includes('c_skin') ? 'キャリアオイルの候補に使います。この方は「お客さんの情報」で敏感肌になっているので、ここでえらばなくても敏感肌として見ます。アレルギーは「お客さんの情報」でえらびます' : 'キャリアオイルの候補に使います。敏感肌は、今日だけならここ、いつもなら「お客さんの情報」でえらびます（どちらでも同じに扱います）。アレルギーは「お客さんの情報」でえらびます'),

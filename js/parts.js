@@ -97,7 +97,7 @@ export const FIGS = {
 };
 for (const [id, f] of Object.entries(FIGS)) f.id = id;
 export const WHOLE_FIGS = ['front', 'back'];
-// 部位の一覧（図の組み合わせ）。名前・濃度の目安・関わる「つらいところ」は設定（settings.parts）で直せる
+// 部位の一覧（図の組み合わせ）。名前・濃度の目安は設定（settings.parts）で直せる（前にあった syms＝関わるつらいところ は 0.14.1 から使わない・消してはいない）
 export const PART_FIGS = {
   hand: ['hand_palm_r', 'hand_palm_l', 'hand_back_l', 'hand_back_r'],
   foot: ['foot_sole_r', 'foot_sole_l', 'foot_top_l', 'foot_top_r'],
@@ -113,7 +113,7 @@ export const scopeParts = (scope) => (isPart(scope) ? scope.parts.filter((id) =>
 // その来店で出す図（図の番号の並び）
 export const figIdsOf = (scope) => (isPart(scope) ? scopeParts(scope).flatMap((id) => PART_FIGS[id]) : WHOLE_FIGS);
 export const figsOf = (scope) => figIdsOf(scope).map((id) => FIGS[id]);
-const partDef = (settings, id) => ((settings && settings.parts) || []).find((p) => p.id === id) || { id, name: id, areaId: '', syms: [] };
+const partDef = (settings, id) => ((settings && settings.parts) || []).find((p) => p.id === id) || { id, name: id, areaId: '' };
 export const partName = (settings, id) => partDef(settings, id).name || id;
 export const scopeText = (settings, scope) => (isPart(scope) ? scopeParts(scope).map((id) => partName(settings, id)).join('・') + ' だけ' : '全身');
 // 部位に合わせた「濃度の目安」。いくつか部位があるときは、目安のいちばん低いものを使う（安全側）。決まらなければ ''（そのまま）
@@ -125,8 +125,6 @@ export function areaForScope(settings, scope) {
   const num = hit.filter((a) => a.max != null);
   return (num.length ? num.reduce((a, b) => (b.max < a.max ? b : a)) : hit[0]).id;
 }
-// 部位に関わる「つらいところ」の番号（短い問診で先に出す）
-export const symsForScope = (settings, scope) => [...new Set(scopeParts(scope).flatMap((id) => partDef(settings, id).syms || []))];
 // えらんだメニューから、全身／部分を決める。どれかが全身なら全身、部位だけならその合わせたもの。決まっていなければ null
 export function scopeFromMenus(menus) {
   const sc = (menus || []).map((m) => m.scope).filter((s) => s && (s.type === 'whole' || isPart(s)));

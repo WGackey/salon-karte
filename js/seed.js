@@ -72,11 +72,11 @@ export const DEFAULT_CONSENT_TEXT = `施術を受ける前に、次のことを�
 上のことを読み、説明を受けたうえで、施術を受けることに同意します。`;
 
 export const DEFAULT_PARTS = [
-  { id: 'hand', name: '手', areaId: 'a_part', syms: ['s_hie', 's_mukumi', 's_tsukare', 's_kinniku', 's_hada', 's_stress'] },
-  { id: 'foot', name: '足', areaId: 'a_part', syms: ['s_ashi', 's_mukumi', 's_hie', 's_tsukare', 's_kinniku', 's_hada'] },
-  { id: 'head', name: '頭', areaId: 'a_face', syms: ['s_atama', 's_me', 's_nemuri', 's_stress', 's_kubi', 's_kibun'] }, // 顔に近いので、低いほうの目安（安全側）。設定で直せる
-  { id: 'neck', name: '首・肩', areaId: 'a_body', syms: ['s_kata', 's_kubi', 's_atama', 's_me', 's_kinniku', 's_stress'] },
-  { id: 'back', name: '背中・腰', areaId: 'a_body', syms: ['s_senaka', 's_koshi', 's_kata', 's_kinniku', 's_tsukare'] },
+  { id: 'hand', name: '手', areaId: 'a_part' },
+  { id: 'foot', name: '足', areaId: 'a_part' },
+  { id: 'head', name: '頭', areaId: 'a_face' }, // 顔に近いので、低いほうの目安（安全側）。設定で直せる
+  { id: 'neck', name: '首・肩', areaId: 'a_body' },
+  { id: 'back', name: '背中・腰', areaId: 'a_body' },
 ];
 // 反射区（足の裏の区分け）。一般に知られている大まかな区分けだけの下書きで、確かめていない。名前と色は使う人が直せる。
 // 形（どこにあるか）は parts.js の REFLEX_SHAPES。名前は区分けの名前だけ（「〇〇に効く」とは書かない）。show＝図に重ねて出すか（はじめは出さない）／checked＝使う人が確かめた
@@ -106,7 +106,7 @@ export const DEFAULT_SETTINGS = {
   // 空欄だと埋めるのが大変なので、はじめから入れておく。設定 → 外す決まり で直せる（空けると自動でつけない）
   ageRules: { infant: AGE_RULES.infant, child: AGE_RULES.child, old: AGE_RULES.old },
   // 濃度の目安（精油 ÷ キャリアオイル）。0.10.0 から資料の数字：全身 5％まで・顔 3％まで・部分ぬり ふつう10％まで（資料に「例外あり」）
-  // 資料のメモ：はじめての人・敏感肌は うすめに（数字は書いていない）。子ども・高齢・妊娠中の数字は資料にない → 状態ごとの目安は空のまま
+  // 資料のメモ：はじめての人・敏感肌は うすめに（数字は書いていない）。子ども・高齢・妊娠中の数字は資料にない
   // 0.12.0：体 5％・顔 3％・部分ぬり 10％ は がっき〜が「そのまま」と決めたので、「下書き」のしるし（draft）は付けない
   areas: [
     // firstMax＝はじめての人（来店1回目）の目安（0.11.0・2026-11-16 がっき〜が決めた：体 1％・顔 0.5％）
@@ -115,8 +115,8 @@ export const DEFAULT_SETTINGS = {
     { id: 'a_part', name: '手・足だけ', max: 5, firstMax: 1 }, // 2026-11-16 がっき〜：手・足だけのトリートメントは体と同じ（部分ぬりの10％とは別）
     { id: 'a_spot', name: '部分ぬり（気になるところに少しだけ）', max: 10 },
   ],
-  stateLimits: {}, // 状態ごとの目安（はじめは空。使う人が入れる）
-  // 部位だけのカルテ（手だけ・足だけ など）。図は parts.js。名前・濃度の目安（areas のどれを使うか）・関わる「つらいところ」は設定で直せる
+  stateLimits: {}, // 状態ごとの目安（0.14.1 から使わない。前のデータとの形をそろえるために残す）
+  // 部位だけのカルテ（手だけ・足だけ など）。図は parts.js。名前・濃度の目安（areas のどれを使うか）は設定で直せる
   wholeAreaId: 'a_body', // 全身のときの濃度の目安
   parts: DEFAULT_PARTS,
   reflex: DEFAULT_REFLEX,
