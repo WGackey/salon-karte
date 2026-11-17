@@ -49,11 +49,11 @@ test('候補：資料の3段（つらいところ → 作用 → 成分 → 精�
   const has = (x) => x.oil.uses.includes('s_nemuri'); const n = r.filter(has).length;
   assert.ok(n >= 6 && r.slice(0, n).every(has), r.slice(0, n + 2).map((x) => x.oil.id).join());
   const top = r.slice(0, n).map((x) => x.oil.id); assert.ok(top.includes('o_clary') && top.includes('o_chamomile') && top.includes('o_lavender'), top.join());
-  assert.ok(r[0].reasons.some((t) => t.includes('「眠りが浅い」によいとされる')), r[0].reasons.join());
+  assert.ok(r[0].reasons.some((t) => t.includes('眠りが浅い向き')), r[0].reasons.join());
   assert.ok(r.slice(0, n).some((x) => x.reasons.some((t) => t.includes('「眠りが浅い」→ 気持ちを落ちつける ←'))), 'くわしい設定（つらいところ → 作用）の理由も出る');
   const kata = byId(pick({ symptoms: [{ id: 's_kata', level: 6 }] }));
   assert.ok(kata.o_rosemary.reasons.some((t) => t.includes('カンファー（ケトン類')), '成分（小分類）の名前が理由に出る');
-  assert.ok(kata.o_lemongrass.reasons.some((t) => t.includes('「肩こり」によいとされる')), '精油ごとのつらいところが理由に出る（効くと言い切らない）');
+  assert.ok(kata.o_lemongrass.reasons.some((t) => t.includes('肩こり向き')), '精油ごとのつらいところが理由に出る（効くと言い切らない）');
   assert.ok(pick({ symptoms: [{ id: 's_kata', level: 6 }] }).every((x) => x.reasons.every((t) => !/効く|治る|治す/.test(t))), '理由に「効く・治る」と書かない');
   assert.ok(pick({}).every((x) => x.score === 0), '何もえらんでいなければ、どれも候補に上げない');
 });

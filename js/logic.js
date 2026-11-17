@@ -124,7 +124,7 @@ export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidO
         score += w * k * l.f; reasons.push({ w: w * k * l.f, text: `「${symName(s.id)}」→ ${actName(aid)} ← ${l.text}` });
       }
       // 精油ごとに えらんだ「この精油を出すつらいところ」（0.14.1 案B）。いちばんの決め手にする（3倍）。つらいところ → 作用 の表（くわしい設定）は、並びの差をつけるだけ
-      if ((oil.uses || []).includes(s.id)) { score += 3 * w; reasons.push({ w: 3 * w, text: `「${symName(s.id)}」によいとされる（この精油を出すつらいところ）` }); }
+      if ((oil.uses || []).includes(s.id)) { score += 3 * w; reasons.push({ w: 3 * w, text: `${symName(s.id)}向き` }); }
     }
     for (const c of oil.okConds || []) if (conds.has(c)) reasons.push({ w: -1, text: `資料の「OK」：「${condName(c)}」にも向いている` });
     // 気をつける点

@@ -105,7 +105,7 @@ export function oilEditView(id) {
       card(field('名前', input(o, 'name')), group('香りの系統', chips(st.families, o.family || '', { multi: false, onChange: (v) => { o.family = v || ''; } }), 'もう一度押すと外れます（未記入）'),
         field('植物の科（資料の「種類」）', input(o, 'plant', { placeholder: '未記入' })),
         h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: o.owned, onchange: (e) => { o.owned = e.target.checked; } }), '手持ち（持っている）')),
-      card(h('h2', null, 'この精油を出すつらいところ'), h('p', { class: 'hint' }, '問診でえらんだ「つらいところ」がここにあると、オイルの画面で この精油が上に出ます（「〜によいとされる」）。はじめは、資料と、一般に言われている使い方を入れてあります（下書き）。足したり外したりできます。'),
+      card(h('h2', null, 'この精油を出すつらいところ'), h('p', { class: 'hint' }, '問診でえらんだ「つらいところ」がここにあると、オイルの画面で この精油が上に出ます（「肩こり向き」のように出ます）。はじめは、資料と、一般に言われている使い方を入れてあります（下書き）。足したり外したりできます。'),
         chips(st.symptoms, o.uses, { onChange: (v) => { o.uses = v; } })),
       card(h('h2', null, '成分の分類と割合'), h('p', { class: 'hint' }, '資料に割合がないときは「入っている」にして、数字は空けたままに（もっともらしく埋めない）。'),
         S.cats.map(compRow), total),
