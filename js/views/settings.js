@@ -35,13 +35,13 @@ export function settingsView() {
         link('#/set/oils', '精油の一覧と手持ち', `${S.oils.length}本（手持ち ${own}本）`),
         link('#/set/carriers', 'キャリアオイルの一覧と手持ち', `${S.carriers.length}種類（手持ち ${S.carriers.filter((o) => o.owned).length}種類）`),
         link('#/set/limits', '濃度の目安・1滴の量', '部位ごと・乳幼児／子ども／高齢／敏感肌 の上限'),
-        link('#/set/actions', '作用（働き）の一覧', `${(S.settings.actions || []).length}個。資料の作用の名前をまとめたもの`),
         link('#/set/cats', '精油の成分の分類と成分（作用・気をつける状態）', '候補の2段目：作用 → 成分。分類ごとの注意'),
         link('#/set/fats', 'キャリアオイルの成分（向いている肌の状態）', 'キャリアオイルの候補を出すもとになる表'),
         link('#/set/rules', '外す決まり（割合・年齢）', `気をつける成分が ${S.settings.cautionPct ?? 10}％以上・割合が分からないとき・年齢`))),
       h('details', { class: 'card fold' }, h('summary', null, 'くわしい設定（ふだんは触らなくて大丈夫）'),
         h('p', { class: 'hint' }, '候補の並びをもっと細かく決めたい人向けです。ふだんは、精油ごとの「この精油を出すつらいところ」で足りるようにしてあります。'),
-        h('div', { class: 'list' }, link('#/set/symacts', 'つらいところと作用のつながり（重み）', 'つらいところ → 作用 → 成分 で、並びに少し差をつける'))),
+        h('div', { class: 'list' }, link('#/set/symacts', 'つらいところと作用のつながり（重み）', 'つらいところ → 作用 → 成分 で、並びに少し差をつける'),
+          link('#/set/actions', '作用（働き）の一覧', `${(S.settings.actions || []).length}個。働きの名前（ふだんの言葉）を直せる`))),
       card(h('h2', null, 'データ'), h('div', { class: 'list' },
         link('#/set/backup', 'バックアップ（書き出し・戻し）', `データは ${HERE} の中だけにあります。こまめに書き出してね`),
         link('#/set/sample', '見本のデータ', '速さを試すための、作りもののお客さん'),
@@ -373,11 +373,11 @@ export function actionsView() {
   const draw = () => fill(box, ...st.actions.map((a) => h('div', { class: 'card' },
     h('div', { class: 'row' }, input(a, 'name', { onInput: save, cls: 'grow', placeholder: '作用の名前（ふだんの言葉で）' }),
       btn('×', async () => { if (await confirmDlg(`作用「${a.name}」を消します。成分・精油・つらいところとのつながりも使われなくなります。`, '消す', true)) { st.actions = st.actions.filter((x) => x !== a); save(); draw(); } }, 'ghost round')),
-    field('資料での呼び方', input(a, 'terms', { onInput: save, placeholder: '例：鎮静・神経安定' })))),
+    a.terms ? h('p', { class: 'small muted' }, '資料での呼び方（見るだけ）：', a.terms) : null)), // 0.14.1：呼び方は見るだけ（どこにも使っていないメモ。書きかえて迷わないように）
   h('div', { class: 'row' }, btn('＋ 作用を足す', () => { st.actions.push({ id: db.uid(), name: '', terms: '' }); save(); draw(); })));
   draw();
   return page({ title: '作用（働き）の一覧', back: '#/set', body: [AUTO_NOTE(),
-    h('p', { class: 'hint' }, '資料にある作用の名前を、ふだんの言葉のまとまりに分けたものです。「こんな働きがあると言われる」という分け方で、「効く」という意味ではありません。お客さんに見せる言葉にも使います。'), box] });
+    h('p', { class: 'hint' }, '資料にある作用の名前を、ふだんの言葉のまとまりに分けたものです。「こんな働きがあると言われる」という分け方で、「効く」という意味ではありません。名前を直しても、成分・精油・つらいところとのつながりは切れません（オイルの画面の理由に出る名前が変わるだけ）。消すと、その働きは候補の並びに使われなくなります。'), box] });
 }
 // ---- つらいところ → 作用 の重み ----
 export function symActsView() {

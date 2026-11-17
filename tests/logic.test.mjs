@@ -537,3 +537,15 @@ test('版12への移し替え：精油ごとのつらいところに、一般に
   assert.deepEqual(d.stores.customers, [{ id: 'c1', name: '見本 はなこ' }], 'お客さんはさわらない');
   for (const [id, syms] of Object.entries(GENERAL_USES)) { assert.ok(DEFAULT_OILS.some((x) => x.id === id), id); for (const s of syms) assert.ok(DEFAULT_SETTINGS.symptoms.some((x) => x.id === s), `${id} の ${s}`); }
 });
+test('作用の名前を直しても・消しても こわれない（0.14.1）', () => {
+  const run = (st) => pickOils({ oils: DEFAULT_OILS, cats: DEFAULT_CATS, settings: st, symptoms: [{ id: 's_kata', level: 6 }], condIds: [] });
+  const base = run(DEFAULT_SETTINGS); const ro = (r) => r.find((x) => x.oil.id === 'o_rosemary');
+  const ren = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); ren.actions.find((x) => x.id === 'a_relax').name = 'ゆるめる（直した）';
+  const r1 = run(ren); assert.deepEqual(r1.map((x) => x.score), base.map((x) => x.score), '名前を直しても並びは同じ（つながりは番号）');
+  assert.ok(ro(r1).reasons.some((t) => t.includes('→ ゆるめる（直した） ←')), '理由には新しい名前が出る');
+  const del = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); del.actions = del.actions.filter((x) => x.id !== 'a_relax');
+  const r2 = run(del); assert.ok(ro(r2).score < ro(base).score, '消した作用は点に入れない');
+  assert.ok(r2.every((x) => x.reasons.every((t) => !t.includes('a_relax'))), '理由に番号（a_relax）を出さない');
+  const emp = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); emp.actions.find((x) => x.id === 'a_relax').name = '';
+  assert.ok(run(emp).every((x) => x.reasons.every((t) => !t.includes('a_relax'))), '名前を空けても番号は出さない');
+});

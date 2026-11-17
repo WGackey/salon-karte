@@ -94,7 +94,9 @@ const has = (comp, id) => !!comp && Object.prototype.hasOwnProperty.call(comp, i
 export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidOilIds, allergyTags, allergyText, settings }) {
   const symName = (id) => (settings.symptoms.find((s) => s.id === id) || {}).name || id;
   const condName = (id) => (settings.conds.find((s) => s.id === id) || {}).name || id;
-  const actName = (id) => ((settings.actions || []).find((a) => a.id === id) || {}).name || id;
+  // 作用：名前を直しても、つながりは番号（a_relax など）なので切れない。一覧から消した作用は使わない（0.14.1：前は消しても点が入り、理由に番号が出ていた）
+  const actOk = (id) => !settings.actions || settings.actions.some((a) => a.id === id);
+  const actName = (id) => ((settings.actions || []).find((a) => a.id === id) || {}).name || '（名前のない作用）';
   const symActs = (id) => (settings.symptoms.find((s) => s.id === id) || {}).acts || {};
   const conds = new Set(condIds || []); const avoid = new Set(avoidOilIds || []);
   const th = settings.cautionPct ?? 10; const unknownBlock = (settings.unknownPct || 'block') === 'block';
@@ -120,7 +122,7 @@ export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidO
     if (scored) for (const s of symptoms || []) {
       const w = (s.level || 5) / 10;
       for (const [aid, k] of Object.entries(symActs(s.id))) {
-        if (!(k > 0)) continue; const l = link(aid); if (!l) continue;
+        if (!(k > 0) || !actOk(aid)) continue; const l = link(aid); if (!l) continue;
         score += w * k * l.f; reasons.push({ w: w * k * l.f, text: `「${symName(s.id)}」→ ${actName(aid)} ← ${l.text}` });
       }
       // 精油ごとに えらんだ「この精油を出すつらいところ」（0.14.1 案B）。いちばんの決め手にする（3倍）。つらいところ → 作用 の表（くわしい設定）は、並びの差をつけるだけ
