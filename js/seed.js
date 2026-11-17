@@ -39,6 +39,14 @@ const SYM = [
   ['s_ichou', 'おなかの調子', { a_digest: 2, a_relax: 1 }], ['s_gekkei', '月経まわりの不快感', { a_relax: 2, a_female: 1, a_flow: 1, a_calm: 1 }],
   ['s_hada', '肌の乾燥', { a_skin: 2, a_itch: 1 }], ['s_hana', '鼻・のどがすっきりしない', { a_breath: 2, a_guard: 1, a_itch: 1 }],
 ];
+// 「〇〇向き」に使う短い呼び名（0.14.1 がっき〜：短くて分かりやすく）。問診のつらいところの名前はそのまま。名前を直した つらいところは、直した名前で「〇〇向き」
+export const SYM_SHORT = {
+  s_kata: { from: '肩こり', short: '肩こり' }, s_kubi: { from: '首のこり', short: '首のこり' }, s_koshi: { from: '腰のつらさ', short: '腰' }, s_senaka: { from: '背中のはり', short: '背中' },
+  s_atama: { from: '頭が重い', short: '頭の重さ' }, s_me: { from: '目の疲れ', short: '目の疲れ' }, s_mukumi: { from: 'むくみ', short: 'むくみ' }, s_hie: { from: '冷え', short: '冷え' },
+  s_tsukare: { from: '疲れ・だるさ', short: '疲れ' }, s_nemuri: { from: '眠りが浅い', short: '眠り' }, s_stress: { from: 'ストレス・緊張', short: 'ストレス' }, s_kibun: { from: '気分が沈みがち', short: '気分' },
+  s_kinniku: { from: '筋肉のはり', short: '筋肉のはり' }, s_ashi: { from: '足の疲れ', short: '足の疲れ' }, s_ichou: { from: 'おなかの調子', short: 'おなか' }, s_gekkei: { from: '月経まわりの不快感', short: '月経まわり' },
+  s_hada: { from: '肌の乾燥', short: '乾燥肌' }, s_hana: { from: '鼻・のどがすっきりしない', short: '鼻・のど' },
+};
 export const DEFAULT_SYM_ACTS = Object.fromEntries(SYM.map(([id, , acts]) => [id, acts]));
 
 // 気をつける状態。when：visit＝来店ごと／person＝お客さんごと／auto＝自動でつく（妊娠の月数から）

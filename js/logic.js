@@ -1,4 +1,5 @@
 // 計算だけの部品（画面にも保存にも触らない）。tests/ で確かめている。
+import { SYM_SHORT } from './seed.js';
 const pad = (n) => String(n).padStart(2, '0');
 export const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const todayStr = () => ymd(new Date());
@@ -93,6 +94,7 @@ const has = (comp, id) => !!comp && Object.prototype.hasOwnProperty.call(comp, i
 // 資料にない精油（ref === false）は点数に入れない（気をつける点は見る）。
 export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidOilIds, allergyTags, allergyText, settings }) {
   const symName = (id) => (settings.symptoms.find((s) => s.id === id) || {}).name || id;
+  const symShort = (id) => { const n = symName(id), d = SYM_SHORT[id]; return d && d.from === n ? d.short : n; }; // 名前を直していなければ短い呼び名
   const condName = (id) => (settings.conds.find((s) => s.id === id) || {}).name || id;
   // 作用：名前を直しても、つながりは番号（a_relax など）なので切れない。一覧から消した作用は使わない（0.14.1：前は消しても点が入り、理由に番号が出ていた）
   const actOk = (id) => !settings.actions || settings.actions.some((a) => a.id === id);
@@ -126,7 +128,7 @@ export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidO
         score += w * k * l.f; reasons.push({ w: w * k * l.f, text: `「${symName(s.id)}」→ ${actName(aid)} ← ${l.text}` });
       }
       // 精油ごとに えらんだ「この精油を出すつらいところ」（0.14.1 案B）。いちばんの決め手にする（3倍）。つらいところ → 作用 の表（くわしい設定）は、並びの差をつけるだけ
-      if ((oil.uses || []).includes(s.id)) { score += 3 * w; reasons.push({ w: 3 * w, text: `${symName(s.id)}向き` }); }
+      if ((oil.uses || []).includes(s.id)) { score += 3 * w; reasons.push({ w: 3 * w, text: `${symShort(s.id)}向き` }); }
     }
     for (const c of oil.okConds || []) if (conds.has(c)) reasons.push({ w: -1, text: `資料の「OK」：「${condName(c)}」にも向いている` });
     // 気をつける点

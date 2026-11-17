@@ -49,7 +49,7 @@ test('候補：資料の3段（つらいところ → 作用 → 成分 → 精�
   const has = (x) => x.oil.uses.includes('s_nemuri'); const n = r.filter(has).length;
   assert.ok(n >= 6 && r.slice(0, n).every(has), r.slice(0, n + 2).map((x) => x.oil.id).join());
   const top = r.slice(0, n).map((x) => x.oil.id); assert.ok(top.includes('o_clary') && top.includes('o_chamomile') && top.includes('o_lavender'), top.join());
-  assert.ok(r[0].reasons.some((t) => t.includes('眠りが浅い向き')), r[0].reasons.join());
+  assert.ok(r[0].reasons.some((t) => t.includes('眠り向き')), r[0].reasons.join());
   assert.ok(r.slice(0, n).some((x) => x.reasons.some((t) => t.includes('「眠りが浅い」→ 気持ちを落ちつける ←'))), 'くわしい設定（つらいところ → 作用）の理由も出る');
   const kata = byId(pick({ symptoms: [{ id: 's_kata', level: 6 }] }));
   assert.ok(kata.o_rosemary.reasons.some((t) => t.includes('カンファー（ケトン類')), '成分（小分類）の名前が理由に出る');
@@ -536,6 +536,12 @@ test('版12への移し替え：精油ごとのつらいところに、一般に
   assert.deepEqual(o.o_teatree.uses, [], '足すものがない精油はそのまま'); assert.deepEqual(o.mine.uses, ['s_hie'], '自分で足した精油はさわらない');
   assert.deepEqual(d.stores.customers, [{ id: 'c1', name: '見本 はなこ' }], 'お客さんはさわらない');
   for (const [id, syms] of Object.entries(GENERAL_USES)) { assert.ok(DEFAULT_OILS.some((x) => x.id === id), id); for (const s of syms) assert.ok(DEFAULT_SETTINGS.symptoms.some((x) => x.id === s), `${id} の ${s}`); }
+});
+test('「〇〇向き」は短い呼び名。名前を直した つらいところは直した名前（0.14.1）', () => {
+  const why = (st, sid, oid) => pickOils({ oils: DEFAULT_OILS, cats: DEFAULT_CATS, settings: st, symptoms: [{ id: sid, level: 5 }], condIds: [] }).find((x) => x.oil.id === oid).reasons;
+  assert.ok(why(DEFAULT_SETTINGS, 's_nemuri', 'o_lavender').includes('眠り向き')); assert.ok(why(DEFAULT_SETTINGS, 's_hana', 'o_teatree').includes('鼻・のど向き'));
+  const st = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); st.symptoms.find((x) => x.id === 's_nemuri').name = '寝つきが悪い';
+  assert.ok(why(st, 's_nemuri', 'o_lavender').includes('寝つきが悪い向き'));
 });
 test('作用の名前を直しても・消しても こわれない（0.14.1）', () => {
   const run = (st) => pickOils({ oils: DEFAULT_OILS, cats: DEFAULT_CATS, settings: st, symptoms: [{ id: 's_kata', level: 6 }], condIds: [] });
