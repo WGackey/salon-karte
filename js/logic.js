@@ -123,7 +123,8 @@ export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidO
         if (!(k > 0)) continue; const l = link(aid); if (!l) continue;
         score += w * k * l.f; reasons.push({ w: w * k * l.f, text: `「${symName(s.id)}」→ ${actName(aid)} ← ${l.text}` });
       }
-      if ((oil.uses || []).includes(s.id)) { score += w; reasons.push({ w, text: `「${symName(s.id)}」← 資料の「OK」・使いどころにある場面` }); }
+      // 精油ごとに えらんだ「この精油を出すつらいところ」（0.14.1 案B）。いちばんの決め手にする（3倍）。つらいところ → 作用 の表（くわしい設定）は、並びの差をつけるだけ
+      if ((oil.uses || []).includes(s.id)) { score += 3 * w; reasons.push({ w: 3 * w, text: `「${symName(s.id)}」によいとされる（この精油を出すつらいところ）` }); }
     }
     for (const c of oil.okConds || []) if (conds.has(c)) reasons.push({ w: -1, text: `資料の「OK」：「${condName(c)}」にも向いている` });
     // 気をつける点

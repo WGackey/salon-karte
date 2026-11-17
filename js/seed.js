@@ -253,6 +253,40 @@ export const DEFAULT_OILS = [
   O('o_lemongrass', 'レモングラス', 'f_tree', 'イネ科', { ald: 80, hyd: null, alc: null }, ['sb_limonene', 'sb_mta', 'sb_tald'], ['a_itch', 'a_flow', 'a_heat', 'a_ease', 'a_calm'], ['s_kata', 's_hie']),
   O('o_mandarin', 'マンダリン', 'f_citrus', 'ミカン科', { hyd: 90, est: null, alc: null }, ['sb_limonene', 'sb_linalool', 'sb_est'], ['a_digest', 'a_water', 'a_calm'], ['s_nemuri', 's_tsukare', 's_ichou'], { cautions: ['c_sun'], note: 'アルコール類は「アロマ表」（リナロール）にあり。' }),
 ];
+// 精油ごとの「この精油を出すつらいところ」に、はじめから足しておくもの（0.14.1・案B）。
+// アロマの入門書・検定の教本などで「〜によいとされる」と広く言われている使い方を、つらいところの言葉に当てはめたもの（1冊の表を写したものではない）。
+// 下書き：使う人が 設定 → 精油の一覧 → 精油を開く →「この精油を出すつらいところ」で足したり外したりできる。禁忌（外す・⚠）にはかかわらない（候補の並びだけ）。
+// 資料（がっき〜の資料の「OK」・使いどころ）から入れたものは O(...) の uses。ここはそれに足すぶん
+export const GENERAL_USES = {
+  o_lavender: ['s_nemuri', 's_stress', 's_atama', 's_kata', 's_kubi', 's_kinniku', 's_senaka', 's_me', 's_hada'],
+  o_peppermint: ['s_atama', 's_tsukare', 's_ashi'],
+  o_geranium: ['s_mukumi', 's_gekkei', 's_stress', 's_kibun'],
+  o_helichrysum: ['s_hada'],
+  o_rosemary: ['s_kubi', 's_koshi', 's_senaka', 's_atama', 's_tsukare', 's_hie', 's_mukumi', 's_ashi'],
+  o_orange: ['s_stress', 's_kibun', 's_nemuri'],
+  o_ylang: ['s_nemuri'],
+  o_chamomile_g: ['s_hada', 's_stress'],
+  o_chamomile: ['s_ichou', 's_gekkei', 's_atama'],
+  o_cypress: ['s_ashi', 's_gekkei'],
+  o_sandalwood: ['s_stress', 's_nemuri', 's_hada', 's_hana'],
+  o_neroli: ['s_nemuri'],
+  o_palmarosa: ['s_hada', 's_stress'],
+  o_frankincense: ['s_stress', 's_kibun', 's_hana', 's_hada'],
+  o_lemon: ['s_kibun', 's_tsukare'],
+  o_rose: ['s_kibun'],
+  o_rosewood: ['s_stress'],
+  o_celery: ['s_mukumi'],
+  o_clary: ['s_stress', 's_kibun'],
+  o_juniper: ['s_mukumi', 's_ashi', 's_tsukare'],
+  o_cedar: ['s_stress', 's_hana'],
+  o_myrrh: ['s_hana'],
+  o_euc_citriodora: ['s_kinniku'],
+  o_patchouli: ['s_hada', 's_stress'],
+  o_marjoram: ['s_kata', 's_kubi', 's_koshi', 's_senaka', 's_kinniku', 's_nemuri', 's_ichou', 's_gekkei', 's_hie'],
+  o_lemongrass: ['s_kinniku', 's_tsukare', 's_ashi'],
+  o_mandarin: ['s_stress'],
+};
+for (const o of DEFAULT_OILS) if (GENERAL_USES[o.id]) o.uses = [...new Set([...o.uses, ...GENERAL_USES[o.id]])];
 // 前の下書きにあって、がっき〜の資料にない精油（11本）。新しく入れる端末には入れない。版4への移し替えで「資料にない」（候補の点数に入れない）にして残し、
 // 版11（0.12.0）で、使っている端末からもぜんぶ消す（がっき〜：「資料に無いものは全部消してOK」）。
 export const OLD_ONLY_OILS = {

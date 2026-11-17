@@ -1,7 +1,7 @@
 // データの入れ物（端末の中の IndexedDB）。外へは何も送らない。
-import { AGE_RULES, CARRIERS_V8, OLD_ONLY_CARRIERS, DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
+import { AGE_RULES, CARRIERS_V8, OLD_ONLY_CARRIERS, DEFAULT_CARRIERS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_PARTS, DEFAULT_REFLEX, DEFAULT_SETTINGS, DEFAULT_SYM_ACTS, GENERAL_USES, OLD_ONLY_OILS, SUN_NAME, SUN_NAME_OLD } from './seed.js';
 // DATA_VERSION = データの形の版。形を変えたら 1 つ上げて MIGRATIONS に移し替えを足す。
-export const DATA_VERSION = 11;
+export const DATA_VERSION = 12;
 export const STORES = ['meta', 'customers', 'details', 'visits', 'oils', 'carriers', 'cats', 'menus', 'blends', 'appts'];
 // IDB_VERSION＝入れ物そのものを足すときに上げる（2：予定の入れ物 appts。Google カレンダーの取りこみ用・いまは空）
 const IDB_VERSION = 2;
@@ -129,6 +129,11 @@ export const MIGRATIONS = [
       },
       meta: (r) => (r.key === 'settings' && r.value ? { ...r, value: settingsV11(r.value) } : r),
     },
+  },
+  { // 版12（0.14.1・がっき〜 案B）：精油ごとの「この精油を出すつらいところ」（uses）に、一般に言われている使い方（seed.js の GENERAL_USES）を足す。
+    //   ★足すだけ：入っているもの（資料から・使う人が直したもの）は消さない。はじめから入っていた精油（決まった番号）だけ。お客さん・来店はさわらない
+    to: 12,
+    stores: { oils: (r) => (GENERAL_USES[r.id] ? { ...r, uses: [...new Set([...(r.uses || []), ...GENERAL_USES[r.id]])] } : r) },
   },
 ];
 // ---- 版11 の移し替えで使う部品 ----

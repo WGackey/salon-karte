@@ -17,6 +17,8 @@ const symName = (id) => (S.settings.symptoms.find((c) => c.id === id) || {}).nam
 const condName = (id) => (S.settings.conds.find((c) => c.id === id) || {}).name || '';
 const skinName = (id) => (S.settings.skins.find((c) => c.id === id) || {}).name || '';
 const fmt = (n) => (Math.round(n * 100) / 100).toString();
+// カルテの中の注意書きは、はじめ閉じておく（0.14.1 がっき〜：読んだあとも出たままだと邪魔）。「＋ 使う前の注意（押すと開く）」の1行 → 押すと開く。foldNote(文) か foldNote({ open, ontoggle }, 文)
+const foldNote = (a, b) => { const [props, text] = typeof a === 'string' ? [{}, a] : [a, b]; return h('details', { class: 'notice draft fold oilnote', ...props }, h('summary', null, '使う前の注意', h('span', { class: 'tapnote' }, '（押すと開く）')), text); };
 
 // つらさ（1〜10）をえらぶボタン。zero=true なら 0 から
 function levelPicker(value, onPick, zero = false) {
@@ -201,7 +203,7 @@ export async function visitView(id, step) {
         const isOil = tab === 'oil'; const al = allergyNames();
         fill(headBox,
           h('div', { class: 'tabs' }, [['oil', '精油'], ['car', 'キャリアオイル']].map(([id, name]) => h('button', { type: 'button', class: 'tab' + (tab === id ? ' on' : ''), onclick: () => { tab = id; drawHead(); draw(); } }, name))),
-          h('details', { class: 'notice draft fold oilnote', open: noteOpen, ontoggle: (e) => { noteOpen = e.currentTarget.open; } }, h('summary', null, '使う前の注意', h('span', { class: 'tapnote' }, '（押すと開く）')), isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは、アロマテラピーを学んだときの資料をもとに入れたものです（下書き）。アレルギー体質・敏感肌・はじめて使う人は、腕の内側に1〜2滴ぬって赤くならないか確かめる（パッチテスト）と資料に。候補は目安で、最後に決めるのは施術する人です。'),
+          foldNote({ open: noteOpen, ontoggle: (e) => { noteOpen = e.currentTarget.open; } }, isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは、アロマテラピーを学んだときの資料をもとに入れたものです（下書き）。アレルギー体質・敏感肌・はじめて使う人は、腕の内側に1〜2滴ぬって赤くならないか確かめる（パッチテスト）と資料に。候補は目安で、最後に決めるのは施術する人です。'),
           card(h('div', { class: 'facts' },
             isOil ? h('div', null, h('b', null, 'つらいところ：'), iv.symptoms.map((s) => `${symName(s.id)}（${s.level}）`).join('、') || 'なし')
               : [h('div', null, h('b', null, '肌の状態：'), (iv.skins || []).map(skinName).filter(Boolean).join('・') || 'えらんでいません'),
@@ -298,7 +300,8 @@ export async function visitView(id, step) {
       refresh();
       return [
         h('div', { class: 'sticky' }, meter),
-        card(group('どこに使う？', areaBox, [isPart(v.scope) ? `今日は「${scopeText(S.settings, v.scope)}」の施術なので、部位に合わせた目安をえらんであります（設定 → 部位 で変えられます）。` : '', S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : '', 'はじめての人は、上の「はじめての人の目安」で見られます（1回目の来店は、はじめからそちら）。敏感肌の人も、目安よりうすめに（資料のメモ。数字は書いていない）。'].filter(Boolean).join('　') || null)),
+        card(group('どこに使う？', areaBox, isPart(v.scope) ? `今日は「${scopeText(S.settings, v.scope)}」の施術なので、部位に合わせた目安をえらんであります（設定 → 部位 で変えられます）。` : null),
+          foldNote([S.settings.areas.some((a) => a.draft) ? '「下書き」の目安が入っています。自分の資料で確かめて、設定で直してね。' : '', 'はじめての人は、上の「はじめての人の目安」で見られます（1回目の来店は、はじめからそちら）。敏感肌の人も、目安よりうすめに（資料のメモ。数字は書いていない）。'].filter(Boolean).join('　'))),
         card(h('h2', null, 'キャリアオイル'), carBox, h('div', { class: 'row' }, btn('＋ キャリアオイルをえらぶ', addCarrier))),
         card(h('h2', null, '精油'), oilBox, h('div', { class: 'row' }, btn('＋ 精油を足す', addOil)),
           h('p', { class: 'hint' }, `濃度は「精油の量 ÷ キャリアオイルの量」で出しています（1滴＝${fmt(dropMl)}ml。設定で変えられます）。`)),

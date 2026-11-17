@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ageOf, addDays, daysBetween, blendCalc, maxDrops, limitFor, limitLevel, isFirstBlend, pickOils, pickCarriers, allergyHits, searchPeople, effectiveConds, noTouchOf, consentState } from '../js/logic.js';
 import { migrateDump, MIGRATIONS, DATA_VERSION } from '../js/db.js';
-import { DEFAULT_SETTINGS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_CARRIERS, OLD_ONLY_OILS, OLD_ONLY_CARRIERS } from '../js/seed.js';
+import { DEFAULT_SETTINGS, DEFAULT_CATS, DEFAULT_OILS, DEFAULT_CARRIERS, OLD_ONLY_OILS, OLD_ONLY_CARRIERS, GENERAL_USES } from '../js/seed.js';
 
 test('年齢：誕生日の前と後', () => {
   assert.equal(ageOf('1980-11-16', '2026-11-15'), 45);
@@ -45,20 +45,25 @@ const pick = (o) => pickOils({ oils: DEFAULT_OILS, cats: DEFAULT_CATS, settings:
 const byId = (r) => Object.fromEntries(r.map((x) => [x.oil.id, x]));
 test('候補：資料の3段（つらいところ → 作用 → 成分 → 精油）で、理由つきで出る', () => {
   const r = pick({ symptoms: [{ id: 's_nemuri', level: 8 }] });
-  const top = r.slice(0, 6).map((x) => x.oil.id);
-  assert.ok(top.includes('o_clary') && top.includes('o_chamomile'), top.join());
-  assert.ok(r[0].reasons.some((t) => t.includes('「眠りが浅い」→ 気持ちを落ちつける ←')), r[0].reasons.join());
+  // 0.14.1 案B：精油ごとの「この精油を出すつらいところ」に「眠りが浅い」がある精油が、ない精油より上に出る
+  const has = (x) => x.oil.uses.includes('s_nemuri'); const n = r.filter(has).length;
+  assert.ok(n >= 6 && r.slice(0, n).every(has), r.slice(0, n + 2).map((x) => x.oil.id).join());
+  const top = r.slice(0, n).map((x) => x.oil.id); assert.ok(top.includes('o_clary') && top.includes('o_chamomile') && top.includes('o_lavender'), top.join());
+  assert.ok(r[0].reasons.some((t) => t.includes('「眠りが浅い」によいとされる')), r[0].reasons.join());
+  assert.ok(r.slice(0, n).some((x) => x.reasons.some((t) => t.includes('「眠りが浅い」→ 気持ちを落ちつける ←'))), 'くわしい設定（つらいところ → 作用）の理由も出る');
   const kata = byId(pick({ symptoms: [{ id: 's_kata', level: 6 }] }));
   assert.ok(kata.o_rosemary.reasons.some((t) => t.includes('カンファー（ケトン類')), '成分（小分類）の名前が理由に出る');
-  assert.ok(kata.o_lemongrass.reasons.some((t) => t.includes('資料の「OK」')), '資料のOKが理由に出る');
+  assert.ok(kata.o_lemongrass.reasons.some((t) => t.includes('「肩こり」によいとされる')), '精油ごとのつらいところが理由に出る（効くと言い切らない）');
+  assert.ok(pick({ symptoms: [{ id: 's_kata', level: 6 }] }).every((x) => x.reasons.every((t) => !/効く|治る|治す/.test(t))), '理由に「効く・治る」と書かない');
   assert.ok(pick({}).every((x) => x.score === 0), '何もえらんでいなければ、どれも候補に上げない');
 });
 test('候補：重みを変えると並びが変わる（つらいところ → 作用）', () => {
   const st = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   st.symptoms.find((x) => x.id === 's_hie').acts = { a_warm: 2 }; // あたためる だけ → それを持つ精油はない
   const r = pickOils({ oils: DEFAULT_OILS, cats: DEFAULT_CATS, settings: st, symptoms: [{ id: 's_hie', level: 5 }], condIds: [] });
-  assert.equal(r[0].oil.id, 'o_lemongrass', '残るのは資料のOK（冷え性）だけ');
-  assert.equal(r.filter((x) => x.score > 0).length, 1);
+  const want = DEFAULT_OILS.filter((o) => o.uses.includes('s_hie')).map((o) => o.id).sort();
+  assert.deepEqual(r.filter((x) => x.score > 0).map((x) => x.oil.id).sort(), want, '残るのは、精油ごとの「冷え」をえらんだものだけ');
+  assert.ok(want.includes('o_lemongrass') && want.includes('o_marjoram'));
 });
 test('候補：資料のNGにあたる精油は消さずに、理由つきで外す', () => {
   const r = pick({ symptoms: [{ id: 's_kata', level: 6 }], condIds: ['c_drive', 'c_sun', 'c_bpmed'] });
@@ -256,7 +261,7 @@ test('版4への移し替え：精油を資料の30本に。手持ちは残す�
   assert.equal(d.dataVersion, DATA_VERSION);
   const o = Object.fromEntries(d.stores.oils.map((x) => [x.id, x]));
   assert.equal(o.o_lavender.name, 'ラベンダー・アングスティフォリア'); assert.equal(o.o_lavender.owned, true); assert.deepEqual(o.o_lavender.components, { est: null, alc: null, hyd: null });
-  assert.equal(o.o_marjoram.name, 'うちのマージョラム'); assert.deepEqual(o.o_marjoram.components, { alc: 50, hyd: 40 }); assert.equal(o.o_marjoram.family, 'f_flower'); assert.deepEqual(o.o_marjoram.uses, ['s_kata']);
+  assert.equal(o.o_marjoram.name, 'うちのマージョラム'); assert.deepEqual(o.o_marjoram.components, { alc: 50, hyd: 40 }); assert.equal(o.o_marjoram.family, 'f_flower'); assert.equal(o.o_marjoram.uses[0], 's_kata', '使う人が入れたものは残る'); assert.ok(o.o_marjoram.uses.includes('s_koshi'), '版12：一般に言われている使い方を足す（足すだけ）');
   assert.ok(!o.o_ginger, '資料にない精油は、手持ちでも版11で消える（0.12.0）');
   const at4 = Object.fromEntries(migrateDump(v3, MIGRATIONS, 4).stores.oils.map((x) => [x.id, x])); assert.equal(at4.o_ginger.ref, false); assert.deepEqual(at4.o_ginger.components, { hyd: 80 }); assert.equal(at4.o_ginger.family, '');
   assert.deepEqual(o.mine.components, { phe: 10, alc: null }); assert.equal(o.mine.ref, undefined);
@@ -482,7 +487,7 @@ test('版11への移し替え：資料にない精油・キャリアオイルは
     meta: [{ key: 'settings', value: { areas: [{ id: 'a_body', name: '体', max: 5, draft: true, firstMax: 1 }, { id: 'a_face', name: '顔', max: 3, draft: true, firstMax: 0.5 }, { id: 'a_part', name: '手・足だけ', max: 5, firstMax: 1 },
       { id: 'a_spot', name: '部分ぬり', max: 10, draft: true }, { id: 'mine', name: '自分の部位', max: 2, draft: true }], ageRules: { infant: null, child: 12, old: null } } }, { key: 'nextNo', value: 3 }],
   } };
-  const d = migrateDump(v10, MIGRATIONS, DATA_VERSION); assert.equal(d.dataVersion, 11);
+  const d = migrateDump(v10, MIGRATIONS, DATA_VERSION); assert.equal(d.dataVersion, 12);
   const o = Object.fromEntries(d.stores.oils.map((x) => [x.id, x])); const c = Object.fromEntries(d.stores.carriers.map((x) => [x.id, x]));
   for (const id of Object.keys(OLD_ONLY_OILS)) assert.ok(!o[id], id + '：資料にないので消える（手持ち・直した・使ったものも）');
   assert.ok(o.mine, '自分で足した精油は、資料になくても残す'); assert.equal(d.stores.oils.length, 30 + 1); for (const x of DEFAULT_OILS) assert.ok(o[x.id], x.id);
@@ -518,4 +523,17 @@ test('0.14.0 バックアップの知らせ：強さ・言葉・ホーム画面�
   assert.equal(showHomeAdd(false, null, '2026-11-16'), true);
   assert.equal(showHomeAdd(false, '2026-11-01', '2026-11-16'), false, 'とじてから 30日は出さない');
   assert.equal(showHomeAdd(false, '2026-10-17', '2026-11-16'), true);
+});
+test('版12への移し替え：精油ごとのつらいところに、一般に言われている使い方を足すだけ（消さない・自分で足した精油はさわらない）', () => {
+  const v11 = { app: 'salon-karte', dataVersion: 11, stores: { oils: [
+    { id: 'o_lavender', name: 'ラベンダー', uses: ['s_kibun'], owned: true },
+    { id: 'o_teatree', name: 'ティートゥリー', uses: [] },
+    { id: 'mine', name: '自分の精油', uses: ['s_hie'] },
+  ], customers: [{ id: 'c1', name: '見本 はなこ' }] } };
+  const d = migrateDump(v11, MIGRATIONS, DATA_VERSION); const o = Object.fromEntries(d.stores.oils.map((x) => [x.id, x]));
+  assert.equal(d.dataVersion, 12);
+  assert.equal(o.o_lavender.uses[0], 's_kibun', '使う人が入れたものは残る'); assert.ok(o.o_lavender.uses.includes('s_nemuri')); assert.equal(o.o_lavender.owned, true);
+  assert.deepEqual(o.o_teatree.uses, [], '足すものがない精油はそのまま'); assert.deepEqual(o.mine.uses, ['s_hie'], '自分で足した精油はさわらない');
+  assert.deepEqual(d.stores.customers, [{ id: 'c1', name: '見本 はなこ' }], 'お客さんはさわらない');
+  for (const [id, syms] of Object.entries(GENERAL_USES)) { assert.ok(DEFAULT_OILS.some((x) => x.id === id), id); for (const s of syms) assert.ok(DEFAULT_SETTINGS.symptoms.some((x) => x.id === s), `${id} の ${s}`); }
 });
