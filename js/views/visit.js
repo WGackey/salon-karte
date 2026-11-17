@@ -136,6 +136,7 @@ export async function visitView(id, step) {
     },
     // ---------- オイルの候補（精油・キャリアオイル） ----------
     seiyu() {
+      let noteOpen = false; // 注意書きは、はじめ閉じておく（0.14.1 がっき〜：読んだあとも出たままだと邪魔）。開いたら、タブを切りかえても開いたまま
       let tab = 'oil', famSel = [...(v.interview.famLikes || [])].filter((id) => S.settings.families.some((f) => f.id === id)), ownedOnly = false;
       const listBox = h('div'); const headBox = h('div', { class: 'step' });
       // 精油とキャリアオイルで同じ形のカードを使う。kind：hit 候補／buy 次に買う／out 外した／rest そのほか
@@ -202,7 +203,7 @@ export async function visitView(id, step) {
         const isOil = tab === 'oil'; const al = allergyNames();
         fill(headBox,
           h('div', { class: 'tabs' }, [['oil', '精油'], ['car', 'キャリアオイル']].map(([id, name]) => h('button', { type: 'button', class: 'tab' + (tab === id ? ' on' : ''), onclick: () => { tab = id; drawHead(); draw(); } }, name))),
-          h('div', { class: 'notice draft' }, isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは、アロマテラピーを学んだときの資料をもとに入れたものです（下書き）。アレルギー体質・敏感肌・はじめて使う人は、腕の内側に1〜2滴ぬって赤くならないか確かめる（パッチテスト）と資料に。候補は目安で、最後に決めるのは施術する人です。'),
+          h('details', { class: 'notice draft fold oilnote', open: noteOpen, ontoggle: (e) => { noteOpen = e.currentTarget.open; } }, h('summary', null, '使う前の注意', h('span', { class: 'tapnote' }, '（押すと開く）')), isOil ? '精油のデータは、アロマテラピーを学んだときの資料をもとに入れたものです。作用は「こんな働きがあると言われる」という分け方で、効くという意味ではありません。候補は目安で、最後に決めるのは施術する人です。' : 'キャリアオイルのデータは、アロマテラピーを学んだときの資料をもとに入れたものです（下書き）。アレルギー体質・敏感肌・はじめて使う人は、腕の内側に1〜2滴ぬって赤くならないか確かめる（パッチテスト）と資料に。候補は目安で、最後に決めるのは施術する人です。'),
           card(h('div', { class: 'facts' },
             isOil ? h('div', null, h('b', null, 'つらいところ：'), iv.symptoms.map((s) => `${symName(s.id)}（${s.level}）`).join('、') || 'なし')
               : [h('div', null, h('b', null, '肌の状態：'), (iv.skins || []).map(skinName).filter(Boolean).join('・') || 'えらんでいません'),

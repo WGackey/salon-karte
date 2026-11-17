@@ -405,3 +405,4 @@ button.thumbs { border: 0; background: none; padding: 0; margin: 0; font: inheri
 .bkband, .homeadd { align-items: center; flex-wrap: wrap; } .bkband .grow, .homeadd .grow { min-width: 220px; }
 .bkband .btn, .homeadd .btn { flex-shrink: 0; } .homeadd { align-items: flex-start; } .homeadd ol { margin: 6px 0; padding-left: 1.4em; }
 .homeadd .grow > * + * { margin-top: 4px; } .quickbk { display: flex; flex-direction: column; gap: 10px; }
+.oilnote { display: block; } .oilnote > summary { min-height: 40px; } .oilnote[open] > summary { margin-bottom: 6px; } .oilnote > summary .tapnote { font-weight: 400; font-size: .85rem; } .oilnote[open] > summary .tapnote { display: none; } /* オイル画面の注意書き（0.14.1）：はじめは1行だけ */
