@@ -1,4 +1,5 @@
 // 計算だけの部品（画面にも保存にも触らない）。tests/ で確かめている。
+import { SYM_SHORT } from './seed.js';
 const pad = (n) => String(n).padStart(2, '0');
 export const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const todayStr = () => ymd(new Date());
@@ -28,7 +29,10 @@ export function maxDrops(limitPct, carrierMl, dropMl) {
   if (limitPct == null || !(limitPct >= 0) || !(carrierMl > 0) || !(dropMl > 0)) return null;
   return Math.floor((limitPct / 100) * carrierMl / dropMl + 1e-9);
 }
-// 部位の目安と、お客さんの状態ごとの目安のうち、いちばん低いものを使う
+// 部位の目安（体・顔・部分ぬり など）と、濃度に使う4つの状態（乳幼児・子ども・高齢・敏感肌）の上限のうち、いちばん低いものを使う。
+// 0.14.1 がっき〜：問診を2つに分けた。濃度を決めるのは この4つだけ。ほかの状態（妊娠・持病など）は精油を外す・⚠ をつける・えらぶためのもの（濃度には使わない）。
+// 前に ほかの状態へ入れた settings.stateLimits の数字は消さずに残っている（使わないだけ）
+export const LIMIT_CONDS = ['c_infant', 'c_child', 'c_old', 'c_skin'];
 // first＝はじめての人の目安で見る（0.11.0）。部位に「はじめての人」の数字（firstMax）があれば、ふつうの数字のかわりにそれを使う
 export function limitFor(settings, areaId, condIds, { first = false } = {}) {
   const parts = [];
@@ -36,7 +40,7 @@ export function limitFor(settings, areaId, condIds, { first = false } = {}) {
   if (area && first && area.firstMax != null) parts.push({ label: area.name + '（はじめての人）', max: area.firstMax, first: true });
   else if (area && area.max != null) parts.push({ label: area.name, max: area.max });
   for (const id of condIds || []) {
-    const m = (settings.stateLimits || {})[id];
+    if (!LIMIT_CONDS.includes(id)) continue; const m = (settings.stateLimits || {})[id];
     if (m != null) { const c = settings.conds.find((x) => x.id === id); parts.push({ label: c ? c.name : id, max: m }); }
   }
   if (!parts.length) return { max: null, parts, area };
@@ -90,8 +94,11 @@ const has = (comp, id) => !!comp && Object.prototype.hasOwnProperty.call(comp, i
 // 資料にない精油（ref === false）は点数に入れない（気をつける点は見る）。
 export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidOilIds, allergyTags, allergyText, settings }) {
   const symName = (id) => (settings.symptoms.find((s) => s.id === id) || {}).name || id;
+  const symShort = (id) => { const n = symName(id), d = SYM_SHORT[id]; return d && d.from === n ? d.short : n; }; // 名前を直していなければ短い呼び名
   const condName = (id) => (settings.conds.find((s) => s.id === id) || {}).name || id;
-  const actName = (id) => ((settings.actions || []).find((a) => a.id === id) || {}).name || id;
+  // 作用：名前を直しても、つながりは番号（a_relax など）なので切れない。一覧から消した作用は使わない（0.14.1：前は消しても点が入り、理由に番号が出ていた）
+  const actOk = (id) => !settings.actions || settings.actions.some((a) => a.id === id);
+  const actName = (id) => ((settings.actions || []).find((a) => a.id === id) || {}).name || '（名前のない作用）';
   const symActs = (id) => (settings.symptoms.find((s) => s.id === id) || {}).acts || {};
   const conds = new Set(condIds || []); const avoid = new Set(avoidOilIds || []);
   const th = settings.cautionPct ?? 10; const unknownBlock = (settings.unknownPct || 'block') === 'block';
@@ -117,10 +124,11 @@ export function pickOils({ oils, cats, symptoms, condIds, autoConds = {}, avoidO
     if (scored) for (const s of symptoms || []) {
       const w = (s.level || 5) / 10;
       for (const [aid, k] of Object.entries(symActs(s.id))) {
-        if (!(k > 0)) continue; const l = link(aid); if (!l) continue;
+        if (!(k > 0) || !actOk(aid)) continue; const l = link(aid); if (!l) continue;
         score += w * k * l.f; reasons.push({ w: w * k * l.f, text: `「${symName(s.id)}」→ ${actName(aid)} ← ${l.text}` });
       }
-      if ((oil.uses || []).includes(s.id)) { score += w; reasons.push({ w, text: `「${symName(s.id)}」← 資料の「OK」・使いどころにある場面` }); }
+      // 精油ごとに えらんだ「この精油を出すつらいところ」（0.14.1 案B）。いちばんの決め手にする（3倍）。つらいところ → 作用 の表（くわしい設定）は、並びの差をつけるだけ
+      if ((oil.uses || []).includes(s.id)) { score += 3 * w; reasons.push({ w: 3 * w, text: `${symShort(s.id)}向き` }); }
     }
     for (const c of oil.okConds || []) if (conds.has(c)) reasons.push({ w: -1, text: `資料の「OK」：「${condName(c)}」にも向いている` });
     // 気をつける点

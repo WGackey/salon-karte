@@ -39,6 +39,14 @@ const SYM = [
   ['s_ichou', 'おなかの調子', { a_digest: 2, a_relax: 1 }], ['s_gekkei', '月経まわりの不快感', { a_relax: 2, a_female: 1, a_flow: 1, a_calm: 1 }],
   ['s_hada', '肌の乾燥', { a_skin: 2, a_itch: 1 }], ['s_hana', '鼻・のどがすっきりしない', { a_breath: 2, a_guard: 1, a_itch: 1 }],
 ];
+// 「〇〇向き」に使う短い呼び名（0.14.1 がっき〜：短くて分かりやすく）。問診のつらいところの名前はそのまま。名前を直した つらいところは、直した名前で「〇〇向き」
+export const SYM_SHORT = {
+  s_kata: { from: '肩こり', short: '肩こり' }, s_kubi: { from: '首のこり', short: '首のこり' }, s_koshi: { from: '腰のつらさ', short: '腰' }, s_senaka: { from: '背中のはり', short: '背中' },
+  s_atama: { from: '頭が重い', short: '頭の重さ' }, s_me: { from: '目の疲れ', short: '目の疲れ' }, s_mukumi: { from: 'むくみ', short: 'むくみ' }, s_hie: { from: '冷え', short: '冷え' },
+  s_tsukare: { from: '疲れ・だるさ', short: '疲れ' }, s_nemuri: { from: '眠りが浅い', short: '眠り' }, s_stress: { from: 'ストレス・緊張', short: 'ストレス' }, s_kibun: { from: '気分が沈みがち', short: '気分' },
+  s_kinniku: { from: '筋肉のはり', short: '筋肉のはり' }, s_ashi: { from: '足の疲れ', short: '足の疲れ' }, s_ichou: { from: 'おなかの調子', short: 'おなか' }, s_gekkei: { from: '月経まわりの不快感', short: '月経まわり' },
+  s_hada: { from: '肌の乾燥', short: '乾燥肌' }, s_hana: { from: '鼻・のどがすっきりしない', short: '鼻・のど' },
+};
 export const DEFAULT_SYM_ACTS = Object.fromEntries(SYM.map(([id, , acts]) => [id, acts]));
 
 // 気をつける状態。when：visit＝来店ごと／person＝お客さんごと／auto＝自動でつく（妊娠の月数から）
@@ -72,11 +80,11 @@ export const DEFAULT_CONSENT_TEXT = `施術を受ける前に、次のことを�
 上のことを読み、説明を受けたうえで、施術を受けることに同意します。`;
 
 export const DEFAULT_PARTS = [
-  { id: 'hand', name: '手', areaId: 'a_part', syms: ['s_hie', 's_mukumi', 's_tsukare', 's_kinniku', 's_hada', 's_stress'] },
-  { id: 'foot', name: '足', areaId: 'a_part', syms: ['s_ashi', 's_mukumi', 's_hie', 's_tsukare', 's_kinniku', 's_hada'] },
-  { id: 'head', name: '頭', areaId: 'a_face', syms: ['s_atama', 's_me', 's_nemuri', 's_stress', 's_kubi', 's_kibun'] }, // 顔に近いので、低いほうの目安（安全側）。設定で直せる
-  { id: 'neck', name: '首・肩', areaId: 'a_body', syms: ['s_kata', 's_kubi', 's_atama', 's_me', 's_kinniku', 's_stress'] },
-  { id: 'back', name: '背中・腰', areaId: 'a_body', syms: ['s_senaka', 's_koshi', 's_kata', 's_kinniku', 's_tsukare'] },
+  { id: 'hand', name: '手', areaId: 'a_part' },
+  { id: 'foot', name: '足', areaId: 'a_part' },
+  { id: 'head', name: '頭', areaId: 'a_face' }, // 顔に近いので、低いほうの目安（安全側）。設定で直せる
+  { id: 'neck', name: '首・肩', areaId: 'a_body' },
+  { id: 'back', name: '背中・腰', areaId: 'a_body' },
 ];
 // 反射区（足の裏の区分け）。一般に知られている大まかな区分けだけの下書きで、確かめていない。名前と色は使う人が直せる。
 // 形（どこにあるか）は parts.js の REFLEX_SHAPES。名前は区分けの名前だけ（「〇〇に効く」とは書かない）。show＝図に重ねて出すか（はじめは出さない）／checked＝使う人が確かめた
@@ -106,7 +114,7 @@ export const DEFAULT_SETTINGS = {
   // 空欄だと埋めるのが大変なので、はじめから入れておく。設定 → 外す決まり で直せる（空けると自動でつけない）
   ageRules: { infant: AGE_RULES.infant, child: AGE_RULES.child, old: AGE_RULES.old },
   // 濃度の目安（精油 ÷ キャリアオイル）。0.10.0 から資料の数字：全身 5％まで・顔 3％まで・部分ぬり ふつう10％まで（資料に「例外あり」）
-  // 資料のメモ：はじめての人・敏感肌は うすめに（数字は書いていない）。子ども・高齢・妊娠中の数字は資料にない → 状態ごとの目安は空のまま
+  // 資料のメモ：はじめての人・敏感肌は うすめに（数字は書いていない）。子ども・高齢・妊娠中の数字は資料にない
   // 0.12.0：体 5％・顔 3％・部分ぬり 10％ は がっき〜が「そのまま」と決めたので、「下書き」のしるし（draft）は付けない
   areas: [
     // firstMax＝はじめての人（来店1回目）の目安（0.11.0・2026-11-16 がっき〜が決めた：体 1％・顔 0.5％）
@@ -115,8 +123,8 @@ export const DEFAULT_SETTINGS = {
     { id: 'a_part', name: '手・足だけ', max: 5, firstMax: 1 }, // 2026-11-16 がっき〜：手・足だけのトリートメントは体と同じ（部分ぬりの10％とは別）
     { id: 'a_spot', name: '部分ぬり（気になるところに少しだけ）', max: 10 },
   ],
-  stateLimits: {}, // 状態ごとの目安（はじめは空。使う人が入れる）
-  // 部位だけのカルテ（手だけ・足だけ など）。図は parts.js。名前・濃度の目安（areas のどれを使うか）・関わる「つらいところ」は設定で直せる
+  stateLimits: {}, // 状態ごとの目安（はじめは空）。0.14.1 から使うのは 乳幼児・子ども・高齢・敏感肌 の4つだけ（logic.js の LIMIT_CONDS）
+  // 部位だけのカルテ（手だけ・足だけ など）。図は parts.js。名前・濃度の目安（areas のどれを使うか）は設定で直せる
   wholeAreaId: 'a_body', // 全身のときの濃度の目安
   parts: DEFAULT_PARTS,
   reflex: DEFAULT_REFLEX,
@@ -253,6 +261,40 @@ export const DEFAULT_OILS = [
   O('o_lemongrass', 'レモングラス', 'f_tree', 'イネ科', { ald: 80, hyd: null, alc: null }, ['sb_limonene', 'sb_mta', 'sb_tald'], ['a_itch', 'a_flow', 'a_heat', 'a_ease', 'a_calm'], ['s_kata', 's_hie']),
   O('o_mandarin', 'マンダリン', 'f_citrus', 'ミカン科', { hyd: 90, est: null, alc: null }, ['sb_limonene', 'sb_linalool', 'sb_est'], ['a_digest', 'a_water', 'a_calm'], ['s_nemuri', 's_tsukare', 's_ichou'], { cautions: ['c_sun'], note: 'アルコール類は「アロマ表」（リナロール）にあり。' }),
 ];
+// 精油ごとの「この精油を出すつらいところ」に、はじめから足しておくもの（0.14.1・案B）。
+// アロマの入門書・検定の教本などで「〜向き」と広く言われている使い方を、つらいところの言葉に当てはめたもの（1冊の表を写したものではない）。
+// 下書き：使う人が 設定 → 精油の一覧 → 精油を開く →「この精油を出すつらいところ」で足したり外したりできる。禁忌（外す・⚠）にはかかわらない（候補の並びだけ）。
+// 資料（がっき〜の資料の「OK」・使いどころ）から入れたものは O(...) の uses。ここはそれに足すぶん
+export const GENERAL_USES = {
+  o_lavender: ['s_nemuri', 's_stress', 's_atama', 's_kata', 's_kubi', 's_kinniku', 's_senaka', 's_me', 's_hada'],
+  o_peppermint: ['s_atama', 's_tsukare', 's_ashi'],
+  o_geranium: ['s_mukumi', 's_gekkei', 's_stress', 's_kibun'],
+  o_helichrysum: ['s_hada'],
+  o_rosemary: ['s_kubi', 's_koshi', 's_senaka', 's_atama', 's_tsukare', 's_hie', 's_mukumi', 's_ashi'],
+  o_orange: ['s_stress', 's_kibun', 's_nemuri'],
+  o_ylang: ['s_nemuri'],
+  o_chamomile_g: ['s_hada', 's_stress'],
+  o_chamomile: ['s_ichou', 's_gekkei', 's_atama'],
+  o_cypress: ['s_ashi', 's_gekkei'],
+  o_sandalwood: ['s_stress', 's_nemuri', 's_hada', 's_hana'],
+  o_neroli: ['s_nemuri'],
+  o_palmarosa: ['s_hada', 's_stress'],
+  o_frankincense: ['s_stress', 's_kibun', 's_hana', 's_hada'],
+  o_lemon: ['s_kibun', 's_tsukare'],
+  o_rose: ['s_kibun'],
+  o_rosewood: ['s_stress'],
+  o_celery: ['s_mukumi'],
+  o_clary: ['s_stress', 's_kibun'],
+  o_juniper: ['s_mukumi', 's_ashi', 's_tsukare'],
+  o_cedar: ['s_stress', 's_hana'],
+  o_myrrh: ['s_hana'],
+  o_euc_citriodora: ['s_kinniku'],
+  o_patchouli: ['s_hada', 's_stress'],
+  o_marjoram: ['s_kata', 's_kubi', 's_koshi', 's_senaka', 's_kinniku', 's_nemuri', 's_ichou', 's_gekkei', 's_hie'],
+  o_lemongrass: ['s_kinniku', 's_tsukare', 's_ashi'],
+  o_mandarin: ['s_stress'],
+};
+for (const o of DEFAULT_OILS) if (GENERAL_USES[o.id]) o.uses = [...new Set([...o.uses, ...GENERAL_USES[o.id]])];
 // 前の下書きにあって、がっき〜の資料にない精油（11本）。新しく入れる端末には入れない。版4への移し替えで「資料にない」（候補の点数に入れない）にして残し、
 // 版11（0.12.0）で、使っている端末からもぜんぶ消す（がっき〜：「資料に無いものは全部消してOK」）。
 export const OLD_ONLY_OILS = {

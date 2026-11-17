@@ -9,7 +9,7 @@ import { signPad } from '../signpad.js';
 import { figureEditor } from '../figedit.js';
 import { lifeFields, birthPicker } from './customer.js';
 import { scopePicker } from '../scopepick.js';
-import { isPart, figsOf, areaForScope, symsForScope, scopeText } from '../parts.js';
+import { isPart, figsOf, areaForScope, scopeText } from '../parts.js';
 
 // ---- 合言葉（数字4けた）を入れるボタン。端末のキーボードは出さない ----
 let wrong = 0, lockUntil = 0;
@@ -105,7 +105,7 @@ export async function guestView() {
   const consent = S.settings.consent || { text: '', ver: 1 };
 
   // 画面の並び。1画面に少しずつ。部分の施術（手だけ など）のときは短い版：連絡先・ふだんの生活は聞かない（からだの状態・アレルギーは省かない）
-  const short = !!v && has('monshin') && isPart(v.scope); const rel = short ? symsForScope(S.settings, v.scope) : [];
+  const short = !!v && has('monshin') && isPart(v.scope);
   const screens = ['hello', ...(has('profile') ? (short ? ['p1', 'p3'] : ['p1', 'p2', 'p3', 'p4']) : []), ...(has('consent') ? ['consent'] : []), ...(has('monshin') ? ['m1', 'm2', 'm3'] : []), 'done'];
   let i = Math.min(g.step || 0, screens.length - 1);
   const q = (title, hint, ...kids) => h('section', { class: 'gcard' }, h('h2', null, title), hint ? h('p', { class: 'ghint' }, hint) : null, kids);
@@ -159,11 +159,9 @@ export async function guestView() {
       const drawSym = () => fill(symBox, ...iv.symptoms.map((s) => h('div', { class: 'symrow' }, h('div', { class: 'symname' }, symName(s.id)), levels(s.level, (n) => { s.level = n; saveV(); }))));
       const drawPreg = () => fill(pregBox, v.conds.includes('c_preg') ? group('いま何か月ですか', chips([...Array(10)].map((_, k) => ({ id: k + 1, name: `${k + 1}か月` })), v.pregMonth || '', { multi: false, onChange: (m) => { v.pregMonth = m || null; saveV(); } })) : null);
       drawSym(); drawPreg();
-      let moreSym = false; const symChipBox = h('div');
+      const symChipBox = h('div'); // つらいところは、部分の施術でも いつもぜんぶ出す（0.14.1）
       const drawSymChips = () => {
-        const list = short && !moreSym ? S.settings.symptoms.filter((s) => rel.includes(s.id) || iv.symptoms.some((x) => x.id === s.id)) : S.settings.symptoms;
-        fill(symChipBox, chips(list, iv.symptoms.map((s) => s.id), { onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); saveV(); } }),
-          short && !moreSym && list.length < S.settings.symptoms.length ? btn('ほかにも気になることがある', () => { moreSym = true; drawSymChips(); }, 'chip ghostchip moresym') : null);
+        fill(symChipBox, chips(S.settings.symptoms, iv.symptoms.map((s) => s.id), { onChange: (ids) => { iv.symptoms = ids.map((sid) => iv.symptoms.find((s) => s.id === sid) || { id: sid, level: 5 }); drawSym(); saveV(); } }));
       };
       drawSymChips();
       return { title: '今日のおからだの調子', body: [

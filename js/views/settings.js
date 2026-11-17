@@ -6,7 +6,7 @@ import { h, fill, page, card, btn, badge, go, chips, field, group, input, textar
 import { S, saveSettings, saveMaster, deleteMaster, reload, hasPin, askPersist, markBackedUp } from '../state.js';
 import { choosePin, askPin } from './guest.js';
 import * as db from '../db.js';
-import { todayStr, daysBetween, ymd, jpDate, TRAITS, backupName } from '../logic.js';
+import { todayStr, daysBetween, ymd, jpDate, TRAITS, backupName, LIMIT_CONDS } from '../logic.js';
 import { makeBackupText, readBackupHead, restoreBackup, handOver } from '../backup.js';
 import { addSamples, removeSamples } from '../sample.js';
 import { notFound } from './customer.js';
@@ -23,23 +23,25 @@ export function settingsView() {
   const own = S.oils.filter((o) => o.owned).length;
   return page({
     title: '設定', back: '#/', body: [
-      card(h('h2', null, 'アロマ'), h('div', { class: 'list' },
-        link('#/set/oils', '精油の一覧と手持ち', `${S.oils.length}本（手持ち ${own}本）`),
-        link('#/set/carriers', 'キャリアオイルの一覧と手持ち', `${S.carriers.length}種類（手持ち ${S.carriers.filter((o) => o.owned).length}種類）`),
-        link('#/set/limits', '濃度の目安・1滴の量', '部位ごと・お客さんの状態ごとの上限'),
-        link('#/set/symacts', 'つらいところと作用のつながり（重み）', '候補の1段目：つらいところ → 作用。重みに差をつけられる'),
-        link('#/set/actions', '作用（働き）の一覧', `${(S.settings.actions || []).length}個。資料の作用の名前をまとめたもの`),
-        link('#/set/cats', '精油の成分の分類と成分（作用・気をつける状態）', '候補の2段目：作用 → 成分。分類ごとの注意'),
-        link('#/set/rules', '外す決まり（割合・年齢）', `気をつける成分が ${S.settings.cautionPct ?? 10}％以上・割合が分からないとき・年齢`),
-        link('#/set/fats', 'キャリアオイルの成分（向いている肌の状態）', 'キャリアオイルの候補を出すもとになる表'))),
       card(h('h2', null, 'カルテ'), h('div', { class: 'list' },
         link('#/set/consent', '同意書と注意事項', `お客さんにサインしてもらう文（いまの文は版 ${(S.settings.consent || {}).ver || 1}）`),
         link('#/set/handover', 'お客さんに渡すとき（合言葉）', hasPin() ? '合言葉：決めてあります' : '合言葉：まだ決めていません'),
         link('#/set/menus', '施術メニュー', `${S.menus.length}個。メニューごとに「施術するところ（全身・手だけ など）」を決められる`),
-        link('#/set/parts', '部位（手だけ・足だけ などのカルテ）', '部位の名前・濃度の目安・関わる「つらいところ」'),
+        link('#/set/parts', '部位（手だけ・足だけ などのカルテ）', '部位の名前・濃度の目安'),
         link('#/set/reflex', '反射区（足の裏の区分け）', `足の裏の図に重ねる区分け。いまは「${(S.settings.reflex || {}).show ? '出す' : '出さない'}」・${(S.settings.reflex || {}).checked ? '確かめた' : '下書き（確かめていません）'}`),
         link('#/set/lists', 'えらぶ言葉を直す', '症状・肌の状態・アレルギー・目的・香りの好み・お仕事 など'),
         link('#/set/salon', 'お店の名前・施術する人の名前', [S.settings.salonName, S.settings.staffName].filter(Boolean).join('・') || '（まだ入っていません）'))),
+      card(h('h2', null, 'アロマ'), h('div', { class: 'list' },
+        link('#/set/oils', '精油の一覧と手持ち', `${S.oils.length}本（手持ち ${own}本）`),
+        link('#/set/carriers', 'キャリアオイルの一覧と手持ち', `${S.carriers.length}種類（手持ち ${S.carriers.filter((o) => o.owned).length}種類）`),
+        link('#/set/limits', '濃度の目安・1滴の量', '部位ごと・乳幼児／子ども／高齢／敏感肌 の上限'),
+        link('#/set/cats', '精油の成分の分類と成分（作用・気をつける状態）', '候補の2段目：作用 → 成分。分類ごとの注意'),
+        link('#/set/fats', 'キャリアオイルの成分（向いている肌の状態）', 'キャリアオイルの候補を出すもとになる表'),
+        link('#/set/rules', '外す決まり（割合・年齢）', `気をつける成分が ${S.settings.cautionPct ?? 10}％以上・割合が分からないとき・年齢`))),
+      h('details', { class: 'card fold' }, h('summary', null, 'くわしい設定（ふだんは触らなくて大丈夫）'),
+        h('p', { class: 'hint' }, '候補の並びをもっと細かく決めたい人向けです。ふだんは、精油ごとの「この精油を出すつらいところ」で足りるようにしてあります。'),
+        h('div', { class: 'list' }, link('#/set/symacts', 'つらいところと作用のつながり（重み）', 'つらいところ → 作用 → 成分 で、並びに少し差をつける'),
+          link('#/set/actions', '作用（働き）の一覧', `${(S.settings.actions || []).length}個。働きの名前（ふだんの言葉）を直せる`))),
       card(h('h2', null, 'データ'), h('div', { class: 'list' },
         link('#/set/backup', 'バックアップ（書き出し・戻し）', `データは ${HERE} の中だけにあります。こまめに書き出してね`),
         link('#/set/sample', '見本のデータ', '速さを試すための、作りもののお客さん'),
@@ -103,12 +105,13 @@ export function oilEditView(id) {
       card(field('名前', input(o, 'name')), group('香りの系統', chips(st.families, o.family || '', { multi: false, onChange: (v) => { o.family = v || ''; } }), 'もう一度押すと外れます（未記入）'),
         field('植物の科（資料の「種類」）', input(o, 'plant', { placeholder: '未記入' })),
         h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: o.owned, onchange: (e) => { o.owned = e.target.checked; } }), '手持ち（持っている）')),
+      card(h('h2', null, 'この精油を出すつらいところ'), h('p', { class: 'hint' }, '問診でえらんだ「つらいところ」がここにあると、オイルの画面で この精油が上に出ます（「肩こり向き」のように出ます）。はじめは、資料と、一般に言われている使い方を入れてあります（下書き）。足したり外したりできます。'),
+        chips(st.symptoms, o.uses, { onChange: (v) => { o.uses = v; } })),
       card(h('h2', null, '成分の分類と割合'), h('p', { class: 'hint' }, '資料に割合がないときは「入っている」にして、数字は空けたままに（もっともらしく埋めない）。'),
         S.cats.map(compRow), total),
       card(h('h2', null, '入っている成分（アロマ表）'), h('p', { class: 'hint' }, 'えらんだ成分の作用が、候補の「なぜ出たか」になります。'),
         S.cats.filter((c) => (c.subs || []).length).map((c) => group(c.name, chips(c.subs, o.subs, { onChange: (v) => { o.subs = [...o.subs.filter((x) => !c.subs.some((sb) => sb.id === x)), ...v]; } })))),
       card(group('この精油の作用（資料の「効能」）', chips(st.actions || [], o.actions, { onChange: (v) => { o.actions = v; } })),
-        group('向いている場面（資料の「OK」・使いどころ）', chips(st.symptoms, o.uses, { onChange: (v) => { o.uses = v; } })),
         group('向いている状態（資料の「OK」）', chips(condItems, o.okConds, { onChange: (v) => { o.okConds = v; } }), '候補の「なぜ出たか」に出します。外す判定には使いません')),
       card(group('使わない状態（資料の「NG」）', chips(condItems, o.cautions, { onChange: (v) => { o.cautions = v; } }), 'あてはまるお客さんには、候補から外して理由を見せます'),
         group('気をつける状態（外さずに ⚠ をつける）', chips(condItems, o.warns, { onChange: (v) => { o.warns = v; } }), '例：「敏感肌（うすめればよい）」「アトピー（注意）」'),
@@ -259,13 +262,12 @@ export function partsView() {
   return page({
     title: '部位（手だけ・足だけ などのカルテ）', back: '#/set', body: [
       AUTO_NOTE(),
-      h('p', { class: 'hint' }, '来店ごとに「全身／部分」をえらべます。部分のときは、その部位の大きな図に切りかわり、問診が短くなり、濃度の目安もここで決めたものに切りかわります。濃度の数字そのものは 設定 → 濃度の目安 で直します。'),
+      h('p', { class: 'hint' }, '来店ごとに「全身／部分」をえらべます。部分のときは、その部位の大きな図に切りかわり、問診が短くなり、濃度の目安もここで決めたものに切りかわります。問診の「つらいところ」は、全身でも部分でも いつもぜんぶ出します。濃度の数字そのものは 設定 → 濃度の目安 で直します。'),
       card(h('h2', null, '全身'), group('濃度の目安', chips(areaItems(), st.wholeAreaId || '', { multi: false, onChange: (x) => { st.wholeAreaId = x; save(); } }))),
       st.parts.filter((pt) => PART_FIGS[pt.id]).map((pt) => card(h('h2', null, pt.name || '（名前なし）'),
         field('部位の名前', input(pt, 'name', { onInput: save })),
         h('p', { class: 'muted small' }, '図：' + PART_FIGS[pt.id].map((f) => FIGS[f].name).join('・')),
-        group('濃度の目安', chips(areaItems(), pt.areaId || '', { multi: false, onChange: (x) => { pt.areaId = x; save(); } }), 'いくつかの部位をいっしょにえらんだときは、目安のいちばん低いものを使います'),
-        group('関わる「つらいところ」（短い問診で先に出す）', chips(st.symptoms, pt.syms || [], { onChange: (x) => { pt.syms = x; save(); } }), 'ここにないものも、問診の「ほかのつらいところも出す」でえらべます'))),
+        group('濃度の目安', chips(areaItems(), pt.areaId || '', { multi: false, onChange: (x) => { pt.areaId = x; save(); } }), 'いくつかの部位をいっしょにえらんだときは、目安のいちばん低いものを使います'))),
     ],
   });
 }
@@ -287,11 +289,12 @@ export function limitsView() {
   return page({
     title: '濃度の目安・1滴の量', back: '#/set', body: [
       AUTO_NOTE(),
-      h('div', { class: 'notice' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 5％・顔 3％・部分ぬり 10％」は、アロマテラピーを学んだときの資料の数字です。手・足だけのトリートメントは体と同じ 5％。はじめての人（1回目の来店）は「体 1％・顔 0.5％・手・足 1％」で、ブレンドの画面ではじめからこちらで色が変わります（1タップでふつうの目安と切りかえ）。子ども・高齢・妊娠中の数字は資料にないので空けてあります。自分の資料・お店に合わせて、いつでも直せます。空けたところは「目安なし」になります。'),
+      h('div', { class: 'notice' }, '濃度の目安は、流派や資料によってちがいます。はじめの「体 5％・顔 3％・部分ぬり 10％」は、アロマテラピーを学んだときの資料の数字です。手・足だけのトリートメントは体と同じ 5％。はじめての人（1回目の来店）は「体 1％・顔 0.5％・手・足 1％」で、ブレンドの画面ではじめからこちらで色が変わります（1タップでふつうの目安と切りかえ）。自分の資料・お店に合わせて、いつでも直せます。空けたところは「目安なし」になります。'),
       card(h('h2', null, '濃度の出し方'), h('p', null, '濃度（％）＝ 精油の量 ÷ キャリアオイルの量 × 100'), h('p', { class: 'hint' }, '例：キャリアオイル 30ml に、精油 6滴（1滴 0.05ml なら 0.3ml）→ 1％。「この量なら○滴まで」も同じ式で出しています。')),
       card(h('h2', null, '部位ごとの上限'), areaBox, h('div', { class: 'row' }, btn('＋ 部位を足す', () => { st.areas.push({ id: db.uid(), name: '', max: null }); save(); drawAreas(); }))),
-      card(h('h2', null, 'お客さんの状態ごとの上限'), h('p', { class: 'hint' }, 'あてはまるお客さんでは、部位の上限とくらべて低いほうを使います。はじめは空けてあります。'),
-        st.conds.map((c) => h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, c.name), h('span', { class: 'row tight' }, numIn(st.stateLimits, c.id, { onInput: () => { if (st.stateLimits[c.id] == null) delete st.stateLimits[c.id]; save(); }, placeholder: '空き' }), '％まで')))),
+      card(h('h2', null, '乳幼児・子ども・高齢・敏感肌 の上限'), h('p', { class: 'hint' }, 'この4つにあてはまるお客さんは、部位の上限とくらべて低いほうを使います。空けると、部位の上限のままです。はじめは空けてあります（資料に数字がないため）。'),
+        LIMIT_CONDS.map((cid) => st.conds.find((c) => c.id === cid)).filter(Boolean).map((c) => h('div', { class: 'edit-row' }, h('div', { class: 'grow' }, c.name), h('span', { class: 'row tight' }, numIn(st.stateLimits, c.id, { onInput: () => { if (st.stateLimits[c.id] == null) delete st.stateLimits[c.id]; save(); }, placeholder: '空き' }), '％まで'))),
+        h('p', { class: 'hint' }, 'ほかの状態（妊娠中・持病 など）は濃度には使いません。使わない精油を外したり ⚠ をつけたり、合う精油をえらんだりするために確かめています。お客さんごとの濃度は、この上限の中で、ブレンドの画面で施術する人が決めます。')),
       card(h('h2', null, '1滴の量'), h('div', { class: 'row tight' }, numIn(st, 'dropMl', { onInput: () => { if (!(st.dropMl > 0)) return; save(); } }), 'ml'), h('p', { class: 'hint' }, 'びんの口（ドロッパー）によってちがいます。はじめは 0.05ml。')),
     ],
   });
@@ -370,11 +373,11 @@ export function actionsView() {
   const draw = () => fill(box, ...st.actions.map((a) => h('div', { class: 'card' },
     h('div', { class: 'row' }, input(a, 'name', { onInput: save, cls: 'grow', placeholder: '作用の名前（ふだんの言葉で）' }),
       btn('×', async () => { if (await confirmDlg(`作用「${a.name}」を消します。成分・精油・つらいところとのつながりも使われなくなります。`, '消す', true)) { st.actions = st.actions.filter((x) => x !== a); save(); draw(); } }, 'ghost round')),
-    field('資料での呼び方', input(a, 'terms', { onInput: save, placeholder: '例：鎮静・神経安定' })))),
+    a.terms ? h('p', { class: 'small muted' }, '資料での呼び方（見るだけ）：', a.terms) : null)), // 0.14.1：呼び方は見るだけ（どこにも使っていないメモ。書きかえて迷わないように）
   h('div', { class: 'row' }, btn('＋ 作用を足す', () => { st.actions.push({ id: db.uid(), name: '', terms: '' }); save(); draw(); })));
   draw();
   return page({ title: '作用（働き）の一覧', back: '#/set', body: [AUTO_NOTE(),
-    h('p', { class: 'hint' }, '資料にある作用の名前を、ふだんの言葉のまとまりに分けたものです。「こんな働きがあると言われる」という分け方で、「効く」という意味ではありません。お客さんに見せる言葉にも使います。'), box] });
+    h('p', { class: 'hint' }, '資料にある作用の名前を、ふだんの言葉のまとまりに分けたものです。「こんな働きがあると言われる」という分け方で、「効く」という意味ではありません。名前を直しても、成分・精油・つらいところとのつながりは切れません（オイルの画面の理由に出る名前が変わるだけ）。消すと、その働きは候補の並びに使われなくなります。'), box] });
 }
 // ---- つらいところ → 作用 の重み ----
 export function symActsView() {

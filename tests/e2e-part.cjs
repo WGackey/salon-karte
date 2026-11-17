@@ -46,9 +46,8 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   assert.equal(await p.getByText('今日の目的', { exact: true }).count(), 0, '短い問診：今日の目的は出ない'); assert.equal(await p.getByText('くらしのようす（睡眠・食事・仕事など）').count(), 0);
   assert.ok(await p.locator('.checkbox.has').textContent().then((t) => t.includes('ナッツ類') && t.includes('敏感肌')), 'アレルギーとからだの状態の確かめは省かない');
   assert.ok(await p.getByText('妊娠中', { exact: true }).count(), '気をつける状態（今日の状態）は省かない');
-  const nSym = await p.locator('.step .card', { hasText: 'つらいところ' }).locator('.chips .chip:not(.moresym)').count(); assert.ok(nSym > 0 && nSym < 18, '部位に関わるつらいところだけ：' + nSym);
+  assert.equal(await p.locator('.step .card', { hasText: 'つらいところ' }).locator('.chips .chip').count(), 18, '部分の施術でも、つらいところはいつもぜんぶ出す（0.14.1）'); assert.equal(await p.locator('.moresym').count(), 0);
   await tap('冷え'); await tap('むくみ'); await shot('02-monshin-hand');
-  await p.locator('.moresym').tap(); assert.equal(await p.locator('.step .card', { hasText: 'つらいところ' }).locator('.chips .chip').count(), 18, 'ほかのつらいところも出せる');
   await tap('ぜんぶの項目を出す'); assert.ok(await p.getByText('今日の目的', { exact: true }).count(), 'ぜんぶの項目に切りかえられる'); await tap('短い問診にもどす');
   // 気になるところ：手の図4つ
   await tap('次へ：気になるところ ›'); await p.waitForSelector('.zu.guest .bodypad.pt');
@@ -75,7 +74,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   // 2回目：お客さんに渡す（足だけ）。短い版
   await p.locator('.foot .handbtn').tap(); await p.waitForSelector('.sheet .scopepick'); await p.locator('.sheet .scopesel .chip', { hasText: '足' }).tap(); await shot('11-handover'); await p.locator('.sheet .chips.col .chip', { hasText: '同意書とサイン' }).tap();
   await tap('この内容で、お客さんに渡す'); await p.waitForSelector('.pinwrap'); await pad.pin(); await p.waitForSelector('text=もう一度、同じ数字を'); await pad.pin(); await p.waitForSelector('.guestmode');
-  await tap('はじめる'); await p.waitForSelector('text=つらいところ・気になること'); assert.ok(await p.getByText('足の疲れ').count()); assert.equal(await p.getByText('肩こり', { exact: true }).count(), 0, 'お客さん用も、足に関わるものだけ先に'); await shot('12-guest-m1');
+  await tap('はじめる'); await p.waitForSelector('text=つらいところ・気になること'); assert.ok(await p.getByText('足の疲れ').count()); assert.equal(await p.getByText('肩こり', { exact: true }).count(), 1, 'お客さん用も、足だけのときでも つらいところはぜんぶ出す（0.14.1）'); await shot('12-guest-m1');
   await tap('足の疲れ'); await tap('つぎへ ›'); await p.waitForSelector('.guestmode .bodypad.pt');
   assert.deepEqual(await p.locator('.guestmode .padname').allTextContents(), ['右足の裏', '左足の裏', '左足の甲', '右足の甲']);
   assert.equal(await p.locator('.guestmode .strokes .notouch').count(), 0, '手の × は、足の図には出ない');
@@ -88,7 +87,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
   await p.goto(BASE + '#/set/menus'); await p.waitForSelector('.menuscope'); await shot('16-set-menus');
   await p.locator('.edit-row').nth(0).locator('.menuscope .chip', { hasText: '背中・腰' }).tap(); await p.waitForTimeout(300);
   assert.deepEqual(await p.evaluate(async () => (await (await import('./js/db.js')).get('menus', 'mn_1')).scope), { type: 'part', parts: ['back'] });
-  await p.goto(BASE + '#/set/parts'); await p.waitForSelector('text=関わる「つらいところ」（短い問診で先に出す）'); await shot('17-set-parts'); await pad.noOverflow('部位の設定');
+  await p.goto(BASE + '#/set/parts'); await p.waitForSelector('text=いくつかの部位をいっしょにえらんだときは'); assert.equal(await p.getByText('関わる「つらいところ」').count(), 0, '部位ごとのつらいところの設定はやめた（0.14.1）'); await shot('17-set-parts'); await pad.noOverflow('部位の設定');
   // 頭・首肩・背中の図
   await p.goto(BASE + '#/'); await p.waitForSelector('.home-top');
   const vid = v.id; await p.evaluate(async (id) => { const db = await import('./js/db.js'); const x = await db.get('visits', id); x.scope = { type: 'part', parts: ['head', 'neck', 'back'] }; await db.put('visits', x); }, vid);
@@ -100,7 +99,7 @@ const visitOf = (p) => p.evaluate(async () => { const db = await import('./js/db
     await db.batch(['menus', 'visits', 'meta'], (os) => { ms.forEach((m) => os.menus.put(m)); vs.forEach((x) => os.visits.put(x)); os.meta.put({ key: 'settings', value: st }); os.meta.put({ key: 'dataVersion', value: 5 }); }); });
   await p.reload(); await p.waitForSelector('.home-top');
   const mig = await p.evaluate(async () => { const db = await import('./js/db.js'); const st = await db.getMeta('settings'); return { ver: await db.getMeta('dataVersion'), parts: st.parts.length, menus: (await db.all('menus')).map((m) => m.scope), n: (await db.all('visits')).length }; });
-  assert.deepEqual(mig, { ver: 11, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
+  assert.deepEqual(mig, { ver: 12, parts: 5, menus: [null, null, null, null, null], n: 2 }, '版5 → 版6：' + JSON.stringify(mig));
   await p.goto(BASE + `#/v/${vid}/monshin`); await p.waitForSelector('.scopepick'); assert.ok(await p.locator('.scopesel .wholechip.on').count(), '0.6.0 のカルテは全身として開く');
 
   // ---------- ② 経過のページ ----------
